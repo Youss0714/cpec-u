@@ -1,4 +1,4 @@
-import { ReactNode } from "react";
+import { ReactNode, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { useGetCurrentUser, useLogout } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
@@ -41,6 +41,18 @@ export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
     },
   });
 
+  const needsLogin = !isLoading && (isError || !user);
+  const wrongRole = !isLoading && user && !allowedRoles.includes(user.role);
+  const redirectTarget = wrongRole && user ? (user.role === "admin" ? "/admin" : `/${user.role}`) : null;
+
+  useEffect(() => {
+    if (needsLogin) setLocation("/login");
+  }, [needsLogin]);
+
+  useEffect(() => {
+    if (redirectTarget) setLocation(redirectTarget);
+  }, [redirectTarget]);
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -49,13 +61,7 @@ export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
     );
   }
 
-  if (isError || !user) {
-    setLocation("/login");
-    return null;
-  }
-
-  if (!allowedRoles.includes(user.role)) {
-    setLocation(user.role === "admin" ? "/admin" : `/${user.role}`);
+  if (needsLogin || wrongRole) {
     return null;
   }
 
