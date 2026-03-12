@@ -314,3 +314,8 @@ summary,
 [tabindex]:not([tabindex="-1"]) {
   cursor: pointer;
 }
+
+@keyframes farewell-progress {
+  from { width: 0%; }
+  to { width: 100%; }
+}

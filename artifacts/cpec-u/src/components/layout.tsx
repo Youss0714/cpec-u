@@ -1,4 +1,4 @@
-import { ReactNode, useEffect } from "react";
+import { ReactNode, useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useGetCurrentUser, useLogout } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
@@ -24,6 +24,10 @@ import {
 } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle,
+  DialogDescription, DialogFooter,
+} from "@/components/ui/dialog";
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -35,11 +39,25 @@ export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
   const { data: user, isLoading, isError } = useGetCurrentUser({
     query: { retry: false } as any,
   });
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [showFarewell, setShowFarewell] = useState(false);
+
   const logoutMutation = useLogout({
     mutation: {
       onSuccess: () => setLocation("/login"),
     },
   });
+
+  const handleLogoutConfirm = () => {
+    setShowLogoutConfirm(false);
+    const subRole = (user as any)?.adminSubRole;
+    if (subRole === "directeur") {
+      setShowFarewell(true);
+      setTimeout(() => logoutMutation.mutate(), 2800);
+    } else {
+      logoutMutation.mutate();
+    }
+  };
 
   const needsLogin = !isLoading && (isError || !user);
   const wrongRole = !isLoading && user && !allowedRoles.includes(user.role);
@@ -200,7 +218,7 @@ export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
         <Button
           variant="outline"
           className="w-full justify-start text-sidebar-foreground border-sidebar-border hover:bg-destructive hover:text-destructive-foreground hover:border-destructive transition-colors"
-          onClick={() => logoutMutation.mutate()}
+          onClick={() => setShowLogoutConfirm(true)}
           disabled={logoutMutation.isPending}
         >
           <LogOut className="w-4 h-4 mr-2" />
@@ -240,6 +258,50 @@ export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
           {children}
         </div>
       </main>
+
+      {/* Logout confirmation dialog */}
+      <Dialog open={showLogoutConfirm} onOpenChange={setShowLogoutConfirm}>
+        <DialogContent className="max-w-sm text-center">
+          <DialogHeader>
+            <DialogTitle className="text-center">Confirmer la déconnexion</DialogTitle>
+            <DialogDescription className="text-center pt-1">
+              Êtes-vous sûr(e) de vouloir vous déconnecter ?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex gap-2 justify-center pt-2 sm:justify-center">
+            <Button variant="outline" onClick={() => setShowLogoutConfirm(false)}>
+              Annuler
+            </Button>
+            <Button variant="destructive" onClick={handleLogoutConfirm}>
+              <LogOut className="w-4 h-4 mr-2" />
+              Déconnexion
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Farewell overlay — directeur only */}
+      {showFarewell && (
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-background/95 backdrop-blur-sm animate-in fade-in duration-500">
+          <div className="flex flex-col items-center gap-6 text-center px-8">
+            <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center text-primary text-4xl font-bold">
+              {user?.name?.charAt(0) ?? "D"}
+            </div>
+            <div className="space-y-2">
+              <p className="text-3xl font-serif font-bold text-foreground">
+                À bientôt Monsieur le DG
+              </p>
+              <p className="text-muted-foreground text-sm">Déconnexion en cours…</p>
+            </div>
+            <div className="w-48 h-1.5 rounded-full bg-muted overflow-hidden">
+              <div
+                className="h-full bg-primary rounded-full"
+                style={{ animation: "farewell-progress 2.8s linear forwards" }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
