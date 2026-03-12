@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { AppLayout } from "@/components/layout";
-import { useListUsers, useCreateUser, useDeleteUser, useListClasses } from "@workspace/api-client-react";
+import { useListUsers, useCreateUser, useDeleteUser, useListClasses, useGetCurrentUser } from "@workspace/api-client-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -32,6 +32,8 @@ export default function AdminUsers() {
   const [roleFilter, setRoleFilter] = useState<string>("all");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedRole, setSelectedRole] = useState<string>("student");
+  const { data: currentUser } = useGetCurrentUser();
+  const isPlanificateur = (currentUser as any)?.adminSubRole === "planificateur";
   const { data: users, isLoading } = useListUsers();
   const { data: classes } = useListClasses();
   const createUser = useCreateUser();
@@ -235,9 +237,11 @@ export default function AdminUsers() {
                         )}
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button variant="ghost" size="icon" onClick={() => handleDelete(user.id)} className="text-destructive hover:bg-destructive/10">
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
+                        {!(isPlanificateur && user.role === "admin") && (
+                          <Button variant="ghost" size="icon" onClick={() => handleDelete(user.id)} className="text-destructive hover:bg-destructive/10">
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        )}
                       </TableCell>
                     </TableRow>
                   );

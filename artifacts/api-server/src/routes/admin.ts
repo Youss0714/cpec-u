@@ -141,6 +141,17 @@ router.put("/users/:id", requireRole("admin"), async (req, res) => {
 router.delete("/users/:id", requireRole("admin"), async (req, res) => {
   try {
     const id = parseInt(req.params.id);
+    const currentUser = req.session.user!;
+
+    // Un planificateur ne peut pas supprimer un autre admin
+    if (currentUser.adminSubRole === "planificateur") {
+      const [target] = await db.select().from(usersTable).where(eq(usersTable.id, id));
+      if (target && target.role === "admin") {
+        res.status(403).json({ error: "Un responsable pédagogique ne peut pas supprimer un administrateur." });
+        return;
+      }
+    }
+
     await db.delete(usersTable).where(eq(usersTable.id, id));
     res.json({ message: "User deleted" });
   } catch (err) {
