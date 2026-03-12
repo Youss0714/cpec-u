@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { AppLayout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -111,8 +111,13 @@ export default function AdminSchedules() {
   const [form, setForm] = useState(emptyForm);
   const [viewMode, setViewMode] = useState<ViewMode>("1week");
   const [startDate, setStartDate] = useState<Date>(getMondayOfCurrentWeek);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   const numWeeks = viewMode === "1week" ? 1 : viewMode === "2weeks" ? 2 : 4;
+
+  useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollLeft = 0;
+  }, [startDate, viewMode]);
 
   const weeks = useMemo(() =>
     Array.from({ length: numWeeks }, (_, i) => addDays(startDate, i * 7)),
@@ -499,13 +504,21 @@ export default function AdminSchedules() {
           </Button>
         </div>
 
-        {/* Schedule grid */}
+        {/* Schedule grid — horizontal scroll snap */}
         {isLoading ? (
           <p className="text-muted-foreground text-center py-8">Chargement...</p>
         ) : (
-          <div className="space-y-6">
+          <div
+            ref={scrollRef}
+            className="flex overflow-x-auto gap-8 pb-4 -mx-1 px-1"
+            style={{ scrollSnapType: "x mandatory", scrollBehavior: "smooth" }}
+          >
             {weeks.map((weekStart, wi) => (
-              <div key={wi}>
+              <div
+                key={wi}
+                className="flex-none w-full"
+                style={{ scrollSnapAlign: "start" }}
+              >
                 {numWeeks > 1 && (
                   <div className="flex items-center gap-3 mb-3">
                     <div className="h-px flex-1 bg-border" />

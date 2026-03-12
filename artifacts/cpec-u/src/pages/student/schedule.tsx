@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { AppLayout } from "@/components/layout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -62,8 +62,13 @@ export default function StudentSchedule() {
   const [filterSemester, setFilterSemester] = useState<string>("all");
   const [viewMode, setViewMode] = useState<ViewMode>("1week");
   const [startDate, setStartDate] = useState<Date>(getMondayOfCurrentWeek);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   const numWeeks = viewMode === "1week" ? 1 : viewMode === "2weeks" ? 2 : 4;
+
+  useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollLeft = 0;
+  }, [startDate, viewMode]);
 
   const weeks = useMemo(() =>
     Array.from({ length: numWeeks }, (_, i) => addDays(startDate, i * 7)),
@@ -205,19 +210,21 @@ export default function StudentSchedule() {
               </Button>
             </div>
 
-            {/* Schedule grid */}
+            {/* Schedule grid — horizontal scroll snap */}
             {isLoading ? (
               <p className="text-muted-foreground text-center py-8">Chargement...</p>
-            ) : filteredEntries.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
-                <CalendarDays className="w-10 h-10 mb-3 opacity-30" />
-                <p className="text-sm font-medium">Aucun cours publié pour cette période.</p>
-                <p className="text-xs mt-1">L'emploi du temps n'a pas encore été publié par l'administration.</p>
-              </div>
             ) : (
-              <div className="space-y-6">
+              <div
+                ref={scrollRef}
+                className="flex overflow-x-auto gap-8 pb-4 -mx-1 px-1"
+                style={{ scrollSnapType: "x mandatory", scrollBehavior: "smooth" }}
+              >
                 {weeks.map((weekStart, wi) => (
-                  <div key={wi}>
+                  <div
+                    key={wi}
+                    className="flex-none w-full"
+                    style={{ scrollSnapAlign: "start" }}
+                  >
                     {numWeeks > 1 && (
                       <div className="flex items-center gap-3 mb-3">
                         <div className="h-px flex-1 bg-border" />
@@ -227,11 +234,19 @@ export default function StudentSchedule() {
                         <div className="h-px flex-1 bg-border" />
                       </div>
                     )}
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                      {[1, 2, 3, 4, 5, 6].map((day) => (
-                        <DayCard key={day} day={day} weekStart={weekStart} />
-                      ))}
-                    </div>
+                    {filteredEntries.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+                        <CalendarDays className="w-10 h-10 mb-3 opacity-30" />
+                        <p className="text-sm font-medium">Aucun cours publié.</p>
+                        <p className="text-xs mt-1">L'emploi du temps n'a pas encore été publié.</p>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                        {[1, 2, 3, 4, 5, 6].map((day) => (
+                          <DayCard key={day} day={day} weekStart={weekStart} />
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
