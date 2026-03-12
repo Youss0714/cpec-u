@@ -70,6 +70,10 @@ router.post("/users", requireRole("admin"), async (req, res) => {
       res.status(403).json({ error: "Forbidden", message: "Seul le Directeur du Centre peut créer un compte administrateur." });
       return;
     }
+    if (role === "teacher" && cu?.adminSubRole === "scolarite") {
+      res.status(403).json({ error: "Forbidden", message: "L'Assistant(e) de Direction ne peut créer que des comptes étudiants." });
+      return;
+    }
     const passwordHash = hashPassword(password);
     const [user] = await db.insert(usersTable).values({
       email, name, passwordHash, role,

@@ -153,7 +153,9 @@ export default function AdminUsers() {
                             </div>
                           </SelectItem>
                         )}
-                        <SelectItem value="teacher">Enseignant</SelectItem>
+                        {(isDirecteur || isPlanificateur) && (
+                          <SelectItem value="teacher">Enseignant</SelectItem>
+                        )}
                         <SelectItem value="student">Étudiant</SelectItem>
                       </SelectContent>
                     </Select>
