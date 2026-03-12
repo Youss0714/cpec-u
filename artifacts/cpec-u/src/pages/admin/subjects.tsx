@@ -31,7 +31,7 @@ export default function AdminSubjects() {
           name: formData.get("name") as string,
           coefficient: parseFloat(formData.get("coefficient") as string),
           description: formData.get("description") as string || undefined,
-          classId: classIdStr ? parseInt(classIdStr) : undefined
+          classId: classIdStr && classIdStr !== "none" ? parseInt(classIdStr) : undefined
         }
       });
       toast({ title: "Matière créée" });
@@ -89,7 +89,7 @@ export default function AdminSubjects() {
                       <SelectValue placeholder="Générique" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Toutes les classes</SelectItem>
+                      <SelectItem value="none">Toutes les classes</SelectItem>
                       {classes?.map(c => (
                         <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>
                       ))}
