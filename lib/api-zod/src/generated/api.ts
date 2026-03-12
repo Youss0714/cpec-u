@@ -28,6 +28,7 @@ export const LoginResponse = zod.object({
     email: zod.string(),
     name: zod.string(),
     role: zod.enum(["admin", "teacher", "student"]),
+    adminSubRole: zod.enum(["scolarite", "planificateur"]).nullish(),
     classId: zod.number().nullish(),
     className: zod.string().nullish(),
   }),
@@ -49,6 +50,7 @@ export const GetCurrentUserResponse = zod.object({
   email: zod.string(),
   name: zod.string(),
   role: zod.enum(["admin", "teacher", "student"]),
+  adminSubRole: zod.enum(["scolarite", "planificateur"]).nullish(),
   classId: zod.number().nullish(),
   className: zod.string().nullish(),
 });
@@ -65,6 +67,7 @@ export const ListUsersResponseItem = zod.object({
   email: zod.string(),
   name: zod.string(),
   role: zod.enum(["admin", "teacher", "student"]),
+  adminSubRole: zod.enum(["scolarite", "planificateur"]).nullish(),
   classId: zod.number().nullish(),
   className: zod.string().nullish(),
   createdAt: zod.date(),
@@ -79,6 +82,7 @@ export const CreateUserBody = zod.object({
   name: zod.string(),
   password: zod.string(),
   role: zod.enum(["admin", "teacher", "student"]),
+  adminSubRole: zod.enum(["scolarite", "planificateur"]).nullish(),
   classId: zod.number().nullish(),
 });
 
@@ -94,6 +98,7 @@ export const GetUserResponse = zod.object({
   email: zod.string(),
   name: zod.string(),
   role: zod.enum(["admin", "teacher", "student"]),
+  adminSubRole: zod.enum(["scolarite", "planificateur"]).nullish(),
   classId: zod.number().nullish(),
   className: zod.string().nullish(),
   createdAt: zod.date(),
@@ -111,6 +116,7 @@ export const UpdateUserBody = zod.object({
   name: zod.string().optional(),
   password: zod.string().optional(),
   role: zod.enum(["admin", "teacher", "student"]).optional(),
+  adminSubRole: zod.enum(["scolarite", "planificateur"]).nullish(),
   classId: zod.number().nullish(),
 });
 
@@ -119,6 +125,7 @@ export const UpdateUserResponse = zod.object({
   email: zod.string(),
   name: zod.string(),
   role: zod.enum(["admin", "teacher", "student"]),
+  adminSubRole: zod.enum(["scolarite", "planificateur"]).nullish(),
   classId: zod.number().nullish(),
   className: zod.string().nullish(),
   createdAt: zod.date(),
@@ -198,6 +205,7 @@ export const GetClassStudentsResponseItem = zod.object({
   email: zod.string(),
   name: zod.string(),
   role: zod.enum(["admin", "teacher", "student"]),
+  adminSubRole: zod.enum(["scolarite", "planificateur"]).nullish(),
   classId: zod.number().nullish(),
   className: zod.string().nullish(),
   createdAt: zod.date(),
@@ -585,6 +593,121 @@ export const DeleteAssignmentParams = zod.object({
 });
 
 export const DeleteAssignmentResponse = zod.object({
+  message: zod.string(),
+});
+
+/**
+ * @summary List all rooms
+ */
+export const ListRoomsResponseItem = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  capacity: zod.number(),
+  type: zod.string(),
+  description: zod.string().nullish(),
+  createdAt: zod.date(),
+});
+export const ListRoomsResponse = zod.array(ListRoomsResponseItem);
+
+/**
+ * @summary Create a room
+ */
+export const CreateRoomBody = zod.object({
+  name: zod.string(),
+  capacity: zod.number(),
+  type: zod.string(),
+  description: zod.string().nullish(),
+});
+
+/**
+ * @summary Update a room
+ */
+export const UpdateRoomParams = zod.object({
+  roomId: zod.coerce.number(),
+});
+
+export const UpdateRoomBody = zod.object({
+  name: zod.string(),
+  capacity: zod.number(),
+  type: zod.string(),
+  description: zod.string().nullish(),
+});
+
+export const UpdateRoomResponse = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  capacity: zod.number(),
+  type: zod.string(),
+  description: zod.string().nullish(),
+  createdAt: zod.date(),
+});
+
+/**
+ * @summary Delete a room
+ */
+export const DeleteRoomParams = zod.object({
+  roomId: zod.coerce.number(),
+});
+
+export const DeleteRoomResponse = zod.object({
+  message: zod.string(),
+});
+
+/**
+ * @summary List schedule entries (optionally filter by semesterId or classId)
+ */
+export const ListScheduleEntriesQueryParams = zod.object({
+  semesterId: zod.coerce.number().optional(),
+  classId: zod.coerce.number().optional(),
+});
+
+export const ListScheduleEntriesResponseItem = zod.object({
+  id: zod.number(),
+  teacherId: zod.number(),
+  teacherName: zod.string(),
+  subjectId: zod.number(),
+  subjectName: zod.string(),
+  classId: zod.number(),
+  className: zod.string(),
+  roomId: zod.number(),
+  roomName: zod.string(),
+  semesterId: zod.number(),
+  semesterName: zod.string(),
+  dayOfWeek: zod
+    .number()
+    .describe("1=Lundi, 2=Mardi, 3=Mercredi, 4=Jeudi, 5=Vendredi, 6=Samedi"),
+  startTime: zod.string().describe("HH:MM format"),
+  endTime: zod.string().describe("HH:MM format"),
+  createdAt: zod.date(),
+});
+export const ListScheduleEntriesResponse = zod.array(
+  ListScheduleEntriesResponseItem,
+);
+
+/**
+ * @summary Create a schedule entry
+ */
+export const createScheduleEntryBodyDayOfWeekMax = 6;
+
+export const CreateScheduleEntryBody = zod.object({
+  teacherId: zod.number(),
+  subjectId: zod.number(),
+  classId: zod.number(),
+  roomId: zod.number(),
+  semesterId: zod.number(),
+  dayOfWeek: zod.number().min(1).max(createScheduleEntryBodyDayOfWeekMax),
+  startTime: zod.string(),
+  endTime: zod.string(),
+});
+
+/**
+ * @summary Delete a schedule entry
+ */
+export const DeleteScheduleEntryParams = zod.object({
+  entryId: zod.coerce.number(),
+});
+
+export const DeleteScheduleEntryResponse = zod.object({
   message: zod.string(),
 });
 

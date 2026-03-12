@@ -5,6 +5,7 @@
  * CPEC-U Academic Management System API
  * OpenAPI spec version: 1.0.0
  */
+import type { UserInfoAdminSubRole } from "./userInfoAdminSubRole";
 import type { UserInfoRole } from "./userInfoRole";
 
 export interface UserInfo {
@@ -12,6 +13,7 @@ export interface UserInfo {
   email: string;
   name: string;
   role: UserInfoRole;
+  adminSubRole?: UserInfoAdminSubRole;
   classId?: number | null;
   className?: string | null;
 }

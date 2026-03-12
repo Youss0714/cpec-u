@@ -25,6 +25,10 @@ tags:
     description: Grade management
   - name: semesters
     description: Semester management
+  - name: rooms
+    description: Room management (Planificateur)
+  - name: schedules
+    description: Schedule/timetable management (Planificateur)
 
 paths:
   /healthz:
@@ -685,6 +689,142 @@ paths:
               schema:
                 $ref: "#/components/schemas/MessageResponse"
 
+  # ─── Planificateur: Rooms ────────────────────────────────────────────
+  /admin/rooms:
+    get:
+      operationId: listRooms
+      tags: [rooms]
+      summary: List all rooms
+      responses:
+        "200":
+          description: List of rooms
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Room"
+    post:
+      operationId: createRoom
+      tags: [rooms]
+      summary: Create a room
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRoomRequest"
+      responses:
+        "201":
+          description: Room created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Room"
+
+  /admin/rooms/{roomId}:
+    put:
+      operationId: updateRoom
+      tags: [rooms]
+      summary: Update a room
+      parameters:
+        - name: roomId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRoomRequest"
+      responses:
+        "200":
+          description: Room updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Room"
+    delete:
+      operationId: deleteRoom
+      tags: [rooms]
+      summary: Delete a room
+      parameters:
+        - name: roomId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Room deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  # ─── Planificateur: Schedules ─────────────────────────────────────────
+  /admin/schedules:
+    get:
+      operationId: listScheduleEntries
+      tags: [schedules]
+      summary: List schedule entries (optionally filter by semesterId or classId)
+      parameters:
+        - name: semesterId
+          in: query
+          schema:
+            type: integer
+        - name: classId
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of schedule entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ScheduleEntry"
+    post:
+      operationId: createScheduleEntry
+      tags: [schedules]
+      summary: Create a schedule entry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateScheduleEntryRequest"
+      responses:
+        "201":
+          description: Entry created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScheduleEntry"
+
+  /admin/schedules/{entryId}:
+    delete:
+      operationId: deleteScheduleEntry
+      tags: [schedules]
+      summary: Delete a schedule entry
+      parameters:
+        - name: entryId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Entry deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
   # ─── Admin: Assign student to class ─────────────────────────────────
   /admin/class-enrollments:
     post:
@@ -778,6 +918,10 @@ components:
         role:
           type: string
           enum: [admin, teacher, student]
+        adminSubRole:
+          type: string
+          enum: [scolarite, planificateur]
+          nullable: true
         classId:
           type: integer
           nullable: true
@@ -798,6 +942,10 @@ components:
         role:
           type: string
           enum: [admin, teacher, student]
+        adminSubRole:
+          type: string
+          enum: [scolarite, planificateur]
+          nullable: true
         classId:
           type: integer
           nullable: true
@@ -822,6 +970,10 @@ components:
         role:
           type: string
           enum: [admin, teacher, student]
+        adminSubRole:
+          type: string
+          enum: [scolarite, planificateur]
+          nullable: true
         classId:
           type: integer
           nullable: true
@@ -840,6 +992,10 @@ components:
         role:
           type: string
           enum: [admin, teacher, student]
+        adminSubRole:
+          type: string
+          enum: [scolarite, planificateur]
+          nullable: true
         classId:
           type: integer
           nullable: true
@@ -1170,3 +1326,98 @@ components:
         classId:
           type: integer
       required: [studentId, classId]
+
+    Room:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        capacity:
+          type: integer
+        type:
+          type: string
+        description:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, name, capacity, type, createdAt]
+
+    CreateRoomRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        capacity:
+          type: integer
+        type:
+          type: string
+        description:
+          type: string
+          nullable: true
+      required: [name, capacity, type]
+
+    ScheduleEntry:
+      type: object
+      properties:
+        id:
+          type: integer
+        teacherId:
+          type: integer
+        teacherName:
+          type: string
+        subjectId:
+          type: integer
+        subjectName:
+          type: string
+        classId:
+          type: integer
+        className:
+          type: string
+        roomId:
+          type: integer
+        roomName:
+          type: string
+        semesterId:
+          type: integer
+        semesterName:
+          type: string
+        dayOfWeek:
+          type: integer
+          description: "1=Lundi, 2=Mardi, 3=Mercredi, 4=Jeudi, 5=Vendredi, 6=Samedi"
+        startTime:
+          type: string
+          description: "HH:MM format"
+        endTime:
+          type: string
+          description: "HH:MM format"
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, teacherId, teacherName, subjectId, subjectName, classId, className, roomId, roomName, semesterId, semesterName, dayOfWeek, startTime, endTime, createdAt]
+
+    CreateScheduleEntryRequest:
+      type: object
+      properties:
+        teacherId:
+          type: integer
+        subjectId:
+          type: integer
+        classId:
+          type: integer
+        roomId:
+          type: integer
+        semesterId:
+          type: integer
+        dayOfWeek:
+          type: integer
+          minimum: 1
+          maximum: 6
+        startTime:
+          type: string
+        endTime:
+          type: string
+      required: [teacherId, subjectId, classId, roomId, semesterId, dayOfWeek, startTime, endTime]

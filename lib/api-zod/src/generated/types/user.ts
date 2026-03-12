@@ -5,6 +5,7 @@
  * CPEC-U Academic Management System API
  * OpenAPI spec version: 1.0.0
  */
+import type { UserAdminSubRole } from "./userAdminSubRole";
 import type { UserRole } from "./userRole";
 
 export interface User {
@@ -12,6 +13,7 @@ export interface User {
   email: string;
   name: string;
   role: UserRole;
+  adminSubRole?: UserAdminSubRole;
   classId?: number | null;
   className?: string | null;
   createdAt: Date;

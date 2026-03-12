@@ -14,8 +14,13 @@ import {
   PenTool,
   FileText,
   Menu,
+  DoorOpen,
+  CalendarDays,
+  ShieldCheck,
+  LayoutList,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { Badge } from "@/components/ui/badge";
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -51,40 +56,86 @@ export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
     return null;
   }
 
-  const navItems = {
-    admin: [
-      { name: "Tableau de bord", href: "/admin", icon: LayoutDashboard },
-      { name: "Utilisateurs", href: "/admin/users", icon: Users },
-      { name: "Classes", href: "/admin/classes", icon: School },
-      { name: "Matières", href: "/admin/subjects", icon: BookOpen },
-      { name: "Semestres", href: "/admin/semesters", icon: Calendar },
-      { name: "Affectations", href: "/admin/assignments", icon: ClipboardList },
-      { name: "Résultats", href: "/admin/results", icon: GraduationCap },
-    ],
-    teacher: [
-      { name: "Tableau de bord", href: "/teacher", icon: LayoutDashboard },
-      { name: "Saisie des Notes", href: "/teacher/grades", icon: PenTool },
-    ],
-    student: [
-      { name: "Mon Profil", href: "/student", icon: LayoutDashboard },
-      { name: "Mes Résultats", href: "/student/grades", icon: FileText },
-    ],
-  }[user.role];
+  const adminSubRole = (user as any).adminSubRole as string | null | undefined;
+
+  const scolariteNavItems = [
+    { name: "Tableau de bord", href: "/admin", icon: LayoutDashboard },
+    { name: "Utilisateurs", href: "/admin/users", icon: Users },
+    { name: "Classes", href: "/admin/classes", icon: School },
+    { name: "Matières", href: "/admin/subjects", icon: BookOpen },
+    { name: "Semestres", href: "/admin/semesters", icon: Calendar },
+    { name: "Résultats", href: "/admin/results", icon: GraduationCap },
+  ];
+
+  const planificateurNavItems = [
+    { name: "Tableau de bord", href: "/admin", icon: LayoutDashboard },
+    { name: "Emplois du temps", href: "/admin/schedules", icon: CalendarDays },
+    { name: "Salles", href: "/admin/rooms", icon: DoorOpen },
+    { name: "Affectations", href: "/admin/assignments", icon: ClipboardList },
+    { name: "Classes", href: "/admin/classes", icon: School },
+    { name: "Matières", href: "/admin/subjects", icon: BookOpen },
+    { name: "Semestres", href: "/admin/semesters", icon: Calendar },
+    { name: "Enseignants", href: "/admin/users?role=teacher", icon: Users },
+  ];
+
+  const navItems =
+    user.role === "admin"
+      ? adminSubRole === "planificateur"
+        ? planificateurNavItems
+        : scolariteNavItems
+      : user.role === "teacher"
+      ? [
+          { name: "Tableau de bord", href: "/teacher", icon: LayoutDashboard },
+          { name: "Saisie des Notes", href: "/teacher/grades", icon: PenTool },
+        ]
+      : [
+          { name: "Mon Profil", href: "/student", icon: LayoutDashboard },
+          { name: "Mes Résultats", href: "/student/grades", icon: FileText },
+        ];
+
+  const roleLabel =
+    user.role === "admin"
+      ? adminSubRole === "planificateur"
+        ? "Planificateur"
+        : "Responsable Scolarité"
+      : user.role === "teacher"
+      ? "Enseignant"
+      : "Étudiant";
+
+  const roleBadgeColor =
+    user.role === "admin"
+      ? adminSubRole === "planificateur"
+        ? "bg-amber-100 text-amber-800 border-amber-200"
+        : "bg-blue-100 text-blue-800 border-blue-200"
+      : user.role === "teacher"
+      ? "bg-green-100 text-green-800 border-green-200"
+      : "bg-purple-100 text-purple-800 border-purple-200";
 
   const SidebarContent = () => (
     <div className="flex flex-col h-full bg-sidebar border-r border-sidebar-border text-sidebar-foreground">
       <div className="p-6 flex items-center gap-3">
         <img src={`${import.meta.env.BASE_URL}images/logo.jpg`} alt="CPEC-U Logo" className="w-10 h-10 object-contain rounded-lg" />
-        <div className="font-serif font-bold text-xl tracking-tight">CPEC-U</div>
+        <div>
+          <div className="font-serif font-bold text-xl tracking-tight">CPEC-U</div>
+          <div className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border inline-block mt-0.5 ${roleBadgeColor}`}>
+            {roleLabel}
+          </div>
+        </div>
       </div>
-      
+
       <div className="px-4 py-2 text-xs font-semibold text-sidebar-foreground/50 uppercase tracking-wider">
-        Menu {user.role === 'admin' ? 'Administration' : user.role === 'teacher' ? 'Enseignant' : 'Étudiant'}
+        {user.role === "admin"
+          ? adminSubRole === "planificateur"
+            ? "Menu Planificateur"
+            : "Menu Scolarité"
+          : user.role === "teacher"
+          ? "Menu Enseignant"
+          : "Menu Étudiant"}
       </div>
 
       <nav className="flex-1 px-4 space-y-1 mt-4 overflow-y-auto">
         {navItems.map((item) => {
-          const isActive = location === item.href;
+          const isActive = location === item.href || location.startsWith(item.href + "?") || (item.href !== "/admin" && location.startsWith(item.href));
           return (
             <Link
               key={item.name}

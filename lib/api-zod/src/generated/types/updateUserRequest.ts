@@ -5,6 +5,7 @@
  * CPEC-U Academic Management System API
  * OpenAPI spec version: 1.0.0
  */
+import type { UpdateUserRequestAdminSubRole } from "./updateUserRequestAdminSubRole";
 import type { UpdateUserRequestRole } from "./updateUserRequestRole";
 
 export interface UpdateUserRequest {
@@ -12,5 +13,6 @@ export interface UpdateUserRequest {
   name?: string;
   password?: string;
   role?: UpdateUserRequestRole;
+  adminSubRole?: UpdateUserRequestAdminSubRole;
   classId?: number | null;
 }

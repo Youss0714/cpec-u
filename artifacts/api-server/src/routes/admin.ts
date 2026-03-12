@@ -42,6 +42,7 @@ router.get("/users", requireRole("admin"), async (req, res) => {
         email: u.email,
         name: u.name,
         role: u.role,
+        adminSubRole: u.adminSubRole ?? null,
         classId: enroll?.classId ?? null,
         className: enroll?.className ?? null,
         createdAt: u.createdAt,
@@ -57,13 +58,16 @@ router.get("/users", requireRole("admin"), async (req, res) => {
 
 router.post("/users", requireRole("admin"), async (req, res) => {
   try {
-    const { email, name, password, role, classId } = req.body;
+    const { email, name, password, role, adminSubRole, classId } = req.body;
     if (!email || !name || !password || !role) {
       res.status(400).json({ error: "Bad Request", message: "Missing required fields" });
       return;
     }
     const passwordHash = hashPassword(password);
-    const [user] = await db.insert(usersTable).values({ email, name, passwordHash, role }).returning();
+    const [user] = await db.insert(usersTable).values({
+      email, name, passwordHash, role,
+      adminSubRole: role === "admin" ? (adminSubRole ?? null) : null,
+    }).returning();
 
     if (classId && role === "student") {
       await db.insert(classEnrollmentsTable).values({ studentId: user.id, classId }).onConflictDoNothing();
@@ -72,6 +76,7 @@ router.post("/users", requireRole("admin"), async (req, res) => {
     const enroll = classId ? await db.select({ className: classesTable.name }).from(classesTable).where(eq(classesTable.id, classId)).limit(1) : [];
     res.status(201).json({
       id: user.id, email: user.email, name: user.name, role: user.role,
+      adminSubRole: user.adminSubRole ?? null,
       classId: classId ?? null, className: enroll[0]?.className ?? null, createdAt: user.createdAt,
     });
   } catch (err: any) {
@@ -92,7 +97,7 @@ router.get("/users/:id", requireRole("admin"), async (req, res) => {
     const [enroll] = await db.select({ classId: classEnrollmentsTable.classId, className: classesTable.name })
       .from(classEnrollmentsTable).innerJoin(classesTable, eq(classesTable.id, classEnrollmentsTable.classId))
       .where(eq(classEnrollmentsTable.studentId, id)).limit(1);
-    res.json({ id: user.id, email: user.email, name: user.name, role: user.role, classId: enroll?.classId ?? null, className: enroll?.className ?? null, createdAt: user.createdAt });
+    res.json({ id: user.id, email: user.email, name: user.name, role: user.role, adminSubRole: user.adminSubRole ?? null, classId: enroll?.classId ?? null, className: enroll?.className ?? null, createdAt: user.createdAt });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Internal Server Error" });
@@ -102,12 +107,14 @@ router.get("/users/:id", requireRole("admin"), async (req, res) => {
 router.put("/users/:id", requireRole("admin"), async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    const { email, name, password, role, classId } = req.body;
+    const { email, name, password, role, adminSubRole, classId } = req.body;
     const updates: any = {};
     if (email) updates.email = email;
     if (name) updates.name = name;
     if (password) updates.passwordHash = hashPassword(password);
     if (role) updates.role = role;
+    if (adminSubRole !== undefined) updates.adminSubRole = adminSubRole;
+    if (role && role !== "admin") updates.adminSubRole = null;
     updates.updatedAt = new Date();
 
     const [user] = await db.update(usersTable).set(updates).where(eq(usersTable.id, id)).returning();
@@ -124,7 +131,7 @@ router.put("/users/:id", requireRole("admin"), async (req, res) => {
       .from(classEnrollmentsTable).innerJoin(classesTable, eq(classesTable.id, classEnrollmentsTable.classId))
       .where(eq(classEnrollmentsTable.studentId, id)).limit(1);
 
-    res.json({ id: user.id, email: user.email, name: user.name, role: user.role, classId: enroll?.classId ?? null, className: enroll?.className ?? null, createdAt: user.createdAt });
+    res.json({ id: user.id, email: user.email, name: user.name, role: user.role, adminSubRole: user.adminSubRole ?? null, classId: enroll?.classId ?? null, className: enroll?.className ?? null, createdAt: user.createdAt });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Internal Server Error" });

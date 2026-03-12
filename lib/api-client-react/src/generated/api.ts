@@ -21,6 +21,8 @@ import type {
   Class,
   CreateAssignmentRequest,
   CreateClassRequest,
+  CreateRoomRequest,
+  CreateScheduleEntryRequest,
   CreateSemesterRequest,
   CreateSubjectRequest,
   CreateUserRequest,
@@ -32,11 +34,14 @@ import type {
   GetTeacherGradesParams,
   Grade,
   HealthStatus,
+  ListScheduleEntriesParams,
   ListUsersParams,
   LoginRequest,
   LoginResponse,
   MessageResponse,
   PublishRequest,
+  Room,
+  ScheduleEntry,
   Semester,
   StudentGradeResponse,
   StudentProfile,
@@ -2967,6 +2972,599 @@ export const useDeleteAssignment = <
   TContext
 > => {
   return useMutation(getDeleteAssignmentMutationOptions(options));
+};
+
+/**
+ * @summary List all rooms
+ */
+export const getListRoomsUrl = () => {
+  return `/api/admin/rooms`;
+};
+
+export const listRooms = async (options?: RequestInit): Promise<Room[]> => {
+  return customFetch<Room[]>(getListRoomsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListRoomsQueryKey = () => {
+  return [`/api/admin/rooms`] as const;
+};
+
+export const getListRoomsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listRooms>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<Awaited<ReturnType<typeof listRooms>>, TError, TData>;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListRoomsQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listRooms>>> = ({
+    signal,
+  }) => listRooms({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listRooms>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListRoomsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listRooms>>
+>;
+export type ListRoomsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List all rooms
+ */
+
+export function useListRooms<
+  TData = Awaited<ReturnType<typeof listRooms>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<Awaited<ReturnType<typeof listRooms>>, TError, TData>;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListRoomsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create a room
+ */
+export const getCreateRoomUrl = () => {
+  return `/api/admin/rooms`;
+};
+
+export const createRoom = async (
+  createRoomRequest: CreateRoomRequest,
+  options?: RequestInit,
+): Promise<Room> => {
+  return customFetch<Room>(getCreateRoomUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createRoomRequest),
+  });
+};
+
+export const getCreateRoomMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createRoom>>,
+    TError,
+    { data: BodyType<CreateRoomRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createRoom>>,
+  TError,
+  { data: BodyType<CreateRoomRequest> },
+  TContext
+> => {
+  const mutationKey = ["createRoom"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createRoom>>,
+    { data: BodyType<CreateRoomRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createRoom(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateRoomMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createRoom>>
+>;
+export type CreateRoomMutationBody = BodyType<CreateRoomRequest>;
+export type CreateRoomMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Create a room
+ */
+export const useCreateRoom = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createRoom>>,
+    TError,
+    { data: BodyType<CreateRoomRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createRoom>>,
+  TError,
+  { data: BodyType<CreateRoomRequest> },
+  TContext
+> => {
+  return useMutation(getCreateRoomMutationOptions(options));
+};
+
+/**
+ * @summary Update a room
+ */
+export const getUpdateRoomUrl = (roomId: number) => {
+  return `/api/admin/rooms/${roomId}`;
+};
+
+export const updateRoom = async (
+  roomId: number,
+  createRoomRequest: CreateRoomRequest,
+  options?: RequestInit,
+): Promise<Room> => {
+  return customFetch<Room>(getUpdateRoomUrl(roomId), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createRoomRequest),
+  });
+};
+
+export const getUpdateRoomMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateRoom>>,
+    TError,
+    { roomId: number; data: BodyType<CreateRoomRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateRoom>>,
+  TError,
+  { roomId: number; data: BodyType<CreateRoomRequest> },
+  TContext
+> => {
+  const mutationKey = ["updateRoom"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateRoom>>,
+    { roomId: number; data: BodyType<CreateRoomRequest> }
+  > = (props) => {
+    const { roomId, data } = props ?? {};
+
+    return updateRoom(roomId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateRoomMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateRoom>>
+>;
+export type UpdateRoomMutationBody = BodyType<CreateRoomRequest>;
+export type UpdateRoomMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Update a room
+ */
+export const useUpdateRoom = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateRoom>>,
+    TError,
+    { roomId: number; data: BodyType<CreateRoomRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateRoom>>,
+  TError,
+  { roomId: number; data: BodyType<CreateRoomRequest> },
+  TContext
+> => {
+  return useMutation(getUpdateRoomMutationOptions(options));
+};
+
+/**
+ * @summary Delete a room
+ */
+export const getDeleteRoomUrl = (roomId: number) => {
+  return `/api/admin/rooms/${roomId}`;
+};
+
+export const deleteRoom = async (
+  roomId: number,
+  options?: RequestInit,
+): Promise<MessageResponse> => {
+  return customFetch<MessageResponse>(getDeleteRoomUrl(roomId), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteRoomMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteRoom>>,
+    TError,
+    { roomId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteRoom>>,
+  TError,
+  { roomId: number },
+  TContext
+> => {
+  const mutationKey = ["deleteRoom"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteRoom>>,
+    { roomId: number }
+  > = (props) => {
+    const { roomId } = props ?? {};
+
+    return deleteRoom(roomId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteRoomMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteRoom>>
+>;
+
+export type DeleteRoomMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Delete a room
+ */
+export const useDeleteRoom = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteRoom>>,
+    TError,
+    { roomId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteRoom>>,
+  TError,
+  { roomId: number },
+  TContext
+> => {
+  return useMutation(getDeleteRoomMutationOptions(options));
+};
+
+/**
+ * @summary List schedule entries (optionally filter by semesterId or classId)
+ */
+export const getListScheduleEntriesUrl = (
+  params?: ListScheduleEntriesParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/admin/schedules?${stringifiedParams}`
+    : `/api/admin/schedules`;
+};
+
+export const listScheduleEntries = async (
+  params?: ListScheduleEntriesParams,
+  options?: RequestInit,
+): Promise<ScheduleEntry[]> => {
+  return customFetch<ScheduleEntry[]>(getListScheduleEntriesUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListScheduleEntriesQueryKey = (
+  params?: ListScheduleEntriesParams,
+) => {
+  return [`/api/admin/schedules`, ...(params ? [params] : [])] as const;
+};
+
+export const getListScheduleEntriesQueryOptions = <
+  TData = Awaited<ReturnType<typeof listScheduleEntries>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListScheduleEntriesParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listScheduleEntries>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListScheduleEntriesQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listScheduleEntries>>
+  > = ({ signal }) =>
+    listScheduleEntries(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listScheduleEntries>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListScheduleEntriesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listScheduleEntries>>
+>;
+export type ListScheduleEntriesQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List schedule entries (optionally filter by semesterId or classId)
+ */
+
+export function useListScheduleEntries<
+  TData = Awaited<ReturnType<typeof listScheduleEntries>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListScheduleEntriesParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listScheduleEntries>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListScheduleEntriesQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create a schedule entry
+ */
+export const getCreateScheduleEntryUrl = () => {
+  return `/api/admin/schedules`;
+};
+
+export const createScheduleEntry = async (
+  createScheduleEntryRequest: CreateScheduleEntryRequest,
+  options?: RequestInit,
+): Promise<ScheduleEntry> => {
+  return customFetch<ScheduleEntry>(getCreateScheduleEntryUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createScheduleEntryRequest),
+  });
+};
+
+export const getCreateScheduleEntryMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createScheduleEntry>>,
+    TError,
+    { data: BodyType<CreateScheduleEntryRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createScheduleEntry>>,
+  TError,
+  { data: BodyType<CreateScheduleEntryRequest> },
+  TContext
+> => {
+  const mutationKey = ["createScheduleEntry"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createScheduleEntry>>,
+    { data: BodyType<CreateScheduleEntryRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createScheduleEntry(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateScheduleEntryMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createScheduleEntry>>
+>;
+export type CreateScheduleEntryMutationBody =
+  BodyType<CreateScheduleEntryRequest>;
+export type CreateScheduleEntryMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Create a schedule entry
+ */
+export const useCreateScheduleEntry = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createScheduleEntry>>,
+    TError,
+    { data: BodyType<CreateScheduleEntryRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createScheduleEntry>>,
+  TError,
+  { data: BodyType<CreateScheduleEntryRequest> },
+  TContext
+> => {
+  return useMutation(getCreateScheduleEntryMutationOptions(options));
+};
+
+/**
+ * @summary Delete a schedule entry
+ */
+export const getDeleteScheduleEntryUrl = (entryId: number) => {
+  return `/api/admin/schedules/${entryId}`;
+};
+
+export const deleteScheduleEntry = async (
+  entryId: number,
+  options?: RequestInit,
+): Promise<MessageResponse> => {
+  return customFetch<MessageResponse>(getDeleteScheduleEntryUrl(entryId), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteScheduleEntryMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteScheduleEntry>>,
+    TError,
+    { entryId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteScheduleEntry>>,
+  TError,
+  { entryId: number },
+  TContext
+> => {
+  const mutationKey = ["deleteScheduleEntry"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteScheduleEntry>>,
+    { entryId: number }
+  > = (props) => {
+    const { entryId } = props ?? {};
+
+    return deleteScheduleEntry(entryId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteScheduleEntryMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteScheduleEntry>>
+>;
+
+export type DeleteScheduleEntryMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Delete a schedule entry
+ */
+export const useDeleteScheduleEntry = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteScheduleEntry>>,
+    TError,
+    { entryId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteScheduleEntry>>,
+  TError,
+  { entryId: number },
+  TContext
+> => {
+  return useMutation(getDeleteScheduleEntryMutationOptions(options));
 };
 
 /**

@@ -8,13 +8,30 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, ShieldCheck, GraduationCap, BookOpen } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
+
+const ROLE_LABELS: Record<string, string> = {
+  admin: "Admin",
+  teacher: "Enseignant",
+  student: "Étudiant",
+};
+
+const SUB_ROLE_LABELS: Record<string, string> = {
+  scolarite: "Responsable Scolarité",
+  planificateur: "Planificateur",
+};
+
+const SUB_ROLE_COLORS: Record<string, string> = {
+  scolarite: "bg-blue-100 text-blue-700 border-blue-200",
+  planificateur: "bg-amber-100 text-amber-700 border-amber-200",
+};
 
 export default function AdminUsers() {
   const [roleFilter, setRoleFilter] = useState<string>("all");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [selectedRole, setSelectedRole] = useState<string>("student");
   const { data: users, isLoading } = useListUsers();
   const { data: classes } = useListClasses();
   const createUser = useCreateUser();
@@ -29,7 +46,8 @@ export default function AdminUsers() {
     const formData = new FormData(e.currentTarget);
     const role = formData.get("role") as "admin" | "teacher" | "student";
     const classIdStr = formData.get("classId") as string;
-    
+    const adminSubRole = formData.get("adminSubRole") as string;
+
     try {
       await createUser.mutateAsync({
         data: {
@@ -37,12 +55,14 @@ export default function AdminUsers() {
           email: formData.get("email") as string,
           password: formData.get("password") as string,
           role,
-          classId: classIdStr && role === 'student' ? parseInt(classIdStr) : undefined
+          adminSubRole: role === "admin" && adminSubRole ? adminSubRole as any : undefined,
+          classId: classIdStr && role === "student" ? parseInt(classIdStr) : undefined,
         }
       });
       toast({ title: "Utilisateur créé avec succès" });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
       setIsDialogOpen(false);
+      setSelectedRole("student");
     } catch {
       toast({ title: "Erreur lors de la création", variant: "destructive" });
     }
@@ -67,7 +87,7 @@ export default function AdminUsers() {
             <h1 className="text-3xl font-serif font-bold text-foreground">Utilisateurs</h1>
             <p className="text-muted-foreground">Gérez les accès et les profils de l'établissement.</p>
           </div>
-          
+
           <div className="flex items-center gap-4">
             <Select value={roleFilter} onValueChange={setRoleFilter}>
               <SelectTrigger className="w-[180px] bg-background">
@@ -81,7 +101,7 @@ export default function AdminUsers() {
               </SelectContent>
             </Select>
 
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) setSelectedRole("student"); }}>
               <DialogTrigger asChild>
                 <Button className="shadow-md">
                   <Plus className="w-4 h-4 mr-2" />
@@ -107,30 +127,62 @@ export default function AdminUsers() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="role">Rôle</Label>
-                    <Select name="role" defaultValue="student">
+                    <Select name="role" value={selectedRole} onValueChange={setSelectedRole}>
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="admin">Admin</SelectItem>
+                        <SelectItem value="admin">Administrateur</SelectItem>
                         <SelectItem value="teacher">Enseignant</SelectItem>
                         <SelectItem value="student">Étudiant</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="classId">Classe (si étudiant)</Label>
-                    <Select name="classId">
-                      <SelectTrigger>
-                        <SelectValue placeholder="Aucune" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {classes?.map(c => (
-                          <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+
+                  {selectedRole === "admin" && (
+                    <div className="space-y-2">
+                      <Label htmlFor="adminSubRole">Sous-rôle administrateur *</Label>
+                      <Select name="adminSubRole" required defaultValue="scolarite">
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="scolarite">
+                            <div className="flex items-center gap-2">
+                              <ShieldCheck className="w-4 h-4 text-blue-600" />
+                              Responsable Scolarité
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="planificateur">
+                            <div className="flex items-center gap-2">
+                              <GraduationCap className="w-4 h-4 text-amber-600" />
+                              Planificateur
+                            </div>
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">
+                        {selectedRole === "admin" && "Le sous-rôle détermine les permissions spécifiques de l'administrateur."}
+                      </p>
+                    </div>
+                  )}
+
+                  {selectedRole === "student" && (
+                    <div className="space-y-2">
+                      <Label htmlFor="classId">Classe</Label>
+                      <Select name="classId">
+                        <SelectTrigger>
+                          <SelectValue placeholder="Aucune" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {classes?.map(c => (
+                            <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
                   <Button type="submit" className="w-full" disabled={createUser.isPending}>
                     {createUser.isPending ? "Création..." : "Enregistrer"}
                   </Button>
@@ -147,7 +199,7 @@ export default function AdminUsers() {
                 <TableHead>Nom</TableHead>
                 <TableHead>Email</TableHead>
                 <TableHead>Rôle</TableHead>
-                <TableHead>Classe</TableHead>
+                <TableHead>Sous-rôle / Classe</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -157,23 +209,39 @@ export default function AdminUsers() {
               ) : filteredUsers.length === 0 ? (
                 <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">Aucun utilisateur trouvé.</TableCell></TableRow>
               ) : (
-                filteredUsers.map(user => (
-                  <TableRow key={user.id} className="hover:bg-muted/50 transition-colors">
-                    <TableCell className="font-medium text-foreground">{user.name}</TableCell>
-                    <TableCell>{user.email}</TableCell>
-                    <TableCell>
-                      <Badge variant={user.role === 'admin' ? 'destructive' : user.role === 'teacher' ? 'default' : 'secondary'} className="capitalize">
-                        {user.role}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{user.className || "-"}</TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="ghost" size="icon" onClick={() => handleDelete(user.id)} className="text-destructive hover:bg-destructive/10">
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))
+                filteredUsers.map(user => {
+                  const subRole = (user as any).adminSubRole as string | null;
+                  return (
+                    <TableRow key={user.id} className="hover:bg-muted/50 transition-colors">
+                      <TableCell className="font-medium text-foreground">{user.name}</TableCell>
+                      <TableCell className="text-muted-foreground">{user.email}</TableCell>
+                      <TableCell>
+                        <Badge
+                          variant={user.role === "admin" ? "destructive" : user.role === "teacher" ? "default" : "secondary"}
+                          className="capitalize"
+                        >
+                          {ROLE_LABELS[user.role] ?? user.role}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {user.role === "admin" && subRole ? (
+                          <span className={`text-xs font-medium px-2 py-1 rounded border ${SUB_ROLE_COLORS[subRole] ?? ""}`}>
+                            {SUB_ROLE_LABELS[subRole] ?? subRole}
+                          </span>
+                        ) : user.role === "student" ? (
+                          <span className="text-sm text-muted-foreground">{(user as any).className || "—"}</span>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button variant="ghost" size="icon" onClick={() => handleDelete(user.id)} className="text-destructive hover:bg-destructive/10">
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
               )}
             </TableBody>
           </Table>

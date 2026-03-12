@@ -4,12 +4,16 @@ import authRouter from "./auth.js";
 import adminRouter from "./admin.js";
 import teacherRouter from "./teacher.js";
 import studentRouter from "./student.js";
+import roomsRouter from "./rooms.js";
+import schedulesRouter from "./schedules.js";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
 router.use("/auth", authRouter);
 router.use("/admin", adminRouter);
+router.use("/admin/rooms", roomsRouter);
+router.use("/admin/schedules", schedulesRouter);
 router.use("/teacher", teacherRouter);
 router.use("/student", studentRouter);
 

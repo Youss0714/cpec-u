@@ -2,7 +2,7 @@
 
 ## Overview
 
-Progressive Web App (PWA) for academic management. Supports 3 user roles: Admin, Teacher, Student.
+Progressive Web App (PWA) for academic management. Supports 3 user roles with multi-admin sub-roles.
 
 ## Stack
 
@@ -33,47 +33,74 @@ artifacts-monorepo/
 
 ## Database Schema
 
-- `users` — admins, teachers, students (enum role)
+- `users` — admins, teachers, students (enum role + admin_sub_role enum)
 - `classes` — class groups
 - `class_enrollments` — student → class (many-to-one)
 - `subjects` — subjects with coefficients, linked to class
 - `semesters` — academic semesters with published flag
 - `grades` — student grade per subject per semester (unique constraint)
 - `teacher_assignments` — teacher → subject → class → semester
+- `rooms` — classrooms, amphithéâtres, labs (new)
+- `schedule_entries` — timetable entries (teacher + subject + class + room + semester + day + time) (new)
 
-## RBAC
+## RBAC — Multi-Admin System
 
-- **Admin**: Full CRUD on all entities. Can generate PDF bulletins. Controls "Publier les résultats" toggle per semester.
-- **Teacher**: Enter grades for assigned subjects only. Offline mode via Service Worker + localStorage.
-- **Student**: View own grades + average + rank. Only visible when semester.published = true. NO PDF download.
+### Admin — Responsable de Scolarité (`adminSubRole: "scolarite"`)
+- Full CRUD on students, grades, classes, subjects, semesters
+- Validates averages and publishes results per semester
+- Generates PDF bulletins (admin-only)
+- **Cannot** manage rooms or schedules
+
+### Admin — Planificateur (`adminSubRole: "planificateur"`)
+- Creates and manages timetables (emplois du temps)
+- CRUD on rooms (salles, amphithéâtres, labo)
+- Assigns teachers to subjects per semester/class/room
+- Can view semesters and classes (read-only for grades)
+
+### Teacher
+- Enter grades for assigned subjects only. Offline mode via localStorage.
+
+### Student
+- View own grades + average + rank. Only visible when semester.published = true. NO PDF.
 
 ## Business Logic
 
 - Weighted average = Σ(note × coefficient) / Σ(coefficients)
 - Decision: "Admis" if average ≥ 10, "Ajourné" if < 10, "En attente" if no grades
 - Students see grades ONLY if `semester.published = true`
-- PDF bulletin generation is admin-only
+- PDF bulletin generation is Responsable Scolarité only
 
 ## Auth
 
 - Session-based (express-session with cookie)
 - Password hashed with SHA-256 + salt `cpec-u-salt`
+- Session stores `user.adminSubRole` for sub-role enforcement
 
 ## Demo Accounts
 
-| Role | Email | Password |
-|------|-------|----------|
-| Admin | admin@cpec-u.fr | admin123 |
-| Teacher | prof.math@cpec-u.fr | teacher123 |
-| Teacher | prof.info@cpec-u.fr | teacher123 |
-| Student | etudiant1@cpec-u.fr | etudiant123 |
-| Student | etudiant2@cpec-u.fr | etudiant123 |
-| Student | etudiant3@cpec-u.fr | etudiant123 |
-| Student | etudiant4@cpec-u.fr | etudiant123 |
-| Student | etudiant5@cpec-u.fr | etudiant123 |
+| Role | Sous-rôle | Email | Password |
+|------|-----------|-------|----------|
+| Admin | Responsable Scolarité | admin@cpec-u.fr | admin123 |
+| Admin | Planificateur | planificateur@cpec-u.fr | planificateur123 |
+| Teacher | — | prof.math@cpec-u.fr | teacher123 |
+| Teacher | — | prof.info@cpec-u.fr | teacher123 |
+| Student | — | etudiant1@cpec-u.fr | etudiant123 |
+| Student | — | etudiant2@cpec-u.fr | etudiant123 |
+| Student | — | etudiant3@cpec-u.fr | etudiant123 |
+| Student | — | etudiant4@cpec-u.fr | etudiant123 |
+| Student | — | etudiant5@cpec-u.fr | etudiant123 |
 
 ## Key URLs
 
 - Frontend: `/`
 - API: `/api`
 - Health: `/api/healthz`
+
+## Codegen Workflow
+
+After modifying `lib/api-spec/openapi.yaml`:
+1. Run `pnpm --filter @workspace/api-spec run codegen` (regenerates React hooks + Zod schemas)
+2. Run `cd lib/api-client-react && npx tsc --build` (rebuilds TypeScript declarations)
+
+After modifying `lib/db/src/schema/`:
+- Apply changes via `executeSql` in code_execution or `pnpm --filter @workspace/db run push-force`

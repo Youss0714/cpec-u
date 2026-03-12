@@ -31,11 +31,21 @@ export const UserInfoRole = {
   student: "student",
 } as const;
 
+export type UserInfoAdminSubRole =
+  | (typeof UserInfoAdminSubRole)[keyof typeof UserInfoAdminSubRole]
+  | null;
+
+export const UserInfoAdminSubRole = {
+  scolarite: "scolarite",
+  planificateur: "planificateur",
+} as const;
+
 export interface UserInfo {
   id: number;
   email: string;
   name: string;
   role: UserInfoRole;
+  adminSubRole?: UserInfoAdminSubRole;
   classId?: number | null;
   className?: string | null;
 }
@@ -53,11 +63,21 @@ export const UserRole = {
   student: "student",
 } as const;
 
+export type UserAdminSubRole =
+  | (typeof UserAdminSubRole)[keyof typeof UserAdminSubRole]
+  | null;
+
+export const UserAdminSubRole = {
+  scolarite: "scolarite",
+  planificateur: "planificateur",
+} as const;
+
 export interface User {
   id: number;
   email: string;
   name: string;
   role: UserRole;
+  adminSubRole?: UserAdminSubRole;
   classId?: number | null;
   className?: string | null;
   createdAt: string;
@@ -72,11 +92,21 @@ export const CreateUserRequestRole = {
   student: "student",
 } as const;
 
+export type CreateUserRequestAdminSubRole =
+  | (typeof CreateUserRequestAdminSubRole)[keyof typeof CreateUserRequestAdminSubRole]
+  | null;
+
+export const CreateUserRequestAdminSubRole = {
+  scolarite: "scolarite",
+  planificateur: "planificateur",
+} as const;
+
 export interface CreateUserRequest {
   email: string;
   name: string;
   password: string;
   role: CreateUserRequestRole;
+  adminSubRole?: CreateUserRequestAdminSubRole;
   classId?: number | null;
 }
 
@@ -89,11 +119,21 @@ export const UpdateUserRequestRole = {
   student: "student",
 } as const;
 
+export type UpdateUserRequestAdminSubRole =
+  | (typeof UpdateUserRequestAdminSubRole)[keyof typeof UpdateUserRequestAdminSubRole]
+  | null;
+
+export const UpdateUserRequestAdminSubRole = {
+  scolarite: "scolarite",
+  planificateur: "planificateur",
+} as const;
+
 export interface UpdateUserRequest {
   email?: string;
   name?: string;
   password?: string;
   role?: UpdateUserRequestRole;
+  adminSubRole?: UpdateUserRequestAdminSubRole;
   classId?: number | null;
 }
 
@@ -268,6 +308,58 @@ export interface EnrollStudentRequest {
   classId: number;
 }
 
+export interface Room {
+  id: number;
+  name: string;
+  capacity: number;
+  type: string;
+  description?: string | null;
+  createdAt: string;
+}
+
+export interface CreateRoomRequest {
+  name: string;
+  capacity: number;
+  type: string;
+  description?: string | null;
+}
+
+export interface ScheduleEntry {
+  id: number;
+  teacherId: number;
+  teacherName: string;
+  subjectId: number;
+  subjectName: string;
+  classId: number;
+  className: string;
+  roomId: number;
+  roomName: string;
+  semesterId: number;
+  semesterName: string;
+  /** 1=Lundi, 2=Mardi, 3=Mercredi, 4=Jeudi, 5=Vendredi, 6=Samedi */
+  dayOfWeek: number;
+  /** HH:MM format */
+  startTime: string;
+  /** HH:MM format */
+  endTime: string;
+  createdAt: string;
+}
+
+export interface CreateScheduleEntryRequest {
+  teacherId: number;
+  subjectId: number;
+  classId: number;
+  roomId: number;
+  semesterId: number;
+  /**
+   * @minimum 1
+   * @maximum 6
+   */
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+}
+
 export type ListUsersParams = {
   role?: ListUsersRole;
 };
@@ -296,4 +388,9 @@ export type GetStudentGradesParams = {
 
 export type GetStudentResultsParams = {
   semesterId?: number;
+};
+
+export type ListScheduleEntriesParams = {
+  semesterId?: number;
+  classId?: number;
 };

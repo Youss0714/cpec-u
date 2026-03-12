@@ -13,6 +13,8 @@ import AdminSubjects from "@/pages/admin/subjects";
 import AdminSemesters from "@/pages/admin/semesters";
 import AdminAssignments from "@/pages/admin/assignments";
 import AdminResults from "@/pages/admin/results";
+import AdminRooms from "@/pages/admin/rooms";
+import AdminSchedules from "@/pages/admin/schedules";
 import TeacherDashboard from "@/pages/teacher/dashboard";
 import GradeEntry from "@/pages/teacher/grade-entry";
 import StudentDashboard from "@/pages/student/dashboard";
@@ -41,6 +43,8 @@ function Router() {
       <Route path="/admin/semesters" component={AdminSemesters} />
       <Route path="/admin/assignments" component={AdminAssignments} />
       <Route path="/admin/results" component={AdminResults} />
+      <Route path="/admin/rooms" component={AdminRooms} />
+      <Route path="/admin/schedules" component={AdminSchedules} />
 
       {/* Teacher Routes */}
       <Route path="/teacher" component={TeacherDashboard} />
@@ -48,7 +52,7 @@ function Router() {
 
       {/* Student Routes */}
       <Route path="/student" component={StudentDashboard} />
-      <Route path="/student/grades" component={StudentDashboard} /> {/* Pointing to same view as dashboard contains grades */}
+      <Route path="/student/grades" component={StudentDashboard} />
 
       <Route component={NotFound} />
     </Switch>

@@ -51,9 +51,23 @@ router.post("/login", async (req, res) => {
     req.session!.userId = user.id;
     req.session!.role = user.role;
     req.session!.name = user.name;
+    req.session!.user = {
+      id: user.id,
+      role: user.role,
+      name: user.name,
+      adminSubRole: user.adminSubRole ?? null,
+    };
 
     res.json({
-      user: { id: user.id, email: user.email, name: user.name, role: user.role, classId, className },
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        adminSubRole: user.adminSubRole ?? null,
+        classId,
+        className,
+      },
       message: "Login successful",
     });
   } catch (err) {
@@ -92,7 +106,15 @@ router.get("/me", requireAuth, async (req, res) => {
       }
     }
 
-    res.json({ id: user.id, email: user.email, name: user.name, role: user.role, classId, className });
+    res.json({
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      adminSubRole: user.adminSubRole ?? null,
+      classId,
+      className,
+    });
   } catch (err) {
     console.error("Get me error:", err);
     res.status(500).json({ error: "Internal Server Error" });

@@ -5,6 +5,7 @@
  * CPEC-U Academic Management System API
  * OpenAPI spec version: 1.0.0
  */
+import type { CreateUserRequestAdminSubRole } from "./createUserRequestAdminSubRole";
 import type { CreateUserRequestRole } from "./createUserRequestRole";
 
 export interface CreateUserRequest {
@@ -12,5 +13,6 @@ export interface CreateUserRequest {
   name: string;
   password: string;
   role: CreateUserRequestRole;
+  adminSubRole?: CreateUserRequestAdminSubRole;
   classId?: number | null;
 }

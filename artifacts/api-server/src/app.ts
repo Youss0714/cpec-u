@@ -5,6 +5,12 @@ import router from "./routes/index.js";
 
 declare module "express-session" {
   interface SessionData {
+    user: {
+      id: number;
+      role: string;
+      name: string;
+      adminSubRole?: string | null;
+    };
     userId: number;
     role: string;
     name: string;
