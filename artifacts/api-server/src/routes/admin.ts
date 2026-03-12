@@ -191,6 +191,11 @@ router.get("/classes", requireRole("admin", "teacher"), async (req, res) => {
 
 router.post("/classes", requireRole("admin"), async (req, res) => {
   try {
+    const cu = req.session?.user as any;
+    if (cu?.adminSubRole === "scolarite") {
+      res.status(403).json({ error: "Forbidden", message: "L'Assistant(e) de Direction ne peut pas créer de classe." });
+      return;
+    }
     const { name, description } = req.body;
     if (!name) { res.status(400).json({ error: "Bad Request", message: "Name is required" }); return; }
     // New class gets orderIndex = max + 1

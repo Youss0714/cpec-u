@@ -3,7 +3,7 @@ import { AppLayout } from "@/components/layout";
 import {
   useListClasses, useCreateClass, useDeleteClass,
   useGetClassStudents, useEnrollStudent, useUnenrollStudent,
-  useListUsers, useUpdateClassConfig, useMoveClass,
+  useListUsers, useUpdateClassConfig, useMoveClass, useGetCurrentUser,
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -257,6 +257,8 @@ export default function AdminClasses() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedClass, setSelectedClass] = useState<ClassItem | null>(null);
   const { data: classes, isLoading } = useListClasses();
+  const { data: currentUser } = useGetCurrentUser();
+  const isScolarite = (currentUser as any)?.adminSubRole === "scolarite";
   const createClass = useCreateClass();
   const deleteClass = useDeleteClass();
   const moveClass = useMoveClass();
@@ -309,6 +311,7 @@ export default function AdminClasses() {
             <p className="text-muted-foreground">Gérez les promotions et filières. Cliquez sur une classe pour voir ses étudiants.</p>
           </div>
 
+          {!isScolarite && (
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
               <Button className="shadow-md">
@@ -335,6 +338,7 @@ export default function AdminClasses() {
               </form>
             </DialogContent>
           </Dialog>
+          )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -354,7 +358,8 @@ export default function AdminClasses() {
                   {idx + 1}
                 </div>
 
-                {/* Actions (hover) */}
+                {/* Actions (hover) — hidden for scolarité */}
+                {!isScolarite && (
                 <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center gap-0.5">
                   <Button
                     variant="ghost" size="icon"
@@ -383,6 +388,7 @@ export default function AdminClasses() {
                     <Trash2 className="w-3.5 h-3.5" />
                   </Button>
                 </div>
+                )}
 
                 <div className="pl-9 pr-10">
                   <div className="flex items-center gap-2 flex-wrap">
