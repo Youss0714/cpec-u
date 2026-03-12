@@ -7,8 +7,12 @@ import { requireRole } from "../lib/auth.js";
 const router = Router();
 
 function requirePlanificateur(req: any, res: any, next: any) {
-  if (req.session?.user?.role !== "admin" || req.session.user.adminSubRole !== "planificateur") {
-    return res.status(403).json({ error: "Réservé au Responsable pédagogique" });
+  if (req.session?.user?.role !== "admin") {
+    return res.status(403).json({ error: "Forbidden" });
+  }
+  const subRole = req.session.user.adminSubRole;
+  if (subRole !== "planificateur" && subRole !== "directeur") {
+    return res.status(403).json({ error: "Réservé au Responsable pédagogique ou au Directeur" });
   }
   next();
 }

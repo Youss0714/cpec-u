@@ -10,8 +10,9 @@ function requirePlanificateur(req: any, res: any, next: any) {
   if (req.session?.user?.role !== "admin") {
     return res.status(403).json({ error: "Forbidden" });
   }
-  if (req.session.user.adminSubRole !== "planificateur") {
-    return res.status(403).json({ error: "Réservé au Planificateur" });
+  const subRole = req.session.user.adminSubRole;
+  if (subRole !== "planificateur" && subRole !== "directeur") {
+    return res.status(403).json({ error: "Réservé au Planificateur ou au Directeur" });
   }
   next();
 }
