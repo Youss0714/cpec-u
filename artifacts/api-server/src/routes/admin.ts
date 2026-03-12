@@ -318,6 +318,11 @@ router.get("/subjects", requireRole("admin", "teacher"), async (req, res) => {
 
 router.post("/subjects", requireRole("admin"), async (req, res) => {
   try {
+    const cu = req.session?.user as any;
+    if (cu?.adminSubRole === "scolarite") {
+      res.status(403).json({ error: "Forbidden", message: "L'Assistant(e) de Direction ne peut pas créer de matière." });
+      return;
+    }
     const { name, coefficient, description, classId } = req.body;
     if (!name || coefficient === undefined) { res.status(400).json({ error: "Bad Request", message: "Name and coefficient are required" }); return; }
     const [subj] = await db.insert(subjectsTable).values({ name, coefficient, description, classId: classId ?? null }).returning();

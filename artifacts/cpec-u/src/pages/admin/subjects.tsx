@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { AppLayout } from "@/components/layout";
-import { useListSubjects, useCreateSubject, useUpdateSubject, useDeleteSubject, useListClasses } from "@workspace/api-client-react";
+import { useListSubjects, useCreateSubject, useUpdateSubject, useDeleteSubject, useListClasses, useGetCurrentUser } from "@workspace/api-client-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -22,6 +22,8 @@ export default function AdminSubjects() {
 
   const { data: subjects, isLoading } = useListSubjects();
   const { data: classes } = useListClasses();
+  const { data: currentUser } = useGetCurrentUser();
+  const isScolarite = (currentUser as any)?.adminSubRole === "scolarite";
   const createSubject = useCreateSubject();
   const updateSubject = useUpdateSubject();
   const deleteSubject = useDeleteSubject();
@@ -144,6 +146,7 @@ export default function AdminSubjects() {
             <p className="text-muted-foreground">Unités d'enseignement et coefficients.</p>
           </div>
 
+          {!isScolarite && (
           <Dialog open={isCreateOpen} onOpenChange={(o) => { setIsCreateOpen(o); if (!o) setForm(emptyForm); }}>
             <DialogTrigger asChild>
               <Button className="shadow-md">
@@ -158,6 +161,7 @@ export default function AdminSubjects() {
               <SubjectForm onSubmit={handleCreate} isPending={createSubject.isPending} />
             </DialogContent>
           </Dialog>
+          )}
         </div>
 
         {/* Dialog d'édition */}
@@ -198,6 +202,7 @@ export default function AdminSubjects() {
                       {(sub as any).className || "Générale"}
                     </TableCell>
                     <TableCell className="text-right">
+                      {!isScolarite && (
                       <div className="flex justify-end gap-1">
                         <Button
                           variant="ghost"
@@ -216,6 +221,7 @@ export default function AdminSubjects() {
                           <Trash2 className="w-4 h-4" />
                         </Button>
                       </div>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))
