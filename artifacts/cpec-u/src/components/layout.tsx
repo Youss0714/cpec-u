@@ -96,7 +96,7 @@ export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
   const roleLabel =
     user.role === "admin"
       ? adminSubRole === "planificateur"
-        ? "Planificateur"
+        ? "Responsable pédagogique"
         : "Responsable du Centre"
       : user.role === "teacher"
       ? "Enseignant"
@@ -126,7 +126,7 @@ export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
       <div className="px-4 py-2 text-xs font-semibold text-sidebar-foreground/50 uppercase tracking-wider">
         {user.role === "admin"
           ? adminSubRole === "planificateur"
-            ? "Menu Planificateur"
+            ? "Menu Responsable pédagogique"
             : "Menu Scolarité"
           : user.role === "teacher"
           ? "Menu Enseignant"

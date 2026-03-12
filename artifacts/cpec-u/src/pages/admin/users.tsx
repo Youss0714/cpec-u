@@ -20,7 +20,7 @@ const ROLE_LABELS: Record<string, string> = {
 
 const SUB_ROLE_LABELS: Record<string, string> = {
   scolarite: "Responsable du Centre",
-  planificateur: "Planificateur",
+  planificateur: "Responsable pédagogique",
 };
 
 const SUB_ROLE_COLORS: Record<string, string> = {
@@ -156,7 +156,7 @@ export default function AdminUsers() {
                           <SelectItem value="planificateur">
                             <div className="flex items-center gap-2">
                               <GraduationCap className="w-4 h-4 text-amber-600" />
-                              Planificateur
+                              Responsable pédagogique
                             </div>
                           </SelectItem>
                         </SelectContent>
