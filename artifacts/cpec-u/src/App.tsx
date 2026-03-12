@@ -21,6 +21,7 @@ import ActivityLog from "@/pages/admin/activity-log";
 import TeacherDashboard from "@/pages/teacher/dashboard";
 import GradeEntry from "@/pages/teacher/grade-entry";
 import StudentDashboard from "@/pages/student/dashboard";
+import StudentSchedule from "@/pages/student/schedule";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -58,6 +59,7 @@ function Router() {
 
       {/* Student Routes */}
       <Route path="/student" component={StudentDashboard} />
+      <Route path="/student/schedule" component={StudentSchedule} />
       <Route path="/student/grades" component={StudentDashboard} />
 
       <Route component={NotFound} />

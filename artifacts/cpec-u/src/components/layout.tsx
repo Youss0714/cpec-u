@@ -117,6 +117,7 @@ export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
         ]
       : [
           { name: "Mon Profil", href: "/student", icon: LayoutDashboard },
+          { name: "Mon Emploi du Temps", href: "/student/schedule", icon: CalendarDays },
           { name: "Mes Résultats", href: "/student/grades", icon: FileText },
         ];
 

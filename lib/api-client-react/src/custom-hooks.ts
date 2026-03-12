@@ -332,3 +332,23 @@ export const useUpdateScheduleEntry = (options?: UseMutationOptions<any, unknown
     mutationFn: updateScheduleEntry,
     ...options,
   });
+
+// ─── Student Me ───────────────────────────────────────────────────────────────
+
+export type StudentMe = {
+  id: number;
+  name: string;
+  email: string;
+  classId: number | null;
+  className: string | null;
+};
+
+const getStudentMe = (): Promise<StudentMe> =>
+  customFetch("/api/student/me");
+
+export const useGetStudentMe = (options?: QueryOpts<StudentMe>) =>
+  useQuery<StudentMe, Error>({
+    queryKey: ["studentMe"],
+    queryFn: getStudentMe,
+    ...options,
+  });
