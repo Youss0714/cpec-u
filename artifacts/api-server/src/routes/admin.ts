@@ -199,8 +199,12 @@ router.post("/classes", requireRole("admin"), async (req, res) => {
 router.put("/classes/:id", requireRole("admin"), async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    const { name, description } = req.body;
-    const [cls] = await db.update(classesTable).set({ name, description }).where(eq(classesTable.id, id)).returning();
+    const { name, description, nextClassId } = req.body;
+    const updateData: any = { name, description };
+    if (nextClassId !== undefined) {
+      updateData.nextClassId = nextClassId === null || nextClassId === "" ? null : parseInt(nextClassId);
+    }
+    const [cls] = await db.update(classesTable).set(updateData).where(eq(classesTable.id, id)).returning();
     if (!cls) { res.status(404).json({ error: "Not Found" }); return; }
     const [ec] = await db.select({ cnt: count() }).from(classEnrollmentsTable).where(eq(classEnrollmentsTable.classId, id));
     res.json({ ...cls, studentCount: Number(ec?.cnt ?? 0) });
@@ -357,6 +361,68 @@ router.post("/semesters/:id/publish", requireRole("admin"), async (req, res) => 
       details: `Semestre ID ${id} — résultats ${published ? "publiés" : "dépubliés"}.`,
     });
     res.json(sem);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// Promote admitted students to next class
+router.post("/semesters/:id/promote", requireRole("admin"), async (req, res) => {
+  try {
+    const cu = req.session.user!;
+    if (cu.adminSubRole !== "scolarite" && cu.adminSubRole !== "directeur") {
+      res.status(403).json({ error: "Réservé au Assistant(e) de Direction." });
+      return;
+    }
+    const semesterId = parseInt(req.params.id);
+    const { classId: classIdParam } = req.body;
+    if (!classIdParam) {
+      res.status(400).json({ error: "classId requis." });
+      return;
+    }
+    const classId = parseInt(classIdParam);
+
+    // Fetch class and its next class
+    const [cls] = await db.select().from(classesTable).where(eq(classesTable.id, classId)).limit(1);
+    if (!cls) { res.status(404).json({ error: "Classe introuvable." }); return; }
+    if (!cls.nextClassId) {
+      res.status(400).json({ error: "Aucune classe supérieure configurée pour cette classe." });
+      return;
+    }
+    const nextClassId = cls.nextClassId;
+
+    // Get all students in this class
+    const enrollments = await db
+      .select({ studentId: classEnrollmentsTable.studentId })
+      .from(classEnrollmentsTable)
+      .where(eq(classEnrollmentsTable.classId, classId));
+
+    const promoted: { id: number; name: string }[] = [];
+
+    for (const { studentId } of enrollments) {
+      const result = await computeStudentResult(studentId, semesterId);
+      if (!result || result.decision !== "Admis") continue;
+
+      // Remove from current class
+      await db.delete(classEnrollmentsTable).where(
+        and(eq(classEnrollmentsTable.studentId, studentId), eq(classEnrollmentsTable.classId, classId))
+      );
+      // Insert into next class (ignore if already enrolled)
+      await db.insert(classEnrollmentsTable).values({ studentId, classId: nextClassId }).onConflictDoNothing();
+
+      const [student] = await db.select({ name: usersTable.name }).from(usersTable).where(eq(usersTable.id, studentId)).limit(1);
+      promoted.push({ id: studentId, name: student?.name ?? "Étudiant inconnu" });
+    }
+
+    // Log activity
+    await db.insert(activityLogTable).values({
+      userId: cu.id,
+      action: "promotion_etudiants",
+      details: `${promoted.length} étudiant(s) promus de "${cls.name}" vers la classe supérieure (semestre ID ${semesterId}).`,
+    });
+
+    res.json({ promoted, fromClass: cls.name, toClassId: nextClassId });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Internal Server Error" });

@@ -3,7 +3,7 @@ import { AppLayout } from "@/components/layout";
 import {
   useListClasses, useCreateClass, useDeleteClass,
   useGetClassStudents, useEnrollStudent, useUnenrollStudent,
-  useListUsers,
+  useListUsers, useUpdateClassConfig,
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -16,12 +16,19 @@ import { Plus, Trash2, Users, UserPlus, UserMinus, ChevronRight, BookOpen } from
 import { useQueryClient } from "@tanstack/react-query";
 import { Textarea } from "@/components/ui/textarea";
 
-type ClassItem = { id: number; name: string; description: string | null; studentCount: number };
+type ClassItem = { id: number; name: string; description: string | null; studentCount: number; nextClassId: number | null };
 
-function ClassStudentsSheet({ cls, open, onClose }: { cls: ClassItem; open: boolean; onClose: () => void }) {
+function ClassStudentsSheet({
+  cls, open, onClose, allClasses,
+}: {
+  cls: ClassItem; open: boolean; onClose: () => void;
+  allClasses: ClassItem[];
+}) {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [selectedStudentId, setSelectedStudentId] = useState<string>("");
+  const [savingNextClass, setSavingNextClass] = useState(false);
+  const updateClassMutation = useUpdateClassConfig();
 
   const { data: students = [], isLoading } = useGetClassStudents(cls.id, {
     query: { enabled: open } as any,
@@ -38,6 +45,20 @@ function ClassStudentsSheet({ cls, open, onClose }: { cls: ClassItem; open: bool
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: [`/api/admin/classes/${cls.id}/students`] });
     qc.invalidateQueries({ queryKey: ["/api/admin/classes"] });
+  };
+
+  const handleSetNextClass = async (nextClassIdStr: string) => {
+    setSavingNextClass(true);
+    try {
+      const nextClassId = nextClassIdStr === "none" ? null : parseInt(nextClassIdStr);
+      await updateClassMutation.mutateAsync({ id: cls.id, nextClassId });
+      toast({ title: nextClassId ? "Classe supérieure configurée." : "Classe supérieure retirée." });
+      qc.invalidateQueries({ queryKey: ["/api/admin/classes"] });
+    } catch {
+      toast({ title: "Erreur lors de la mise à jour.", variant: "destructive" });
+    } finally {
+      setSavingNextClass(false);
+    }
   };
 
   const handleAdd = async () => {
@@ -77,6 +98,30 @@ function ClassStudentsSheet({ cls, open, onClose }: { cls: ClassItem; open: bool
         </SheetHeader>
 
         <div className="mt-6 space-y-6">
+          {/* Next class config */}
+          <div className="space-y-2 pb-4 border-b">
+            <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+              <span>Classe supérieure</span>
+              {cls.nextClassId && <span className="text-xs font-normal bg-violet-100 text-violet-700 px-1.5 py-0.5 rounded-full">Configurée</span>}
+            </h3>
+            <p className="text-xs text-muted-foreground">Les étudiants admis (≥ 12/20) pourront être promus vers cette classe depuis la page Résultats.</p>
+            <Select
+              value={cls.nextClassId ? String(cls.nextClassId) : "none"}
+              onValueChange={handleSetNextClass}
+              disabled={savingNextClass}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Sélectionner..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Aucune (pas de promotion)</SelectItem>
+                {allClasses.filter((c) => c.id !== cls.id).map((c) => (
+                  <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
           {/* Add student */}
           <div className="space-y-3">
             <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">
@@ -290,6 +335,7 @@ export default function AdminClasses() {
           cls={selectedClass}
           open={!!selectedClass}
           onClose={() => setSelectedClass(null)}
+          allClasses={(classes as unknown as ClassItem[]) ?? []}
         />
       )}
     </AppLayout>

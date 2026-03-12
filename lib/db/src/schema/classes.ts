@@ -7,6 +7,7 @@ export const classesTable = pgTable("classes", {
   id: serial("id").primaryKey(),
   name: varchar("name", { length: 255 }).notNull(),
   description: text("description"),
+  nextClassId: integer("next_class_id").references((): any => classesTable.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

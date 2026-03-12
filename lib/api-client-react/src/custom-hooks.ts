@@ -264,6 +264,43 @@ export const useListActivityLog = (options?: QueryOpts<ActivityLogEntry[]>) =>
     ...options,
   });
 
+// ─── Promote Admitted Students ────────────────────────────────────────────────
+
+export type PromoteRequest = { semesterId: number; classId: number };
+export type PromoteResponse = { promoted: { id: number; name: string }[]; fromClass: string; toClassId: number };
+
+export const promoteAdmitted = (data: PromoteRequest): Promise<PromoteResponse> =>
+  customFetch<PromoteResponse>(`/api/admin/semesters/${data.semesterId}/promote`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ classId: data.classId }),
+  });
+
+export const usePromoteAdmitted = (options?: UseMutationOptions<PromoteResponse, unknown, PromoteRequest>) =>
+  useMutation<PromoteResponse, unknown, PromoteRequest>({
+    mutationKey: ["promoteAdmitted"],
+    mutationFn: promoteAdmitted,
+    ...options,
+  });
+
+// ─── Update Class Config (next class) ────────────────────────────────────────
+
+export type UpdateClassConfigRequest = { id: number; name?: string; description?: string; nextClassId?: number | null };
+
+export const updateClassConfig = ({ id, ...data }: UpdateClassConfigRequest): Promise<any> =>
+  customFetch<any>(`/api/admin/classes/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+
+export const useUpdateClassConfig = (options?: UseMutationOptions<any, unknown, UpdateClassConfigRequest>) =>
+  useMutation<any, unknown, UpdateClassConfigRequest>({
+    mutationKey: ["updateClassConfig"],
+    mutationFn: updateClassConfig,
+    ...options,
+  });
+
 // ─── Schedule Entry Update ─────────────────────────────────────────────────────
 
 export const updateScheduleEntry = ({ entryId, data }: { entryId: number; data: UpdateScheduleEntryRequest }): Promise<any> =>
