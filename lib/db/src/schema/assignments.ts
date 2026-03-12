@@ -12,6 +12,7 @@ export const teacherAssignmentsTable = pgTable("teacher_assignments", {
   subjectId: integer("subject_id").notNull().references(() => subjectsTable.id, { onDelete: "cascade" }),
   classId: integer("class_id").notNull().references(() => classesTable.id, { onDelete: "cascade" }),
   semesterId: integer("semester_id").notNull().references(() => semestersTable.id, { onDelete: "cascade" }),
+  plannedHours: integer("planned_hours").notNull().default(30),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (table) => ({
   uniqueAssignment: unique().on(table.teacherId, table.subjectId, table.classId, table.semesterId),

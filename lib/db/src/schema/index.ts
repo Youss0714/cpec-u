@@ -6,3 +6,4 @@ export * from "./grades";
 export * from "./assignments";
 export * from "./rooms";
 export * from "./schedules";
+export * from "./blocked_dates";

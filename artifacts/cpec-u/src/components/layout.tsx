@@ -18,6 +18,8 @@ import {
   CalendarDays,
   ShieldCheck,
   LayoutList,
+  BarChart,
+  CalendarOff,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
@@ -70,8 +72,10 @@ export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
   const planificateurNavItems = [
     { name: "Tableau de bord", href: "/admin", icon: LayoutDashboard },
     { name: "Emplois du temps", href: "/admin/schedules", icon: CalendarDays },
+    { name: "Volumes Horaires", href: "/admin/planning-assignments", icon: BarChart },
     { name: "Salles", href: "/admin/rooms", icon: DoorOpen },
-    { name: "Affectations", href: "/admin/assignments", icon: ClipboardList },
+    { name: "Vacances & Jours Fériés", href: "/admin/blocked-dates", icon: CalendarOff },
+    { name: "Affectations (Notes)", href: "/admin/assignments", icon: ClipboardList },
     { name: "Classes", href: "/admin/classes", icon: School },
     { name: "Matières", href: "/admin/subjects", icon: BookOpen },
     { name: "Semestres", href: "/admin/semesters", icon: Calendar },

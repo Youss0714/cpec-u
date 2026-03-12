@@ -15,6 +15,8 @@ import AdminAssignments from "@/pages/admin/assignments";
 import AdminResults from "@/pages/admin/results";
 import AdminRooms from "@/pages/admin/rooms";
 import AdminSchedules from "@/pages/admin/schedules";
+import PlanningAssignments from "@/pages/admin/planning-assignments";
+import BlockedDates from "@/pages/admin/blocked-dates";
 import TeacherDashboard from "@/pages/teacher/dashboard";
 import GradeEntry from "@/pages/teacher/grade-entry";
 import StudentDashboard from "@/pages/student/dashboard";
@@ -45,6 +47,8 @@ function Router() {
       <Route path="/admin/results" component={AdminResults} />
       <Route path="/admin/rooms" component={AdminRooms} />
       <Route path="/admin/schedules" component={AdminSchedules} />
+      <Route path="/admin/planning-assignments" component={PlanningAssignments} />
+      <Route path="/admin/blocked-dates" component={BlockedDates} />
 
       {/* Teacher Routes */}
       <Route path="/teacher" component={TeacherDashboard} />

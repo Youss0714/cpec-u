@@ -52,10 +52,26 @@ artifacts-monorepo/
 - **Cannot** manage rooms or schedules
 
 ### Admin — Planificateur (`adminSubRole: "planificateur"`)
-- Creates and manages timetables (emplois du temps)
+- Creates and manages timetables (emplois du temps) with conflict detection (teacher & room double-booking)
+- Publish/unpublish schedule per semester (toggle Publié/Brouillon)
+- Edit and delete individual schedule slots via inline modal
+- Print schedule with `window.print()`
 - CRUD on rooms (salles, amphithéâtres, labo)
-- Assigns teachers to subjects per semester/class/room
+- Volumes horaires: track planned vs realized teaching hours per teacher/subject/class
+- Blocked dates: manage vacation periods and public holidays
+- Dashboard shows: conflict count, creneaux, rooms, quick links to all planning pages
 - Can view semesters and classes (read-only for grades)
+
+### New DB tables & columns (planning system)
+- `schedule_entries`: added `published` (boolean), `notes` (text)
+- `teacher_assignments`: added `planned_hours` (integer) — plans horaires
+- `blocked_dates`: new table (date, reason, type enum: vacances/ferie/autre)
+
+### New API routes (planning)
+- `PUT /api/admin/schedules/:id` — update a schedule entry
+- `POST /api/admin/schedules/publish` — publish/unpublish by semesterId
+- `GET/POST/PUT/DELETE /api/admin/teacher-assignments` — volumes horaires CRUD
+- `GET/POST/DELETE /api/admin/blocked-dates` — blocked dates CRUD
 
 ### Teacher
 - Enter grades for assigned subjects only. Offline mode via localStorage.

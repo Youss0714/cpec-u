@@ -1,4 +1,4 @@
-import { pgTable, serial, integer, varchar, time, timestamp, unique } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, varchar, text, boolean, timestamp, unique } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { usersTable } from "./users";
@@ -17,6 +17,8 @@ export const scheduleEntriesTable = pgTable("schedule_entries", {
   dayOfWeek: integer("day_of_week").notNull(), // 1=Lundi, 2=Mardi, ..., 6=Samedi
   startTime: varchar("start_time", { length: 5 }).notNull(), // "08:00"
   endTime: varchar("end_time", { length: 5 }).notNull(),     // "10:00"
+  notes: text("notes"),
+  published: boolean("published").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
