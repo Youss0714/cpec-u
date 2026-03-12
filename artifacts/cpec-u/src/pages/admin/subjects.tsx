@@ -175,8 +175,9 @@ export default function AdminSubjects() {
         </Dialog>
 
         <div className="bg-card rounded-2xl shadow-sm border border-border overflow-hidden">
+          <div className="overflow-y-auto max-h-[calc(100vh-260px)]">
           <Table>
-            <TableHeader className="bg-secondary/50">
+            <TableHeader className="bg-secondary/50 sticky top-0 z-10">
               <TableRow>
                 <TableHead>Matière</TableHead>
                 <TableHead>Coefficient</TableHead>
@@ -228,6 +229,7 @@ export default function AdminSubjects() {
               )}
             </TableBody>
           </Table>
+          </div>
         </div>
       </div>
     </AppLayout>
