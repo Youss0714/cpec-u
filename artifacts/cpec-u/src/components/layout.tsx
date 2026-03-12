@@ -20,6 +20,7 @@ import {
   LayoutList,
   BarChart,
   CalendarOff,
+  ScrollText,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
@@ -32,7 +33,7 @@ interface AppLayoutProps {
 export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
   const [location, setLocation] = useLocation();
   const { data: user, isLoading, isError } = useGetCurrentUser({
-    query: { retry: false },
+    query: { retry: false } as any,
   });
   const logoutMutation = useLogout({
     mutation: {
@@ -66,7 +67,8 @@ export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
     { name: "Classes", href: "/admin/classes", icon: School },
     { name: "Matières", href: "/admin/subjects", icon: BookOpen },
     { name: "Semestres", href: "/admin/semesters", icon: Calendar },
-    { name: "Résultats", href: "/admin/results", icon: GraduationCap },
+    { name: "Résultats & Bulletins", href: "/admin/results", icon: GraduationCap },
+    { name: "Journal d'Activité", href: "/admin/activity-log", icon: ScrollText },
   ];
 
   const planificateurNavItems = [

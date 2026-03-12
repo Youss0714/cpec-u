@@ -2,6 +2,8 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import type { UseMutationOptions, UseQueryOptions } from "@tanstack/react-query";
 import { customFetch } from "./custom-fetch";
 
+type QueryOpts<T> = Omit<UseQueryOptions<T, Error>, "queryKey" | "queryFn">;
+
 // ─── Types for planning assignments (volume horaire) ──────────────────────────
 
 export type PlanningAssignment = {
@@ -62,7 +64,7 @@ export type UpdateScheduleEntryRequest = {
 export const listPlanningAssignments = (): Promise<PlanningAssignment[]> =>
   customFetch<PlanningAssignment[]>("/api/admin/teacher-assignments");
 
-export const useListPlanningAssignments = (options?: UseQueryOptions<PlanningAssignment[]>) =>
+export const useListPlanningAssignments = (options?: QueryOpts<PlanningAssignment[]>) =>
   useQuery<PlanningAssignment[]>({
     queryKey: ["/api/admin/teacher-assignments"],
     queryFn: listPlanningAssignments,
@@ -112,7 +114,7 @@ export const useDeletePlanningAssignment = (options?: UseMutationOptions<{ messa
 export const listBlockedDates = (): Promise<BlockedDate[]> =>
   customFetch<BlockedDate[]>("/api/admin/blocked-dates");
 
-export const useListBlockedDates = (options?: UseQueryOptions<BlockedDate[]>) =>
+export const useListBlockedDates = (options?: QueryOpts<BlockedDate[]>) =>
   useQuery<BlockedDate[]>({
     queryKey: ["/api/admin/blocked-dates"],
     queryFn: listBlockedDates,
@@ -156,6 +158,109 @@ export const usePublishSchedule = (options?: UseMutationOptions<{ message: strin
   useMutation<{ message: string }, unknown, PublishScheduleRequest>({
     mutationKey: ["publishSchedule"],
     mutationFn: publishSchedule,
+    ...options,
+  });
+
+// ─── Subject Approvals ────────────────────────────────────────────────────────
+
+export type SubjectApproval = {
+  id: number;
+  subjectId: number;
+  subjectName: string;
+  classId: number;
+  className: string;
+  semesterId: number;
+  approvedById: number;
+  approvedByName: string;
+  approvedAt: string;
+};
+
+export type ApproveSubjectRequest = {
+  subjectId: number;
+  classId: number;
+  semesterId: number;
+};
+
+export const listSubjectApprovals = (params?: { semesterId?: number; classId?: number }): Promise<SubjectApproval[]> => {
+  const qs = new URLSearchParams();
+  if (params?.semesterId) qs.set("semesterId", String(params.semesterId));
+  if (params?.classId) qs.set("classId", String(params.classId));
+  return customFetch<SubjectApproval[]>(`/api/admin/subject-approvals${qs.toString() ? "?" + qs.toString() : ""}`);
+};
+
+export const useListSubjectApprovals = (params?: { semesterId?: number; classId?: number }, options?: QueryOpts<SubjectApproval[]>) =>
+  useQuery<SubjectApproval[]>({
+    queryKey: ["/api/admin/subject-approvals", params],
+    queryFn: () => listSubjectApprovals(params),
+    ...options,
+  });
+
+export const approveSubject = (data: ApproveSubjectRequest): Promise<SubjectApproval> =>
+  customFetch<SubjectApproval>("/api/admin/subject-approvals", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+
+export const useApproveSubject = (options?: UseMutationOptions<SubjectApproval, unknown, ApproveSubjectRequest>) =>
+  useMutation<SubjectApproval, unknown, ApproveSubjectRequest>({
+    mutationKey: ["approveSubject"],
+    mutationFn: approveSubject,
+    ...options,
+  });
+
+export const unapproveSubject = ({ id }: { id: number }): Promise<{ message: string }> =>
+  customFetch<{ message: string }>(`/api/admin/subject-approvals/${id}`, { method: "DELETE" });
+
+export const useUnapproveSubject = (options?: UseMutationOptions<{ message: string }, unknown, { id: number }>) =>
+  useMutation<{ message: string }, unknown, { id: number }>({
+    mutationKey: ["unapproveSubject"],
+    mutationFn: unapproveSubject,
+    ...options,
+  });
+
+// ─── Derogation ───────────────────────────────────────────────────────────────
+
+export type DerogateGradeRequest = {
+  studentId: number;
+  subjectId: number;
+  semesterId: number;
+  value: number;
+  justification: string;
+};
+
+export const derogateGrade = (data: DerogateGradeRequest): Promise<{ message: string }> =>
+  customFetch<{ message: string }>("/api/admin/grades/derogate", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+
+export const useDerogateGrade = (options?: UseMutationOptions<{ message: string }, unknown, DerogateGradeRequest>) =>
+  useMutation<{ message: string }, unknown, DerogateGradeRequest>({
+    mutationKey: ["derogateGrade"],
+    mutationFn: derogateGrade,
+    ...options,
+  });
+
+// ─── Activity Log ─────────────────────────────────────────────────────────────
+
+export type ActivityLogEntry = {
+  id: number;
+  userId: number;
+  userName: string;
+  action: string;
+  details: string | null;
+  createdAt: string;
+};
+
+export const listActivityLog = (): Promise<ActivityLogEntry[]> =>
+  customFetch<ActivityLogEntry[]>("/api/admin/activity-log");
+
+export const useListActivityLog = (options?: QueryOpts<ActivityLogEntry[]>) =>
+  useQuery<ActivityLogEntry[]>({
+    queryKey: ["/api/admin/activity-log"],
+    queryFn: listActivityLog,
     ...options,
   });
 

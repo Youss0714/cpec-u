@@ -47,8 +47,11 @@ artifacts-monorepo/
 
 ### Admin — Responsable de Scolarité (`adminSubRole: "scolarite"`)
 - Full CRUD on students, grades, classes, subjects, semesters
-- Validates averages and publishes results per semester
-- Generates PDF bulletins (admin-only)
+- Validates averages and publishes results per semester (publish toggle on results page)
+- **Subject approvals**: Approve/lock grades per subject+class combo → teachers see read-only banner
+- **Grade derogations**: Override any grade with mandatory justification (logged in activity journal)
+- **Activity log**: Full traceability of approvals, derogations, publications at /admin/activity-log
+- Generates PDF bulletins (scolarité-only)
 - **Cannot** manage rooms or schedules
 
 ### Admin — Planificateur (`adminSubRole: "planificateur"`)
@@ -96,6 +99,7 @@ artifacts-monorepo/
 
 | Role | Sous-rôle | Email | Password |
 |------|-----------|-------|----------|
+| Admin | Responsable Scolarité | youss@gmail.com | @Youss0546 |
 | Admin | Responsable Scolarité | admin@cpec-u.fr | admin123 |
 | Admin | Planificateur | planificateur@cpec-u.fr | planificateur123 |
 | Teacher | — | prof.math@cpec-u.fr | teacher123 |

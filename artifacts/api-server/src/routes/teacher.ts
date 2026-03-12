@@ -8,6 +8,7 @@ import {
   semestersTable,
   teacherAssignmentsTable,
   classEnrollmentsTable,
+  subjectApprovalsTable,
 } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { requireRole } from "../lib/auth.js";
@@ -159,6 +160,28 @@ router.post("/grades/bulk", requireRole("teacher", "admin"), async (req, res) =>
     if (!Array.isArray(grades) || grades.length === 0) {
       res.status(400).json({ error: "Bad Request", message: "Grades array is required" });
       return;
+    }
+
+    // Check approval on the first grade entry (all share same subject/class/semester for bulk entry)
+    if (grades.length > 0 && req.session!.role !== "admin") {
+      const first = grades[0];
+      const [approval] = await db
+        .select()
+        .from(subjectApprovalsTable)
+        .innerJoin(teacherAssignmentsTable, and(
+          eq(teacherAssignmentsTable.subjectId, subjectApprovalsTable.subjectId),
+          eq(teacherAssignmentsTable.classId, subjectApprovalsTable.classId),
+          eq(teacherAssignmentsTable.semesterId, subjectApprovalsTable.semesterId),
+        ))
+        .where(and(
+          eq(subjectApprovalsTable.subjectId, first.subjectId),
+          eq(subjectApprovalsTable.semesterId, first.semesterId),
+        ))
+        .limit(1);
+      if (approval) {
+        res.status(403).json({ error: "Notes verrouillées. Cette matière a été approuvée par le Responsable du Centre." });
+        return;
+      }
     }
 
     const results = [];

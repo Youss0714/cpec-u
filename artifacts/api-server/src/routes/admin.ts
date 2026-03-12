@@ -9,8 +9,10 @@ import {
   semestersTable,
   gradesTable,
   teacherAssignmentsTable,
+  subjectApprovalsTable,
+  activityLogTable,
 } from "@workspace/db";
-import { eq, and, sql, count, inArray } from "drizzle-orm";
+import { eq, and, sql, count, inArray, desc } from "drizzle-orm";
 import { requireRole } from "../lib/auth.js";
 
 const router = Router();
@@ -334,10 +336,21 @@ router.put("/semesters/:id", requireRole("admin"), async (req, res) => {
 
 router.post("/semesters/:id/publish", requireRole("admin"), async (req, res) => {
   try {
+    const cu = req.session.user!;
+    if (cu.adminSubRole !== "scolarite") {
+      res.status(403).json({ error: "Réservé au Responsable du Centre." });
+      return;
+    }
     const id = parseInt(req.params.id);
     const { published } = req.body;
     const [sem] = await db.update(semestersTable).set({ published: !!published }).where(eq(semestersTable.id, id)).returning();
     if (!sem) { res.status(404).json({ error: "Not Found" }); return; }
+    // Log to activity
+    await db.insert(activityLogTable).values({
+      userId: cu.id,
+      action: published ? "publication_resultats" : "depublication_resultats",
+      details: `Semestre ID ${id} — résultats ${published ? "publiés" : "dépubliés"}.`,
+    });
     res.json(sem);
   } catch (err) {
     console.error(err);
@@ -440,6 +453,11 @@ router.get("/results/:semesterId", requireRole("admin"), async (req, res) => {
 // ─── PDF Bulletin ─────────────────────────────────────────────────────────────
 router.get("/bulletin/:studentId/:semesterId", requireRole("admin"), async (req, res) => {
   try {
+    const cu = req.session.user!;
+    if (cu.adminSubRole !== "scolarite") {
+      res.status(403).json({ error: "Réservé au Responsable du Centre." });
+      return;
+    }
     const studentId = parseInt(req.params.studentId);
     const semesterId = parseInt(req.params.semesterId);
 
@@ -595,6 +613,175 @@ router.delete("/assignments/:id", requireRole("admin"), async (req, res) => {
     const id = parseInt(req.params.id);
     await db.delete(teacherAssignmentsTable).where(eq(teacherAssignmentsTable.id, id));
     res.json({ message: "Assignment deleted" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// ─── Subject Approvals ───────────────────────────────────────────────────────
+
+router.get("/subject-approvals", requireRole("admin"), async (req, res) => {
+  try {
+    const { semesterId, classId } = req.query;
+    const conditions: any[] = [];
+    if (semesterId) conditions.push(eq(subjectApprovalsTable.semesterId, parseInt(semesterId as string)));
+    if (classId) conditions.push(eq(subjectApprovalsTable.classId, parseInt(classId as string)));
+
+    const rows = conditions.length > 0
+      ? await db.select({
+          id: subjectApprovalsTable.id,
+          subjectId: subjectApprovalsTable.subjectId,
+          subjectName: subjectsTable.name,
+          classId: subjectApprovalsTable.classId,
+          className: classesTable.name,
+          semesterId: subjectApprovalsTable.semesterId,
+          approvedById: subjectApprovalsTable.approvedById,
+          approvedByName: usersTable.name,
+          approvedAt: subjectApprovalsTable.approvedAt,
+        })
+        .from(subjectApprovalsTable)
+        .innerJoin(subjectsTable, eq(subjectsTable.id, subjectApprovalsTable.subjectId))
+        .innerJoin(classesTable, eq(classesTable.id, subjectApprovalsTable.classId))
+        .innerJoin(usersTable, eq(usersTable.id, subjectApprovalsTable.approvedById))
+        .where(conditions.length === 1 ? conditions[0] : and(...conditions))
+      : await db.select({
+          id: subjectApprovalsTable.id,
+          subjectId: subjectApprovalsTable.subjectId,
+          subjectName: subjectsTable.name,
+          classId: subjectApprovalsTable.classId,
+          className: classesTable.name,
+          semesterId: subjectApprovalsTable.semesterId,
+          approvedById: subjectApprovalsTable.approvedById,
+          approvedByName: usersTable.name,
+          approvedAt: subjectApprovalsTable.approvedAt,
+        })
+        .from(subjectApprovalsTable)
+        .innerJoin(subjectsTable, eq(subjectsTable.id, subjectApprovalsTable.subjectId))
+        .innerJoin(classesTable, eq(classesTable.id, subjectApprovalsTable.classId))
+        .innerJoin(usersTable, eq(usersTable.id, subjectApprovalsTable.approvedById));
+    res.json(rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+router.post("/subject-approvals", requireRole("admin"), async (req, res) => {
+  try {
+    const cu = req.session.user!;
+    if (cu.adminSubRole !== "scolarite") {
+      res.status(403).json({ error: "Réservé au Responsable du Centre." });
+      return;
+    }
+    const { subjectId, classId, semesterId } = req.body;
+    if (!subjectId || !classId || !semesterId) {
+      res.status(400).json({ error: "subjectId, classId, semesterId requis." });
+      return;
+    }
+    const [row] = await db
+      .insert(subjectApprovalsTable)
+      .values({ subjectId, classId, semesterId, approvedById: cu.id })
+      .onConflictDoNothing()
+      .returning();
+    await db.insert(activityLogTable).values({
+      userId: cu.id,
+      action: "approbation_notes",
+      details: `Notes approuvées — matière ID ${subjectId}, classe ID ${classId}, semestre ID ${semesterId}.`,
+    });
+    res.status(201).json(row ?? { message: "Already approved" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+router.delete("/subject-approvals/:id", requireRole("admin"), async (req, res) => {
+  try {
+    const cu = req.session.user!;
+    if (cu.adminSubRole !== "scolarite") {
+      res.status(403).json({ error: "Réservé au Responsable du Centre." });
+      return;
+    }
+    const id = parseInt(req.params.id);
+    await db.delete(subjectApprovalsTable).where(eq(subjectApprovalsTable.id, id));
+    res.json({ message: "Approval removed" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// ─── Dérogations (modification exceptionnelle de note) ────────────────────────
+
+router.put("/grades/derogate", requireRole("admin"), async (req, res) => {
+  try {
+    const cu = req.session.user!;
+    if (cu.adminSubRole !== "scolarite") {
+      res.status(403).json({ error: "Réservé au Responsable du Centre." });
+      return;
+    }
+    const { studentId, subjectId, semesterId, value, justification } = req.body;
+    if (!studentId || !subjectId || !semesterId || value === undefined || !justification) {
+      res.status(400).json({ error: "Tous les champs sont requis, y compris la justification." });
+      return;
+    }
+    if (value < 0 || value > 20) {
+      res.status(400).json({ error: "La note doit être comprise entre 0 et 20." });
+      return;
+    }
+
+    // Fetch student and subject names for the log
+    const [student] = await db.select({ name: usersTable.name }).from(usersTable).where(eq(usersTable.id, studentId)).limit(1);
+    const [subject] = await db.select({ name: subjectsTable.name }).from(subjectsTable).where(eq(subjectsTable.id, subjectId)).limit(1);
+
+    // Fetch old value
+    const [old] = await db.select({ value: gradesTable.value }).from(gradesTable)
+      .where(and(eq(gradesTable.studentId, studentId), eq(gradesTable.subjectId, subjectId), eq(gradesTable.semesterId, semesterId)))
+      .limit(1);
+
+    // Upsert grade
+    await db.insert(gradesTable)
+      .values({ studentId, subjectId, semesterId, value })
+      .onConflictDoUpdate({ target: [gradesTable.studentId, gradesTable.subjectId, gradesTable.semesterId], set: { value, updatedAt: new Date() } });
+
+    // Log derogation
+    await db.insert(activityLogTable).values({
+      userId: cu.id,
+      action: "derogation_note",
+      details: `Dérogation — ${student?.name ?? studentId} | ${subject?.name ?? subjectId} | Ancienne note: ${old?.value ?? "—"} → Nouvelle: ${value} | Justification: ${justification}`,
+    });
+
+    res.json({ message: "Note modifiée avec dérogation enregistrée." });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// ─── Journal d'Activité ───────────────────────────────────────────────────────
+
+router.get("/activity-log", requireRole("admin"), async (req, res) => {
+  try {
+    const cu = req.session.user!;
+    if (cu.adminSubRole !== "scolarite") {
+      res.status(403).json({ error: "Réservé au Responsable du Centre." });
+      return;
+    }
+    const rows = await db
+      .select({
+        id: activityLogTable.id,
+        userId: activityLogTable.userId,
+        userName: usersTable.name,
+        action: activityLogTable.action,
+        details: activityLogTable.details,
+        createdAt: activityLogTable.createdAt,
+      })
+      .from(activityLogTable)
+      .innerJoin(usersTable, eq(usersTable.id, activityLogTable.userId))
+      .orderBy(desc(activityLogTable.createdAt))
+      .limit(100);
+    res.json(rows);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Internal Server Error" });

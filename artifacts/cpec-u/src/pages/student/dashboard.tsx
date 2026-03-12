@@ -24,7 +24,7 @@ export default function StudentDashboard() {
 
   const { data: results, isLoading, isError } = useGetStudentResults(
     { semesterId: parseInt(selectedSemester) },
-    { query: { enabled: !!selectedSemester, retry: false } }
+    { query: { enabled: !!selectedSemester, retry: false } as any }
   );
 
   return (

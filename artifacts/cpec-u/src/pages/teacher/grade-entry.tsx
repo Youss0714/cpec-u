@@ -1,27 +1,39 @@
 import { useState, useEffect } from "react";
 import { AppLayout } from "@/components/layout";
 import { useGetTeacherAssignments, useGetTeacherGrades, useSubmitGradesBulk, SubmitGradeRequest } from "@workspace/api-client-react";
+import { useListSubjectApprovals } from "@workspace/api-client-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useOfflineGrades } from "@/lib/offline-sync";
-import { WifiOff, Save, CheckCircle2, CloudFog } from "lucide-react";
+import { WifiOff, Save, CheckCircle2, CloudFog, Lock } from "lucide-react";
 import { Card } from "@/components/ui/card";
 
 export default function GradeEntry() {
   const { data: assignments } = useGetTeacherAssignments();
   const [selectedAssignmentId, setSelectedAssignmentId] = useState<string>("");
-  
+
   const selectedAssignment = assignments?.find(a => a.id.toString() === selectedAssignmentId);
-  
+
   const { data: initialGrades, isLoading } = useGetTeacherGrades(
-    { 
+    {
       subjectId: selectedAssignment?.subjectId,
       semesterId: selectedAssignment?.semesterId,
       classId: selectedAssignment?.classId
     },
-    { query: { enabled: !!selectedAssignment } }
+    { query: { enabled: !!selectedAssignment } as any }
+  );
+
+  // Check if subject is approved (locked)
+  const { data: approvals = [] } = useListSubjectApprovals(
+    selectedAssignment
+      ? { semesterId: selectedAssignment.semesterId, classId: selectedAssignment.classId }
+      : undefined,
+    { enabled: !!selectedAssignment }
+  );
+  const isLocked = (approvals as any[]).some(
+    (a) => a.subjectId === selectedAssignment?.subjectId && a.classId === selectedAssignment?.classId
   );
 
   const [localGrades, setLocalGrades] = useState<Record<number, string>>({});
@@ -29,12 +41,10 @@ export default function GradeEntry() {
   const submitBulk = useSubmitGradesBulk();
   const { toast } = useToast();
 
-  // Populate local form state when data arrives
   useEffect(() => {
     if (initialGrades) {
       const map: Record<number, string> = {};
       initialGrades.forEach(g => {
-        // Find if there's a pending offline override
         const pending = pendingGrades.find(p => p.studentId === g.studentId && p.subjectId === g.subjectId && p.semesterId === g.semesterId);
         map[g.studentId] = pending ? pending.value.toString() : (g.value !== null ? g.value.toString() : "");
       });
@@ -42,7 +52,6 @@ export default function GradeEntry() {
     }
   }, [initialGrades, pendingGrades]);
 
-  // Auto-sync when coming online
   useEffect(() => {
     if (isOnline && pendingGrades.length > 0) {
       const sync = async () => {
@@ -51,7 +60,7 @@ export default function GradeEntry() {
           clearPendingGrades();
           toast({ title: "Synchronisation réussie", description: "Vos notes saisies hors ligne ont été envoyées." });
         } catch {
-          // Silent fail on auto-sync, it will retry next time
+          // Silent fail
         }
       };
       sync();
@@ -59,14 +68,14 @@ export default function GradeEntry() {
   }, [isOnline, pendingGrades]);
 
   const handleGradeChange = (studentId: number, value: string) => {
-    // Basic validation allow empty or 0-20
+    if (isLocked) return;
     if (value !== "" && (parseFloat(value) < 0 || parseFloat(value) > 20)) return;
     setLocalGrades(prev => ({ ...prev, [studentId]: value }));
   };
 
   const handleSave = async () => {
-    if (!selectedAssignment) return;
-    
+    if (!selectedAssignment || isLocked) return;
+
     const gradesToSubmit: SubmitGradeRequest[] = Object.entries(localGrades)
       .filter(([_, val]) => val !== "")
       .map(([studentId, val]) => ({
@@ -82,15 +91,15 @@ export default function GradeEntry() {
       try {
         await submitBulk.mutateAsync({ data: { grades: gradesToSubmit } });
         toast({ title: "Notes enregistrées avec succès" });
-      } catch {
-        toast({ title: "Erreur lors de l'enregistrement", variant: "destructive" });
+      } catch (e: any) {
+        const msg = e?.message ?? "Erreur lors de l'enregistrement";
+        toast({ title: msg.includes("verrouillées") ? "Notes verrouillées par le Responsable du Centre." : msg, variant: "destructive" });
       }
     } else {
-      // Save offline
       gradesToSubmit.forEach(savePendingGrade);
-      toast({ 
-        title: "Mode hors ligne actif", 
-        description: "Notes sauvegardées localement. Synchronisation automatique au retour de la connexion." 
+      toast({
+        title: "Mode hors ligne actif",
+        description: "Notes sauvegardées localement. Synchronisation automatique au retour de la connexion."
       });
     }
   };
@@ -124,13 +133,26 @@ export default function GradeEntry() {
           </Select>
         </Card>
 
+        {/* Locked banner */}
+        {isLocked && selectedAssignment && (
+          <div className="flex items-center gap-3 bg-red-50 border border-red-200 rounded-xl p-4">
+            <Lock className="w-5 h-5 text-red-500 shrink-0" />
+            <div>
+              <p className="font-semibold text-red-800 text-sm">Notes approuvées — lecture seule</p>
+              <p className="text-xs text-red-600 mt-0.5">
+                Le Responsable du Centre a validé les notes de cette matière. Contactez-le pour toute modification exceptionnelle.
+              </p>
+            </div>
+          </div>
+        )}
+
         {selectedAssignment && (
           <div className="space-y-4 mt-8">
             <div className="flex justify-between items-end mb-4 px-2">
               <h3 className="font-bold text-xl">Liste des étudiants</h3>
               <span className="text-sm text-muted-foreground font-semibold">{initialGrades?.length || 0} étudiants</span>
             </div>
-            
+
             {isLoading ? (
               <div className="text-center py-12 text-muted-foreground">Chargement de la liste...</div>
             ) : (
@@ -138,27 +160,28 @@ export default function GradeEntry() {
                 {initialGrades?.map(grade => {
                   const val = localGrades[grade.studentId];
                   const isPending = pendingGrades.some(p => p.studentId === grade.studentId && p.subjectId === grade.subjectId && p.semesterId === grade.semesterId);
-                  
+
                   return (
-                    <div key={grade.studentId} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-card rounded-xl border border-border shadow-sm gap-4 hover:border-primary/50 transition-colors">
+                    <div key={grade.studentId} className={`flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-card rounded-xl border shadow-sm gap-4 transition-colors ${isLocked ? "opacity-75 border-red-100" : "border-border hover:border-primary/50"}`}>
                       <div className="flex-1">
                         <p className="font-bold text-lg text-foreground">{grade.studentName}</p>
-                        {isPending && <p className="text-xs text-amber-500 font-semibold flex items-center gap-1 mt-1"><CloudFog className="w-3 h-3"/> Non synchronisé</p>}
+                        {isPending && <p className="text-xs text-amber-500 font-semibold flex items-center gap-1 mt-1"><CloudFog className="w-3 h-3" /> Non synchronisé</p>}
                       </div>
                       <div className="flex items-center gap-3">
-                        <Input 
-                          type="number" 
-                          step="0.5" 
-                          min="0" 
+                        <Input
+                          type="number"
+                          step="0.5"
+                          min="0"
                           max="20"
                           placeholder=" / 20"
                           value={val !== undefined ? val : ""}
                           onChange={(e) => handleGradeChange(grade.studentId, e.target.value)}
-                          className="w-24 text-center font-mono font-bold text-lg h-12 focus:ring-primary/30"
+                          readOnly={isLocked}
+                          className={`w-24 text-center font-mono font-bold text-lg h-12 focus:ring-primary/30 ${isLocked ? "bg-muted cursor-not-allowed" : ""}`}
                         />
-                        {val !== "" && val !== undefined && !isPending && (
-                          <CheckCircle2 className="w-6 h-6 text-emerald-500 opacity-50" />
-                        )}
+                        {isLocked
+                          ? <Lock className="w-5 h-5 text-red-400" />
+                          : val !== "" && val !== undefined && !isPending && <CheckCircle2 className="w-6 h-6 text-emerald-500 opacity-50" />}
                       </div>
                     </div>
                   );
@@ -168,11 +191,11 @@ export default function GradeEntry() {
           </div>
         )}
 
-        {/* Floating Save Button Mobile optimized */}
-        {selectedAssignment && (
+        {/* Save button — hidden when locked */}
+        {selectedAssignment && !isLocked && (
           <div className="fixed bottom-6 left-0 right-0 px-4 md:static md:px-0 md:mt-8 z-30">
-            <Button 
-              size="lg" 
+            <Button
+              size="lg"
               className="w-full h-16 text-lg font-bold shadow-xl shadow-primary/30 md:shadow-none hover:-translate-y-1 transition-transform"
               onClick={handleSave}
               disabled={submitBulk.isPending}
