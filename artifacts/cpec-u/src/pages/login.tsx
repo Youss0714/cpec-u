@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -8,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 
 const loginSchema = z.object({
   email: z.string().email("Email invalide"),
@@ -20,14 +21,25 @@ type LoginForm = z.infer<typeof loginSchema>;
 export default function Login() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
-  
+  const [welcomeUser, setWelcomeUser] = useState<{ name: string; initial: string } | null>(null);
+
   const loginMutation = useLogin({
     mutation: {
       onSuccess: (data) => {
-        toast({ title: "Connexion réussie", description: `Bienvenue ${data.user.name}` });
-        if (data.user.role === "admin") setLocation("/admin");
-        else if (data.user.role === "teacher") setLocation("/teacher");
-        else setLocation("/student");
+        const subRole = (data.user as any).adminSubRole;
+        const redirect = () => {
+          if (data.user.role === "admin") setLocation("/admin");
+          else if (data.user.role === "teacher") setLocation("/teacher");
+          else setLocation("/student");
+        };
+
+        if (subRole === "directeur") {
+          setWelcomeUser({ name: data.user.name, initial: data.user.name.charAt(0) });
+          setTimeout(redirect, 3000);
+        } else {
+          toast({ title: "Connexion réussie", description: `Bienvenue ${data.user.name}` });
+          redirect();
+        }
       },
       onError: () => {
         toast({
@@ -120,6 +132,62 @@ export default function Login() {
           </Card>
         </motion.div>
       </div>
+      {/* Welcome overlay — directeur only */}
+      <AnimatePresence>
+        {welcomeUser && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-background/95 backdrop-blur-sm"
+          >
+            <motion.div
+              initial={{ scale: 0.85, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              transition={{ delay: 0.1, type: "spring", stiffness: 200, damping: 20 }}
+              className="flex flex-col items-center gap-6 text-center px-8"
+            >
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ delay: 0.2, type: "spring", stiffness: 260, damping: 18 }}
+                className="w-24 h-24 rounded-full bg-primary/15 border-2 border-primary/30 flex items-center justify-center text-primary text-4xl font-bold shadow-lg"
+              >
+                {welcomeUser.initial}
+              </motion.div>
+
+              <motion.div
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.35 }}
+                className="space-y-2"
+              >
+                <p className="text-sm font-medium text-muted-foreground uppercase tracking-widest">
+                  Bienvenue
+                </p>
+                <p className="text-4xl font-serif font-bold text-foreground">
+                  Monsieur le Directeur Général
+                </p>
+                <p className="text-muted-foreground text-sm mt-1">
+                  Redirection vers votre tableau de bord…
+                </p>
+              </motion.div>
+
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.5 }}
+                className="w-56 h-1.5 rounded-full bg-muted overflow-hidden"
+              >
+                <div
+                  className="h-full bg-primary rounded-full"
+                  style={{ animation: "farewell-progress 3s linear forwards" }}
+                />
+              </motion.div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
