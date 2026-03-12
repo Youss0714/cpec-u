@@ -179,7 +179,7 @@ router.post("/grades/bulk", requireRole("teacher", "admin"), async (req, res) =>
         ))
         .limit(1);
       if (approval) {
-        res.status(403).json({ error: "Notes verrouillées. Cette matière a été approuvée par le Responsable du Centre." });
+        res.status(403).json({ error: "Notes verrouillées. Cette matière a été approuvée par le Assistant(e) de Direction." });
         return;
       }
     }

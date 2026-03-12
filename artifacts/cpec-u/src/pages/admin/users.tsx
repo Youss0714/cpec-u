@@ -19,7 +19,7 @@ const ROLE_LABELS: Record<string, string> = {
 };
 
 const SUB_ROLE_LABELS: Record<string, string> = {
-  scolarite: "Responsable du Centre",
+  scolarite: "Assistant(e) de Direction",
   planificateur: "Responsable pédagogique",
   directeur: "Directeur du Centre",
 };
@@ -170,7 +170,7 @@ export default function AdminUsers() {
                           <SelectItem value="scolarite">
                             <div className="flex items-center gap-2">
                               <ShieldCheck className="w-4 h-4 text-blue-600" />
-                              Responsable du Centre (Scolarité)
+                              Assistant(e) de Direction (Scolarité)
                             </div>
                           </SelectItem>
                           <SelectItem value="planificateur">
@@ -182,7 +182,7 @@ export default function AdminUsers() {
                         </SelectContent>
                       </Select>
                       <p className="text-xs text-muted-foreground">
-                        Responsable du Centre : gère les notes, résultats et bulletins. Responsable pédagogique : gère les emplois du temps et salles.
+                        Assistant(e) de Direction : gère les notes, résultats et bulletins. Responsable pédagogique : gère les emplois du temps et salles.
                       </p>
                     </div>
                   )}

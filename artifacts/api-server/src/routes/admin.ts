@@ -343,7 +343,7 @@ router.post("/semesters/:id/publish", requireRole("admin"), async (req, res) => 
   try {
     const cu = req.session.user!;
     if (cu.adminSubRole !== "scolarite" && cu.adminSubRole !== "directeur") {
-      res.status(403).json({ error: "Réservé au Responsable du Centre." });
+      res.status(403).json({ error: "Réservé au Assistant(e) de Direction." });
       return;
     }
     const id = parseInt(req.params.id);
@@ -460,7 +460,7 @@ router.get("/bulletin/:studentId/:semesterId", requireRole("admin"), async (req,
   try {
     const cu = req.session.user!;
     if (cu.adminSubRole !== "scolarite" && cu.adminSubRole !== "directeur") {
-      res.status(403).json({ error: "Réservé au Responsable du Centre." });
+      res.status(403).json({ error: "Réservé au Assistant(e) de Direction." });
       return;
     }
     const studentId = parseInt(req.params.studentId);
@@ -676,7 +676,7 @@ router.post("/subject-approvals", requireRole("admin"), async (req, res) => {
   try {
     const cu = req.session.user!;
     if (cu.adminSubRole !== "scolarite" && cu.adminSubRole !== "directeur") {
-      res.status(403).json({ error: "Réservé au Responsable du Centre." });
+      res.status(403).json({ error: "Réservé au Assistant(e) de Direction." });
       return;
     }
     const { subjectId, classId, semesterId } = req.body;
@@ -705,7 +705,7 @@ router.delete("/subject-approvals/:id", requireRole("admin"), async (req, res) =
   try {
     const cu = req.session.user!;
     if (cu.adminSubRole !== "scolarite" && cu.adminSubRole !== "directeur") {
-      res.status(403).json({ error: "Réservé au Responsable du Centre." });
+      res.status(403).json({ error: "Réservé au Assistant(e) de Direction." });
       return;
     }
     const id = parseInt(req.params.id);
@@ -723,7 +723,7 @@ router.put("/grades/derogate", requireRole("admin"), async (req, res) => {
   try {
     const cu = req.session.user!;
     if (cu.adminSubRole !== "scolarite" && cu.adminSubRole !== "directeur") {
-      res.status(403).json({ error: "Réservé au Responsable du Centre." });
+      res.status(403).json({ error: "Réservé au Assistant(e) de Direction." });
       return;
     }
     const { studentId, subjectId, semesterId, value, justification } = req.body;
@@ -770,7 +770,7 @@ router.get("/activity-log", requireRole("admin"), async (req, res) => {
   try {
     const cu = req.session.user!;
     if (cu.adminSubRole !== "scolarite" && cu.adminSubRole !== "directeur") {
-      res.status(403).json({ error: "Réservé au Responsable du Centre." });
+      res.status(403).json({ error: "Réservé au Assistant(e) de Direction." });
       return;
     }
     const rows = await db

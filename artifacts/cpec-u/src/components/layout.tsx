@@ -120,7 +120,7 @@ export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
         ? "Responsable pédagogique"
         : adminSubRole === "directeur"
         ? "Directeur du Centre"
-        : "Responsable du Centre"
+        : "Assistant(e) de Direction"
       : user.role === "teacher"
       ? "Enseignant"
       : "Étudiant";

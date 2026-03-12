@@ -93,7 +93,7 @@ export default function GradeEntry() {
         toast({ title: "Notes enregistrées avec succès" });
       } catch (e: any) {
         const msg = e?.message ?? "Erreur lors de l'enregistrement";
-        toast({ title: msg.includes("verrouillées") ? "Notes verrouillées par le Responsable du Centre." : msg, variant: "destructive" });
+        toast({ title: msg.includes("verrouillées") ? "Notes verrouillées par le Assistant(e) de Direction." : msg, variant: "destructive" });
       }
     } else {
       gradesToSubmit.forEach(savePendingGrade);
@@ -140,7 +140,7 @@ export default function GradeEntry() {
             <div>
               <p className="font-semibold text-red-800 text-sm">Notes approuvées — lecture seule</p>
               <p className="text-xs text-red-600 mt-0.5">
-                Le Responsable du Centre a validé les notes de cette matière. Contactez-le pour toute modification exceptionnelle.
+                Le Assistant(e) de Direction a validé les notes de cette matière. Contactez-le pour toute modification exceptionnelle.
               </p>
             </div>
           </div>
