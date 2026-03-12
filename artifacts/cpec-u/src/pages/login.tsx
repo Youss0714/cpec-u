@@ -56,7 +56,7 @@ export default function Login() {
         
         <div className="absolute bottom-16 left-16 z-30 max-w-xl text-sidebar-foreground">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-            <img src={`${import.meta.env.BASE_URL}images/logo.png`} alt="Logo" className="w-20 h-20 mb-8 invert brightness-0" />
+            <img src={`${import.meta.env.BASE_URL}images/logo.jpg`} alt="Logo" className="w-24 h-24 mb-8 object-contain rounded-2xl shadow-lg" />
             <h1 className="text-5xl font-serif font-bold leading-tight mb-4 text-white">
               L'Excellence Académique <br/> au Quotidien.
             </h1>
@@ -76,7 +76,7 @@ export default function Login() {
           <Card className="border-none shadow-2xl bg-card/50 backdrop-blur-xl">
             <CardHeader className="space-y-4 pb-8">
               <div className="lg:hidden flex justify-center mb-4">
-                <img src={`${import.meta.env.BASE_URL}images/logo.png`} alt="Logo" className="w-16 h-16 object-contain" />
+                <img src={`${import.meta.env.BASE_URL}images/logo.jpg`} alt="Logo" className="w-20 h-20 object-contain rounded-xl shadow-md" />
               </div>
               <CardTitle className="text-3xl font-serif text-center">Connexion</CardTitle>
               <CardDescription className="text-center text-base">
