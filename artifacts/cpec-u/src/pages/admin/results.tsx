@@ -19,7 +19,7 @@ import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
-import { Download, Search, CheckCircle, Lock, Unlock, FileEdit, Globe, GlobeLock, TrendingUp, Users } from "lucide-react";
+import { Download, Search, CheckCircle, Lock, Unlock, FileEdit, Globe, GlobeLock, TrendingUp, Users, GraduationCap } from "lucide-react";
 
 export default function AdminResults() {
   const { toast } = useToast();
@@ -71,7 +71,8 @@ export default function AdminResults() {
   const currentSemester = (semesters as any[])?.find((s: any) => s.id === parseInt(selectedSemester));
   const isPublished = currentSemester?.published ?? false;
   const currentClass = (classes as any[])?.find((c: any) => String(c.id) === selectedClass);
-  const canPromote = isScolarite && !!selectedSemester && selectedClass !== "all" && !!currentClass?.nextClassId;
+  const isTerminalClass = !!currentClass?.isTerminal;
+  const canPromote = isScolarite && !!selectedSemester && selectedClass !== "all" && !isTerminalClass && !!currentClass?.nextClassId;
 
   const handlePromote = async () => {
     if (!canPromote) return;
@@ -296,30 +297,48 @@ export default function AdminResults() {
               </div>
             )}
 
-            {/* Promotion panel — scolarité only, specific class with nextClassId configured */}
+            {/* Promotion panel — scolarité only, specific class */}
             {isScolarite && selectedClass !== "all" && (
-              <div className={`rounded-2xl border shadow-sm p-5 flex items-center justify-between gap-4 ${canPromote ? "bg-violet-50 border-violet-200 dark:bg-violet-950/30 dark:border-violet-700" : "bg-muted/30 border-border"}`}>
-                <div>
-                  <h3 className="font-semibold text-sm flex items-center gap-2">
-                    <TrendingUp className={`w-4 h-4 ${canPromote ? "text-violet-600" : "text-muted-foreground"}`} />
-                    Promotion de classe
-                  </h3>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    {canPromote
-                      ? `Les étudiants admis (≥ 12/20) seront transférés automatiquement dans la classe supérieure.`
-                      : `Aucune classe supérieure configurée pour cette classe. Configurez-la depuis la page Classes.`}
-                  </p>
+              isTerminalClass ? (
+                /* Terminal class — fin de cycle */
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-700 shadow-sm p-5 flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-xl bg-amber-100 dark:bg-amber-900/40 flex items-center justify-center shrink-0">
+                    <GraduationCap className="w-5 h-5 text-amber-600" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-sm text-amber-800 dark:text-amber-200">
+                      Fin de cycle — {currentClass?.name}
+                    </h3>
+                    <p className="text-xs text-amber-700/80 dark:text-amber-300/80 mt-0.5">
+                      Les étudiants admis dans cette classe terminent leur cycle et obtiennent leur diplôme. Aucune promotion automatique n'est effectuée.
+                    </p>
+                  </div>
                 </div>
-                <Button
-                  onClick={handlePromote}
-                  disabled={!canPromote || promoteMutation.isPending}
-                  className={canPromote ? "bg-violet-600 hover:bg-violet-700 text-white shrink-0" : "shrink-0"}
-                  variant={canPromote ? "default" : "outline"}
-                >
-                  <TrendingUp className="w-4 h-4 mr-2" />
-                  {promoteMutation.isPending ? "Promotion en cours..." : "Promouvoir les admis"}
-                </Button>
-              </div>
+              ) : (
+                /* Normal class — promotion possible or not configured */
+                <div className={`rounded-2xl border shadow-sm p-5 flex items-center justify-between gap-4 ${canPromote ? "bg-violet-50 border-violet-200 dark:bg-violet-950/30 dark:border-violet-700" : "bg-muted/30 border-border"}`}>
+                  <div>
+                    <h3 className="font-semibold text-sm flex items-center gap-2">
+                      <TrendingUp className={`w-4 h-4 ${canPromote ? "text-violet-600" : "text-muted-foreground"}`} />
+                      Promotion de classe
+                    </h3>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {canPromote
+                        ? `Les étudiants admis (≥ 12/20) seront transférés vers la classe supérieure.`
+                        : `Aucune classe supérieure configurée. Configurez-la depuis la page Classes.`}
+                    </p>
+                  </div>
+                  <Button
+                    onClick={handlePromote}
+                    disabled={!canPromote || promoteMutation.isPending}
+                    className={canPromote ? "bg-violet-600 hover:bg-violet-700 text-white shrink-0" : "shrink-0"}
+                    variant={canPromote ? "default" : "outline"}
+                  >
+                    <TrendingUp className="w-4 h-4 mr-2" />
+                    {promoteMutation.isPending ? "Promotion en cours..." : "Promouvoir les admis"}
+                  </Button>
+                </div>
+              )
             )}
 
             {/* Results table */}

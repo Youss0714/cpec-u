@@ -11,12 +11,13 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Trash2, Users, UserPlus, UserMinus, ChevronRight, BookOpen, ChevronUp, ChevronDown } from "lucide-react";
+import { Plus, Trash2, Users, UserPlus, UserMinus, ChevronRight, BookOpen, ChevronUp, ChevronDown, GraduationCap } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Textarea } from "@/components/ui/textarea";
 
-type ClassItem = { id: number; name: string; description: string | null; studentCount: number; nextClassId: number | null };
+type ClassItem = { id: number; name: string; description: string | null; studentCount: number; nextClassId: number | null; isTerminal: boolean };
 
 function ClassStudentsSheet({
   cls, open, onClose, allClasses,
@@ -61,6 +62,16 @@ function ClassStudentsSheet({
     }
   };
 
+  const handleSetTerminal = async (terminal: boolean) => {
+    try {
+      await updateClassMutation.mutateAsync({ id: cls.id, isTerminal: terminal });
+      toast({ title: terminal ? "Classe marquée comme fin de cycle." : "Fin de cycle désactivée." });
+      qc.invalidateQueries({ queryKey: ["/api/admin/classes"] });
+    } catch {
+      toast({ title: "Erreur lors de la mise à jour.", variant: "destructive" });
+    }
+  };
+
   const handleAdd = async () => {
     if (!selectedStudentId) return;
     try {
@@ -98,28 +109,57 @@ function ClassStudentsSheet({
         </SheetHeader>
 
         <div className="mt-6 space-y-6">
-          {/* Next class config */}
-          <div className="space-y-2 pb-4 border-b">
-            <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-              <span>Classe supérieure</span>
-              {cls.nextClassId && <span className="text-xs font-normal bg-violet-100 text-violet-700 px-1.5 py-0.5 rounded-full">Configurée</span>}
+          {/* Cycle config */}
+          <div className="space-y-3 pb-5 border-b">
+            <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">
+              Promotion & cycle
             </h3>
-            <p className="text-xs text-muted-foreground">Les étudiants admis (≥ 12/20) pourront être promus vers cette classe depuis la page Résultats.</p>
-            <Select
-              value={cls.nextClassId ? String(cls.nextClassId) : "none"}
-              onValueChange={handleSetNextClass}
-              disabled={savingNextClass}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Sélectionner..." />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Aucune (pas de promotion)</SelectItem>
-                {allClasses.filter((c) => c.id !== cls.id).map((c) => (
-                  <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+
+            {/* Terminal toggle */}
+            <div className={`flex items-center justify-between p-3 rounded-xl border transition-colors ${cls.isTerminal ? "bg-amber-50 border-amber-200 dark:bg-amber-950/30 dark:border-amber-700" : "bg-muted/30 border-border"}`}>
+              <div className="flex items-center gap-2">
+                <GraduationCap className={`w-4 h-4 ${cls.isTerminal ? "text-amber-600" : "text-muted-foreground"}`} />
+                <div>
+                  <p className={`text-sm font-semibold ${cls.isTerminal ? "text-amber-800 dark:text-amber-200" : "text-foreground"}`}>
+                    Fin de cycle
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {cls.isTerminal ? "Les étudiants admis obtiennent leur diplôme, sans promotion." : "Activer si cette classe termine un cycle (Licence 3, Master 2…)"}
+                  </p>
+                </div>
+              </div>
+              <Switch
+                checked={cls.isTerminal}
+                onCheckedChange={handleSetTerminal}
+                disabled={updateClassMutation.isPending}
+                className="data-[state=checked]:bg-amber-500"
+              />
+            </div>
+
+            {/* Next class selector — hidden when terminal */}
+            {!cls.isTerminal && (
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Classe supérieure (pour la promotion)</Label>
+                <Select
+                  value={cls.nextClassId ? String(cls.nextClassId) : "none"}
+                  onValueChange={handleSetNextClass}
+                  disabled={savingNextClass}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sélectionner..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Aucune (pas de promotion)</SelectItem>
+                    {allClasses.filter((c) => c.id !== cls.id && !c.isTerminal).map((c) => (
+                      <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {cls.nextClassId && (
+                  <p className="text-xs text-violet-600">✓ Les admis seront promus vers {allClasses.find((c) => c.id === cls.nextClassId)?.name ?? "la classe supérieure"}.</p>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Add student */}
@@ -344,10 +384,20 @@ export default function AdminClasses() {
                   </Button>
                 </div>
 
-                <h3 className="text-xl font-bold text-foreground pl-9 pr-10">{cls.name}</h3>
-                <p className="text-sm text-muted-foreground mt-2 line-clamp-2 h-10">
-                  {cls.description || "Aucune description"}
-                </p>
+                <div className="pl-9 pr-10">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="text-xl font-bold text-foreground">{cls.name}</h3>
+                    {cls.isTerminal && (
+                      <span className="flex items-center gap-1 text-xs font-semibold text-amber-700 bg-amber-100 border border-amber-200 px-2 py-0.5 rounded-full">
+                        <GraduationCap className="w-3 h-3" />
+                        Fin de cycle
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-sm text-muted-foreground mt-2 line-clamp-2 h-10">
+                    {cls.description || "Aucune description"}
+                  </p>
+                </div>
 
                 <div className="mt-6 flex items-center justify-between">
                   <div className="flex items-center gap-2 text-sm font-semibold text-primary bg-primary/5 px-3 py-1.5 rounded-lg">

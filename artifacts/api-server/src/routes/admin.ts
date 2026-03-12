@@ -233,10 +233,14 @@ router.post("/classes/:id/move", requireRole("admin"), async (req, res) => {
 router.put("/classes/:id", requireRole("admin"), async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    const { name, description, nextClassId } = req.body;
+    const { name, description, nextClassId, isTerminal } = req.body;
     const updateData: any = { name, description };
     if (nextClassId !== undefined) {
       updateData.nextClassId = nextClassId === null || nextClassId === "" ? null : parseInt(nextClassId);
+    }
+    if (isTerminal !== undefined) {
+      updateData.isTerminal = Boolean(isTerminal);
+      if (updateData.isTerminal) updateData.nextClassId = null; // terminal classes cannot promote
     }
     const [cls] = await db.update(classesTable).set(updateData).where(eq(classesTable.id, id)).returning();
     if (!cls) { res.status(404).json({ error: "Not Found" }); return; }
@@ -420,6 +424,10 @@ router.post("/semesters/:id/promote", requireRole("admin"), async (req, res) => 
     // Fetch class and its next class
     const [cls] = await db.select().from(classesTable).where(eq(classesTable.id, classId)).limit(1);
     if (!cls) { res.status(404).json({ error: "Classe introuvable." }); return; }
+    if (cls.isTerminal) {
+      res.status(400).json({ error: "Cette classe est marquée comme fin de cycle. Aucune promotion possible." });
+      return;
+    }
     if (!cls.nextClassId) {
       res.status(400).json({ error: "Aucune classe supérieure configurée pour cette classe." });
       return;
