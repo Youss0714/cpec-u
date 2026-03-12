@@ -97,7 +97,7 @@ export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
     user.role === "admin"
       ? adminSubRole === "planificateur"
         ? "Planificateur"
-        : "Responsable Scolarité"
+        : "Responsable du Centre"
       : user.role === "teacher"
       ? "Enseignant"
       : "Étudiant";

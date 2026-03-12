@@ -19,7 +19,7 @@ const ROLE_LABELS: Record<string, string> = {
 };
 
 const SUB_ROLE_LABELS: Record<string, string> = {
-  scolarite: "Responsable Scolarité",
+  scolarite: "Responsable du Centre",
   planificateur: "Planificateur",
 };
 
@@ -150,7 +150,7 @@ export default function AdminUsers() {
                           <SelectItem value="scolarite">
                             <div className="flex items-center gap-2">
                               <ShieldCheck className="w-4 h-4 text-blue-600" />
-                              Responsable Scolarité
+                              Responsable du Centre
                             </div>
                           </SelectItem>
                           <SelectItem value="planificateur">
