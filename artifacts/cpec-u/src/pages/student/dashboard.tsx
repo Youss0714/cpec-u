@@ -118,7 +118,7 @@ export default function StudentDashboard() {
                         <TableCell className="text-center text-muted-foreground font-semibold">{g.coefficient}</TableCell>
                         <TableCell className="text-right font-mono font-bold text-lg">
                           {g.value !== null && g.value !== undefined ? (
-                            <span className={g.value < 10 ? 'text-destructive' : 'text-emerald-600'}>
+                            <span className={g.value < 12 ? 'text-destructive' : 'text-emerald-600'}>
                               {g.value.toFixed(2)}
                             </span>
                           ) : (

@@ -406,7 +406,7 @@ async function computeStudentResult(studentId: number, semesterId: number) {
     const totalPoints = gradedSubjects.reduce((sum, g) => sum + (g.value! * g.coefficient), 0);
     average = totalCoeff > 0 ? Math.round((totalPoints / totalCoeff) * 100) / 100 : null;
     if (average !== null) {
-      decision = average >= 10 ? "Admis" : "Ajourné";
+      decision = average >= 12 ? "Admis" : "Ajourné";
     }
   }
 
