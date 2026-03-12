@@ -170,7 +170,8 @@ router.delete("/users/:id", requireRole("admin"), async (req, res) => {
 // ─── Classes ─────────────────────────────────────────────────────────────────
 router.get("/classes", requireRole("admin", "teacher"), async (req, res) => {
   try {
-    const classes = await db.select().from(classesTable);
+    const { asc } = await import("drizzle-orm");
+    const classes = await db.select().from(classesTable).orderBy(asc(classesTable.orderIndex), asc(classesTable.id));
     const enrollCounts = await db
       .select({ classId: classEnrollmentsTable.classId, cnt: count(classEnrollmentsTable.studentId) })
       .from(classEnrollmentsTable)
@@ -188,8 +189,41 @@ router.post("/classes", requireRole("admin"), async (req, res) => {
   try {
     const { name, description } = req.body;
     if (!name) { res.status(400).json({ error: "Bad Request", message: "Name is required" }); return; }
-    const [cls] = await db.insert(classesTable).values({ name, description }).returning();
+    // New class gets orderIndex = max + 1
+    const existing = await db.select({ o: classesTable.orderIndex }).from(classesTable);
+    const maxOrder = existing.length > 0 ? Math.max(...existing.map((c) => c.o)) : 0;
+    const [cls] = await db.insert(classesTable).values({ name, description, orderIndex: maxOrder + 1 }).returning();
     res.status(201).json({ ...cls, studentCount: 0 });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// Move a class up or down
+router.post("/classes/:id/move", requireRole("admin"), async (req, res) => {
+  try {
+    const { asc } = await import("drizzle-orm");
+    const id = parseInt(req.params.id);
+    const { direction } = req.body as { direction: "up" | "down" };
+    if (!["up", "down"].includes(direction)) {
+      res.status(400).json({ error: "direction must be 'up' or 'down'" });
+      return;
+    }
+    const allClasses = await db.select({ id: classesTable.id, orderIndex: classesTable.orderIndex })
+      .from(classesTable).orderBy(asc(classesTable.orderIndex), asc(classesTable.id));
+    const idx = allClasses.findIndex((c) => c.id === id);
+    if (idx === -1) { res.status(404).json({ error: "Not Found" }); return; }
+    const swapIdx = direction === "up" ? idx - 1 : idx + 1;
+    if (swapIdx < 0 || swapIdx >= allClasses.length) {
+      res.json({ message: "Already at boundary" }); return;
+    }
+    const current = allClasses[idx];
+    const other = allClasses[swapIdx];
+    // Swap orderIndex values
+    await db.update(classesTable).set({ orderIndex: other.orderIndex }).where(eq(classesTable.id, current.id));
+    await db.update(classesTable).set({ orderIndex: current.orderIndex }).where(eq(classesTable.id, other.id));
+    res.json({ message: "Moved" });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Internal Server Error" });

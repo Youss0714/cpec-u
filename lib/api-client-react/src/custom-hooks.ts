@@ -264,6 +264,22 @@ export const useListActivityLog = (options?: QueryOpts<ActivityLogEntry[]>) =>
     ...options,
   });
 
+// ─── Move Class (reorder) ─────────────────────────────────────────────────────
+
+export const moveClass = ({ id, direction }: { id: number; direction: "up" | "down" }): Promise<{ message: string }> =>
+  customFetch<{ message: string }>(`/api/admin/classes/${id}/move`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ direction }),
+  });
+
+export const useMoveClass = (options?: UseMutationOptions<{ message: string }, unknown, { id: number; direction: "up" | "down" }>) =>
+  useMutation<{ message: string }, unknown, { id: number; direction: "up" | "down" }>({
+    mutationKey: ["moveClass"],
+    mutationFn: moveClass,
+    ...options,
+  });
+
 // ─── Promote Admitted Students ────────────────────────────────────────────────
 
 export type PromoteRequest = { semesterId: number; classId: number };

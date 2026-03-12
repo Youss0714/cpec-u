@@ -3,7 +3,7 @@ import { AppLayout } from "@/components/layout";
 import {
   useListClasses, useCreateClass, useDeleteClass,
   useGetClassStudents, useEnrollStudent, useUnenrollStudent,
-  useListUsers, useUpdateClassConfig,
+  useListUsers, useUpdateClassConfig, useMoveClass,
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Trash2, Users, UserPlus, UserMinus, ChevronRight, BookOpen } from "lucide-react";
+import { Plus, Trash2, Users, UserPlus, UserMinus, ChevronRight, BookOpen, ChevronUp, ChevronDown } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Textarea } from "@/components/ui/textarea";
 
@@ -219,8 +219,15 @@ export default function AdminClasses() {
   const { data: classes, isLoading } = useListClasses();
   const createClass = useCreateClass();
   const deleteClass = useDeleteClass();
+  const moveClass = useMoveClass();
   const queryClient = useQueryClient();
   const { toast } = useToast();
+
+  const handleMove = async (e: React.MouseEvent, id: number, direction: "up" | "down") => {
+    e.stopPropagation();
+    await moveClass.mutateAsync({ id, direction });
+    queryClient.invalidateQueries({ queryKey: ["/api/admin/classes"] });
+  };
 
   const handleCreate = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -296,23 +303,48 @@ export default function AdminClasses() {
           ) : (classes as any[])?.length === 0 ? (
             <p className="text-muted-foreground col-span-3 text-center py-12">Aucune classe créée.</p>
           ) : (
-            (classes as any[])?.map((cls) => (
+            (classes as any[])?.map((cls, idx, arr) => (
               <div
                 key={cls.id}
                 className="bg-card rounded-2xl p-6 shadow-sm border border-border hover:shadow-md hover:border-primary/40 transition-all group relative cursor-pointer"
                 onClick={() => setSelectedClass(cls)}
               >
-                <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+                {/* Order badge */}
+                <div className="absolute top-4 left-4 w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">
+                  {idx + 1}
+                </div>
+
+                {/* Actions (hover) */}
+                <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center gap-0.5">
                   <Button
                     variant="ghost" size="icon"
-                    className="h-8 w-8 text-destructive hover:bg-destructive/10"
-                    onClick={(e) => handleDelete(e, cls.id)}
+                    className="h-7 w-7 text-muted-foreground hover:text-foreground hover:bg-muted"
+                    onClick={(e) => handleMove(e, cls.id, "up")}
+                    disabled={idx === 0 || moveClass.isPending}
+                    title="Monter"
                   >
-                    <Trash2 className="w-4 h-4" />
+                    <ChevronUp className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant="ghost" size="icon"
+                    className="h-7 w-7 text-muted-foreground hover:text-foreground hover:bg-muted"
+                    onClick={(e) => handleMove(e, cls.id, "down")}
+                    disabled={idx === arr.length - 1 || moveClass.isPending}
+                    title="Descendre"
+                  >
+                    <ChevronDown className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant="ghost" size="icon"
+                    className="h-7 w-7 text-destructive hover:bg-destructive/10 mt-1"
+                    onClick={(e) => handleDelete(e, cls.id)}
+                    title="Supprimer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
                   </Button>
                 </div>
 
-                <h3 className="text-xl font-bold text-foreground pr-10">{cls.name}</h3>
+                <h3 className="text-xl font-bold text-foreground pl-9 pr-10">{cls.name}</h3>
                 <p className="text-sm text-muted-foreground mt-2 line-clamp-2 h-10">
                   {cls.description || "Aucune description"}
                 </p>
