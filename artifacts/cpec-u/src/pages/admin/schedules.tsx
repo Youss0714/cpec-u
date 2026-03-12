@@ -19,7 +19,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Plus, Trash2, CalendarDays, Clock, MapPin, AlertTriangle, CheckCircle,
-  Printer, Eye, EyeOff, Pencil,
+  Printer, Eye, EyeOff, Pencil, ChevronLeft, ChevronRight,
 } from "lucide-react";
 
 const DAYS = ["", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
@@ -60,6 +60,32 @@ function detectConflicts(entries: any[]) {
   return { teacherConflicts, roomConflicts };
 }
 
+function getMondayOfCurrentWeek(): Date {
+  const d = new Date();
+  const day = d.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  d.setDate(d.getDate() + diff);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function addDays(date: Date, n: number): Date {
+  const d = new Date(date);
+  d.setDate(d.getDate() + n);
+  return d;
+}
+
+function formatShortDate(date: Date): string {
+  return date.toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
+}
+
+function formatPeriodLabel(start: Date, numWeeks: number): string {
+  const end = addDays(start, numWeeks * 7 - 1);
+  return `${formatShortDate(start)} – ${formatShortDate(end)}`;
+}
+
+type ViewMode = "1week" | "2weeks" | "1month";
+
 export default function AdminSchedules() {
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -83,6 +109,21 @@ export default function AdminSchedules() {
   const [filterSemester, setFilterSemester] = useState<string>("all");
   const [filterClass, setFilterClass] = useState<string>("all");
   const [form, setForm] = useState(emptyForm);
+  const [viewMode, setViewMode] = useState<ViewMode>("1week");
+  const [startDate, setStartDate] = useState<Date>(getMondayOfCurrentWeek);
+
+  const numWeeks = viewMode === "1week" ? 1 : viewMode === "2weeks" ? 2 : 4;
+
+  const weeks = useMemo(() =>
+    Array.from({ length: numWeeks }, (_, i) => addDays(startDate, i * 7)),
+    [startDate, numWeeks]
+  );
+
+  const navigate = (dir: 1 | -1) => {
+    setStartDate((prev) => addDays(prev, dir * numWeeks * 7));
+  };
+
+  const goToCurrentWeek = () => setStartDate(getMondayOfCurrentWeek());
 
   const filteredEntries = useMemo(() => (entries as any[]).filter((e) => {
     if (filterSemester !== "all" && e.semesterId !== parseInt(filterSemester)) return false;
@@ -264,14 +305,89 @@ export default function AdminSchedules() {
     </form>
   );
 
+  const DayCard = ({ day, weekStart }: { day: number; weekStart: Date }) => {
+    const dayDate = addDays(weekStart, day - 1);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const isToday = dayDate.getTime() === today.getTime();
+    const dayEntries = entriesByDay[day] ?? [];
+
+    return (
+      <div className={`border rounded-2xl overflow-hidden shadow-sm ${DAY_COLORS[day]} ${isToday ? "ring-2 ring-primary ring-offset-1" : ""}`}>
+        <div className="px-4 py-3 border-b border-current/10 flex items-center justify-between">
+          <h3 className="font-semibold text-foreground flex items-center gap-2">
+            <CalendarDays className="w-4 h-4" />
+            <span>{DAYS[day]}</span>
+            <span className={`text-xs font-normal ${isToday ? "text-primary font-bold" : "text-muted-foreground"}`}>
+              {formatShortDate(dayDate)}
+            </span>
+          </h3>
+          <Badge variant="secondary" className="text-xs">{dayEntries.length}</Badge>
+        </div>
+        <div className="p-3 space-y-2 min-h-[80px]">
+          {dayEntries.length === 0 ? (
+            <p className="text-xs text-muted-foreground text-center py-4">Aucun cours</p>
+          ) : (
+            dayEntries.map((entry: any) => {
+              const hasTeacherConflict = teacherConflicts.has(entry.id);
+              const hasRoomConflict = roomConflicts.has(entry.id);
+              const hasConflict = hasTeacherConflict || hasRoomConflict;
+              return (
+                <div key={entry.id}
+                  className={`bg-white/80 backdrop-blur-sm rounded-xl p-3 border shadow-xs group relative ${hasConflict ? "border-red-300 bg-red-50/80" : "border-white/60"}`}>
+                  <div className="flex items-start justify-between gap-1">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-sm text-foreground truncate">{entry.subjectName}</p>
+                      <p className="text-xs text-muted-foreground truncate">{entry.teacherName}</p>
+                      <div className="flex gap-3 mt-1 flex-wrap">
+                        <span className="text-xs flex items-center gap-1 text-muted-foreground">
+                          <Clock className="w-3 h-3" />{entry.startTime}–{entry.endTime}
+                        </span>
+                        <span className="text-xs flex items-center gap-1 text-muted-foreground">
+                          <MapPin className="w-3 h-3" />{entry.roomName}
+                        </span>
+                      </div>
+                      <div className="flex gap-1 mt-1 flex-wrap">
+                        <Badge variant="secondary" className="text-xs">{entry.className}</Badge>
+                        {entry.published
+                          ? <Badge variant="outline" className="text-xs border-green-300 text-green-700">Publié</Badge>
+                          : <Badge variant="outline" className="text-xs border-amber-300 text-amber-700">Brouillon</Badge>}
+                      </div>
+                      {hasConflict && (
+                        <div className="mt-1 space-y-0.5">
+                          {hasTeacherConflict && <p className="text-xs text-red-600 font-medium">⚠ Conflit enseignant</p>}
+                          {hasRoomConflict && <p className="text-xs text-red-600 font-medium">⚠ Conflit salle</p>}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                        onClick={() => openEdit(entry)}>
+                        <Pencil className="w-3 h-3" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive hover:bg-destructive/10"
+                        onClick={() => handleDelete(entry.id)}>
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <AppLayout allowedRoles={["admin"]}>
-      <div className="space-y-6">
+      <div className="space-y-5">
         {/* Header */}
-        <div className="flex justify-between items-start">
+        <div className="flex justify-between items-start flex-wrap gap-3">
           <div>
             <h1 className="text-3xl font-serif font-bold text-foreground">Emploi du Temps</h1>
-            <p className="text-muted-foreground">Grille hebdomadaire · Gérez, publiez et imprimez.</p>
+            <p className="text-muted-foreground">Gérez, publiez et imprimez la grille des cours.</p>
           </div>
           <div className="flex gap-2 flex-wrap justify-end">
             {filterSemester !== "all" && (
@@ -320,98 +436,89 @@ export default function AdminSchedules() {
           </div>
         )}
 
-        {/* Filters */}
-        <div className="flex gap-3 flex-wrap items-center">
-          <Select value={filterSemester} onValueChange={setFilterSemester}>
-            <SelectTrigger className="w-52"><SelectValue placeholder="Tous les semestres" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Tous les semestres</SelectItem>
-              {semesters.map((s: any) => <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <Select value={filterClass} onValueChange={setFilterClass}>
-            <SelectTrigger className="w-48"><SelectValue placeholder="Toutes les classes" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Toutes les classes</SelectItem>
-              {classes.map((c: any) => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          {filterSemester !== "all" && (
-            <Badge variant="outline"
-              className={isPublished
-                ? "border-green-300 text-green-700 bg-green-50"
-                : "border-amber-300 text-amber-700 bg-amber-50"}>
-              {isPublished
-                ? <><Eye className="w-3 h-3 mr-1 inline" />Publié</>
-                : <><EyeOff className="w-3 h-3 mr-1 inline" />Brouillon</>}
-            </Badge>
-          )}
+        {/* Filters + View controls */}
+        <div className="flex gap-3 flex-wrap items-center justify-between">
+          <div className="flex gap-3 flex-wrap items-center">
+            <Select value={filterSemester} onValueChange={setFilterSemester}>
+              <SelectTrigger className="w-52"><SelectValue placeholder="Tous les semestres" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tous les semestres</SelectItem>
+                {semesters.map((s: any) => <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Select value={filterClass} onValueChange={setFilterClass}>
+              <SelectTrigger className="w-48"><SelectValue placeholder="Toutes les classes" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Toutes les classes</SelectItem>
+                {classes.map((c: any) => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            {filterSemester !== "all" && (
+              <Badge variant="outline"
+                className={isPublished
+                  ? "border-green-300 text-green-700 bg-green-50"
+                  : "border-amber-300 text-amber-700 bg-amber-50"}>
+                {isPublished
+                  ? <><Eye className="w-3 h-3 mr-1 inline" />Publié</>
+                  : <><EyeOff className="w-3 h-3 mr-1 inline" />Brouillon</>}
+              </Badge>
+            )}
+          </div>
+
+          {/* View mode toggle */}
+          <div className="flex items-center gap-1 bg-muted rounded-lg p-1">
+            {(["1week", "2weeks", "1month"] as ViewMode[]).map((mode) => (
+              <button
+                key={mode}
+                onClick={() => setViewMode(mode)}
+                className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+                  viewMode === mode
+                    ? "bg-background shadow text-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {mode === "1week" ? "1 sem." : mode === "2weeks" ? "2 sem." : "1 mois"}
+              </button>
+            ))}
+          </div>
         </div>
 
-        {/* Grid */}
+        {/* Date navigation */}
+        <div className="flex items-center gap-3">
+          <Button variant="outline" size="icon" onClick={() => navigate(-1)}>
+            <ChevronLeft className="w-4 h-4" />
+          </Button>
+          <div className="flex-1 text-center">
+            <span className="font-semibold text-foreground">{formatPeriodLabel(startDate, numWeeks)}</span>
+          </div>
+          <Button variant="outline" size="sm" onClick={goToCurrentWeek} className="text-xs">
+            Aujourd'hui
+          </Button>
+          <Button variant="outline" size="icon" onClick={() => navigate(1)}>
+            <ChevronRight className="w-4 h-4" />
+          </Button>
+        </div>
+
+        {/* Schedule grid */}
         {isLoading ? (
           <p className="text-muted-foreground text-center py-8">Chargement...</p>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {[1, 2, 3, 4, 5, 6].map((day) => (
-              <div key={day} className={`border rounded-2xl overflow-hidden shadow-sm ${DAY_COLORS[day]}`}>
-                <div className="px-4 py-3 border-b border-current/10 flex items-center justify-between">
-                  <h3 className="font-semibold text-foreground flex items-center gap-2">
-                    <CalendarDays className="w-4 h-4" />{DAYS[day]}
-                  </h3>
-                  <Badge variant="secondary" className="text-xs">{entriesByDay[day].length}</Badge>
-                </div>
-                <div className="p-3 space-y-2 min-h-[80px]">
-                  {entriesByDay[day].length === 0 ? (
-                    <p className="text-xs text-muted-foreground text-center py-4">Aucun cours</p>
-                  ) : (
-                    entriesByDay[day].map((entry: any) => {
-                      const hasTeacherConflict = teacherConflicts.has(entry.id);
-                      const hasRoomConflict = roomConflicts.has(entry.id);
-                      const hasConflict = hasTeacherConflict || hasRoomConflict;
-                      return (
-                        <div key={entry.id}
-                          className={`bg-white/80 backdrop-blur-sm rounded-xl p-3 border shadow-xs group relative ${hasConflict ? "border-red-300 bg-red-50/80" : "border-white/60"}`}>
-                          <div className="flex items-start justify-between gap-1">
-                            <div className="flex-1 min-w-0">
-                              <p className="font-semibold text-sm text-foreground truncate">{entry.subjectName}</p>
-                              <p className="text-xs text-muted-foreground truncate">{entry.teacherName}</p>
-                              <div className="flex gap-3 mt-1 flex-wrap">
-                                <span className="text-xs flex items-center gap-1 text-muted-foreground">
-                                  <Clock className="w-3 h-3" />{entry.startTime}–{entry.endTime}
-                                </span>
-                                <span className="text-xs flex items-center gap-1 text-muted-foreground">
-                                  <MapPin className="w-3 h-3" />{entry.roomName}
-                                </span>
-                              </div>
-                              <div className="flex gap-1 mt-1 flex-wrap">
-                                <Badge variant="secondary" className="text-xs">{entry.className}</Badge>
-                                {entry.published
-                                  ? <Badge variant="outline" className="text-xs border-green-300 text-green-700">Publié</Badge>
-                                  : <Badge variant="outline" className="text-xs border-amber-300 text-amber-700">Brouillon</Badge>}
-                              </div>
-                              {hasConflict && (
-                                <div className="mt-1 space-y-0.5">
-                                  {hasTeacherConflict && <p className="text-xs text-red-600 font-medium">⚠ Conflit enseignant</p>}
-                                  {hasRoomConflict && <p className="text-xs text-red-600 font-medium">⚠ Conflit salle</p>}
-                                </div>
-                              )}
-                            </div>
-                            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-foreground"
-                                onClick={() => openEdit(entry)}>
-                                <Pencil className="w-3 h-3" />
-                              </Button>
-                              <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive hover:bg-destructive/10"
-                                onClick={() => handleDelete(entry.id)}>
-                                <Trash2 className="w-3 h-3" />
-                              </Button>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
+          <div className="space-y-6">
+            {weeks.map((weekStart, wi) => (
+              <div key={wi}>
+                {numWeeks > 1 && (
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="h-px flex-1 bg-border" />
+                    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      Semaine du {formatShortDate(weekStart)}
+                    </span>
+                    <div className="h-px flex-1 bg-border" />
+                  </div>
+                )}
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                  {[1, 2, 3, 4, 5, 6].map((day) => (
+                    <DayCard key={day} day={day} weekStart={weekStart} />
+                  ))}
                 </div>
               </div>
             ))}
