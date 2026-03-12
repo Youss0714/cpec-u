@@ -1,0 +1,188 @@
+import { useState, useEffect } from "react";
+import { AppLayout } from "@/components/layout";
+import { useGetTeacherAssignments, useGetTeacherGrades, useSubmitGradesBulk, SubmitGradeRequest } from "@workspace/api-client-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
+import { useOfflineGrades } from "@/lib/offline-sync";
+import { WifiOff, Save, CheckCircle2, CloudFog } from "lucide-react";
+import { Card } from "@/components/ui/card";
+
+export default function GradeEntry() {
+  const { data: assignments } = useGetTeacherAssignments();
+  const [selectedAssignmentId, setSelectedAssignmentId] = useState<string>("");
+  
+  const selectedAssignment = assignments?.find(a => a.id.toString() === selectedAssignmentId);
+  
+  const { data: initialGrades, isLoading } = useGetTeacherGrades(
+    { 
+      subjectId: selectedAssignment?.subjectId,
+      semesterId: selectedAssignment?.semesterId,
+      classId: selectedAssignment?.classId
+    },
+    { query: { enabled: !!selectedAssignment } }
+  );
+
+  const [localGrades, setLocalGrades] = useState<Record<number, string>>({});
+  const { isOnline, pendingGrades, savePendingGrade, clearPendingGrades } = useOfflineGrades();
+  const submitBulk = useSubmitGradesBulk();
+  const { toast } = useToast();
+
+  // Populate local form state when data arrives
+  useEffect(() => {
+    if (initialGrades) {
+      const map: Record<number, string> = {};
+      initialGrades.forEach(g => {
+        // Find if there's a pending offline override
+        const pending = pendingGrades.find(p => p.studentId === g.studentId && p.subjectId === g.subjectId && p.semesterId === g.semesterId);
+        map[g.studentId] = pending ? pending.value.toString() : (g.value !== null ? g.value.toString() : "");
+      });
+      setLocalGrades(map);
+    }
+  }, [initialGrades, pendingGrades]);
+
+  // Auto-sync when coming online
+  useEffect(() => {
+    if (isOnline && pendingGrades.length > 0) {
+      const sync = async () => {
+        try {
+          await submitBulk.mutateAsync({ data: { grades: pendingGrades } });
+          clearPendingGrades();
+          toast({ title: "Synchronisation réussie", description: "Vos notes saisies hors ligne ont été envoyées." });
+        } catch {
+          // Silent fail on auto-sync, it will retry next time
+        }
+      };
+      sync();
+    }
+  }, [isOnline, pendingGrades]);
+
+  const handleGradeChange = (studentId: number, value: string) => {
+    // Basic validation allow empty or 0-20
+    if (value !== "" && (parseFloat(value) < 0 || parseFloat(value) > 20)) return;
+    setLocalGrades(prev => ({ ...prev, [studentId]: value }));
+  };
+
+  const handleSave = async () => {
+    if (!selectedAssignment) return;
+    
+    const gradesToSubmit: SubmitGradeRequest[] = Object.entries(localGrades)
+      .filter(([_, val]) => val !== "")
+      .map(([studentId, val]) => ({
+        studentId: parseInt(studentId),
+        subjectId: selectedAssignment.subjectId,
+        semesterId: selectedAssignment.semesterId,
+        value: parseFloat(val)
+      }));
+
+    if (gradesToSubmit.length === 0) return;
+
+    if (isOnline) {
+      try {
+        await submitBulk.mutateAsync({ data: { grades: gradesToSubmit } });
+        toast({ title: "Notes enregistrées avec succès" });
+      } catch {
+        toast({ title: "Erreur lors de l'enregistrement", variant: "destructive" });
+      }
+    } else {
+      // Save offline
+      gradesToSubmit.forEach(savePendingGrade);
+      toast({ 
+        title: "Mode hors ligne actif", 
+        description: "Notes sauvegardées localement. Synchronisation automatique au retour de la connexion." 
+      });
+    }
+  };
+
+  return (
+    <AppLayout allowedRoles={["teacher"]}>
+      <div className="space-y-6 max-w-4xl mx-auto pb-24">
+        <div className="flex flex-col gap-2">
+          <h1 className="text-3xl font-serif font-bold text-foreground">Saisie des Notes</h1>
+          {!isOnline && (
+            <div className="flex items-center gap-2 text-amber-600 bg-amber-50 p-3 rounded-lg border border-amber-200">
+              <WifiOff className="w-5 h-5" />
+              <span className="font-semibold text-sm">Connexion perdue. Vos saisies seront sauvegardées sur cet appareil.</span>
+            </div>
+          )}
+        </div>
+
+        <Card className="p-4 shadow-sm border-border bg-card sticky top-4 z-20">
+          <label className="text-sm font-semibold text-muted-foreground block mb-2">Choisir la classe et matière</label>
+          <Select value={selectedAssignmentId} onValueChange={setSelectedAssignmentId}>
+            <SelectTrigger className="h-14 text-lg">
+              <SelectValue placeholder="Sélectionner une affectation..." />
+            </SelectTrigger>
+            <SelectContent>
+              {assignments?.map(a => (
+                <SelectItem key={a.id} value={a.id.toString()} className="py-3">
+                  {a.subjectName} — {a.className} ({a.semesterName})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Card>
+
+        {selectedAssignment && (
+          <div className="space-y-4 mt-8">
+            <div className="flex justify-between items-end mb-4 px-2">
+              <h3 className="font-bold text-xl">Liste des étudiants</h3>
+              <span className="text-sm text-muted-foreground font-semibold">{initialGrades?.length || 0} étudiants</span>
+            </div>
+            
+            {isLoading ? (
+              <div className="text-center py-12 text-muted-foreground">Chargement de la liste...</div>
+            ) : (
+              <div className="space-y-3">
+                {initialGrades?.map(grade => {
+                  const val = localGrades[grade.studentId];
+                  const isPending = pendingGrades.some(p => p.studentId === grade.studentId && p.subjectId === grade.subjectId && p.semesterId === grade.semesterId);
+                  
+                  return (
+                    <div key={grade.studentId} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-card rounded-xl border border-border shadow-sm gap-4 hover:border-primary/50 transition-colors">
+                      <div className="flex-1">
+                        <p className="font-bold text-lg text-foreground">{grade.studentName}</p>
+                        {isPending && <p className="text-xs text-amber-500 font-semibold flex items-center gap-1 mt-1"><CloudFog className="w-3 h-3"/> Non synchronisé</p>}
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <Input 
+                          type="number" 
+                          step="0.5" 
+                          min="0" 
+                          max="20"
+                          placeholder=" / 20"
+                          value={val !== undefined ? val : ""}
+                          onChange={(e) => handleGradeChange(grade.studentId, e.target.value)}
+                          className="w-24 text-center font-mono font-bold text-lg h-12 focus:ring-primary/30"
+                        />
+                        {val !== "" && val !== undefined && !isPending && (
+                          <CheckCircle2 className="w-6 h-6 text-emerald-500 opacity-50" />
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Floating Save Button Mobile optimized */}
+        {selectedAssignment && (
+          <div className="fixed bottom-6 left-0 right-0 px-4 md:static md:px-0 md:mt-8 z-30">
+            <Button 
+              size="lg" 
+              className="w-full h-16 text-lg font-bold shadow-xl shadow-primary/30 md:shadow-none hover:-translate-y-1 transition-transform"
+              onClick={handleSave}
+              disabled={submitBulk.isPending}
+            >
+              <Save className="w-5 h-5 mr-2" />
+              {submitBulk.isPending ? "Enregistrement..." : "Tout Enregistrer ( / 20)"}
+            </Button>
+          </div>
+        )}
+      </div>
+    </AppLayout>
+  );
+}
