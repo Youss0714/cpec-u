@@ -45,6 +45,13 @@ artifacts-monorepo/
 
 ## RBAC — Multi-Admin System
 
+### Admin — Directeur du Centre (`adminSubRole: "directeur"`)
+- **Super-admin** : accès complet à toutes les fonctionnalités
+- **Seul rôle** autorisé à créer et supprimer des comptes administrateurs (scolarité et planificateur)
+- Nav combinée : voit tous les menus (Utilisateurs, Résultats, Emplois du temps, Journal d'Activité…)
+- Badge violet dans la barre latérale
+- Compte demo : directeur@cpec-u.fr / directeur123
+
 ### Admin — Responsable de Scolarité (`adminSubRole: "scolarite"`)
 - Full CRUD on students, grades, classes, subjects, semesters
 - Validates averages and publishes results per semester (publish toggle on results page)
@@ -99,6 +106,7 @@ artifacts-monorepo/
 
 | Role | Sous-rôle | Email | Password |
 |------|-----------|-------|----------|
+| Admin | Directeur du Centre | directeur@cpec-u.fr | directeur123 |
 | Admin | Responsable Scolarité | youss@gmail.com | @Youss0546 |
 | Admin | Responsable Scolarité | admin@cpec-u.fr | admin123 |
 | Admin | Planificateur | planificateur@cpec-u.fr | planificateur123 |

@@ -24,7 +24,8 @@ export default function AdminResults() {
   const { toast } = useToast();
   const qc = useQueryClient();
   const { data: currentUser } = useGetCurrentUser();
-  const isScolarite = (currentUser as any)?.adminSubRole === "scolarite";
+  const adminSubRole = (currentUser as any)?.adminSubRole;
+  const isScolarite = adminSubRole === "scolarite" || adminSubRole === "directeur";
 
   const { data: semesters } = useListSemesters();
   const { data: classes } = useListClasses();

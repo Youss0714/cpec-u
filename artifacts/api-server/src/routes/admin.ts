@@ -60,9 +60,14 @@ router.get("/users", requireRole("admin"), async (req, res) => {
 
 router.post("/users", requireRole("admin"), async (req, res) => {
   try {
+    const cu = req.session?.user as any;
     const { email, name, password, role, adminSubRole, classId } = req.body;
     if (!email || !name || !password || !role) {
       res.status(400).json({ error: "Bad Request", message: "Missing required fields" });
+      return;
+    }
+    if (role === "admin" && cu?.adminSubRole !== "directeur") {
+      res.status(403).json({ error: "Forbidden", message: "Seul le Directeur du Centre peut créer un compte administrateur." });
       return;
     }
     const passwordHash = hashPassword(password);
@@ -337,7 +342,7 @@ router.put("/semesters/:id", requireRole("admin"), async (req, res) => {
 router.post("/semesters/:id/publish", requireRole("admin"), async (req, res) => {
   try {
     const cu = req.session.user!;
-    if (cu.adminSubRole !== "scolarite") {
+    if (cu.adminSubRole !== "scolarite" && cu.adminSubRole !== "directeur") {
       res.status(403).json({ error: "Réservé au Responsable du Centre." });
       return;
     }
@@ -454,7 +459,7 @@ router.get("/results/:semesterId", requireRole("admin"), async (req, res) => {
 router.get("/bulletin/:studentId/:semesterId", requireRole("admin"), async (req, res) => {
   try {
     const cu = req.session.user!;
-    if (cu.adminSubRole !== "scolarite") {
+    if (cu.adminSubRole !== "scolarite" && cu.adminSubRole !== "directeur") {
       res.status(403).json({ error: "Réservé au Responsable du Centre." });
       return;
     }
@@ -670,7 +675,7 @@ router.get("/subject-approvals", requireRole("admin"), async (req, res) => {
 router.post("/subject-approvals", requireRole("admin"), async (req, res) => {
   try {
     const cu = req.session.user!;
-    if (cu.adminSubRole !== "scolarite") {
+    if (cu.adminSubRole !== "scolarite" && cu.adminSubRole !== "directeur") {
       res.status(403).json({ error: "Réservé au Responsable du Centre." });
       return;
     }
@@ -699,7 +704,7 @@ router.post("/subject-approvals", requireRole("admin"), async (req, res) => {
 router.delete("/subject-approvals/:id", requireRole("admin"), async (req, res) => {
   try {
     const cu = req.session.user!;
-    if (cu.adminSubRole !== "scolarite") {
+    if (cu.adminSubRole !== "scolarite" && cu.adminSubRole !== "directeur") {
       res.status(403).json({ error: "Réservé au Responsable du Centre." });
       return;
     }
@@ -717,7 +722,7 @@ router.delete("/subject-approvals/:id", requireRole("admin"), async (req, res) =
 router.put("/grades/derogate", requireRole("admin"), async (req, res) => {
   try {
     const cu = req.session.user!;
-    if (cu.adminSubRole !== "scolarite") {
+    if (cu.adminSubRole !== "scolarite" && cu.adminSubRole !== "directeur") {
       res.status(403).json({ error: "Réservé au Responsable du Centre." });
       return;
     }
@@ -764,7 +769,7 @@ router.put("/grades/derogate", requireRole("admin"), async (req, res) => {
 router.get("/activity-log", requireRole("admin"), async (req, res) => {
   try {
     const cu = req.session.user!;
-    if (cu.adminSubRole !== "scolarite") {
+    if (cu.adminSubRole !== "scolarite" && cu.adminSubRole !== "directeur") {
       res.status(403).json({ error: "Réservé au Responsable du Centre." });
       return;
     }

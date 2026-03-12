@@ -84,10 +84,25 @@ export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
     { name: "Enseignants", href: "/admin/users?role=teacher", icon: Users },
   ];
 
+  const directeurNavItems = [
+    { name: "Tableau de bord", href: "/admin", icon: LayoutDashboard },
+    { name: "Utilisateurs", href: "/admin/users", icon: Users },
+    { name: "Classes", href: "/admin/classes", icon: School },
+    { name: "Matières", href: "/admin/subjects", icon: BookOpen },
+    { name: "Semestres", href: "/admin/semesters", icon: Calendar },
+    { name: "Emplois du temps", href: "/admin/schedules", icon: CalendarDays },
+    { name: "Salles", href: "/admin/rooms", icon: DoorOpen },
+    { name: "Affectations (Notes)", href: "/admin/assignments", icon: ClipboardList },
+    { name: "Résultats & Bulletins", href: "/admin/results", icon: GraduationCap },
+    { name: "Journal d'Activité", href: "/admin/activity-log", icon: ScrollText },
+  ];
+
   const navItems =
     user.role === "admin"
       ? adminSubRole === "planificateur"
         ? planificateurNavItems
+        : adminSubRole === "directeur"
+        ? directeurNavItems
         : scolariteNavItems
       : user.role === "teacher"
       ? [
@@ -103,6 +118,8 @@ export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
     user.role === "admin"
       ? adminSubRole === "planificateur"
         ? "Responsable pédagogique"
+        : adminSubRole === "directeur"
+        ? "Directeur du Centre"
         : "Responsable du Centre"
       : user.role === "teacher"
       ? "Enseignant"
@@ -112,6 +129,8 @@ export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
     user.role === "admin"
       ? adminSubRole === "planificateur"
         ? "bg-amber-100 text-amber-800 border-amber-200"
+        : adminSubRole === "directeur"
+        ? "bg-violet-100 text-violet-800 border-violet-200"
         : "bg-blue-100 text-blue-800 border-blue-200"
       : user.role === "teacher"
       ? "bg-green-100 text-green-800 border-green-200"
@@ -133,6 +152,8 @@ export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
         {user.role === "admin"
           ? adminSubRole === "planificateur"
             ? "Menu Responsable pédagogique"
+            : adminSubRole === "directeur"
+            ? "Menu Direction"
             : "Menu Scolarité"
           : user.role === "teacher"
           ? "Menu Enseignant"

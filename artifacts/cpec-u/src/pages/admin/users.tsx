@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Trash2, ShieldCheck, GraduationCap, BookOpen } from "lucide-react";
+import { Plus, Trash2, ShieldCheck, GraduationCap, Crown } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 
@@ -21,11 +21,13 @@ const ROLE_LABELS: Record<string, string> = {
 const SUB_ROLE_LABELS: Record<string, string> = {
   scolarite: "Responsable du Centre",
   planificateur: "Responsable pédagogique",
+  directeur: "Directeur du Centre",
 };
 
 const SUB_ROLE_COLORS: Record<string, string> = {
   scolarite: "bg-blue-100 text-blue-700 border-blue-200",
   planificateur: "bg-amber-100 text-amber-700 border-amber-200",
+  directeur: "bg-violet-100 text-violet-700 border-violet-200",
 };
 
 export default function AdminUsers() {
@@ -33,7 +35,9 @@ export default function AdminUsers() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedRole, setSelectedRole] = useState<string>("student");
   const { data: currentUser } = useGetCurrentUser();
-  const isPlanificateur = (currentUser as any)?.adminSubRole === "planificateur";
+  const currentSubRole = (currentUser as any)?.adminSubRole as string | null;
+  const isDirecteur = currentSubRole === "directeur";
+  const isPlanificateur = currentSubRole === "planificateur";
   const { data: users, isLoading } = useListUsers();
   const { data: classes } = useListClasses();
   const createUser = useCreateUser();
@@ -65,8 +69,9 @@ export default function AdminUsers() {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
       setIsDialogOpen(false);
       setSelectedRole("student");
-    } catch {
-      toast({ title: "Erreur lors de la création", variant: "destructive" });
+    } catch (e: any) {
+      const msg = e?.message ?? "Erreur lors de la création";
+      toast({ title: msg.includes("Directeur") ? msg : "Erreur lors de la création", variant: "destructive" });
     }
   };
 
@@ -79,6 +84,12 @@ export default function AdminUsers() {
     } catch {
       toast({ title: "Erreur", variant: "destructive" });
     }
+  };
+
+  const canDeleteUser = (targetUser: any) => {
+    if (targetUser.role === "admin") return isDirecteur;
+    if (isPlanificateur) return targetUser.role !== "admin";
+    return true;
   };
 
   return (
@@ -134,16 +145,23 @@ export default function AdminUsers() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="admin">Administrateur</SelectItem>
+                        {isDirecteur && (
+                          <SelectItem value="admin">
+                            <div className="flex items-center gap-2">
+                              <Crown className="w-4 h-4 text-violet-600" />
+                              Administrateur
+                            </div>
+                          </SelectItem>
+                        )}
                         <SelectItem value="teacher">Enseignant</SelectItem>
                         <SelectItem value="student">Étudiant</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
 
-                  {selectedRole === "admin" && (
+                  {selectedRole === "admin" && isDirecteur && (
                     <div className="space-y-2">
-                      <Label htmlFor="adminSubRole">Sous-rôle administrateur *</Label>
+                      <Label htmlFor="adminSubRole">Sous-rôle administrateur <span className="text-destructive">*</span></Label>
                       <Select name="adminSubRole" required defaultValue="scolarite">
                         <SelectTrigger>
                           <SelectValue />
@@ -152,7 +170,7 @@ export default function AdminUsers() {
                           <SelectItem value="scolarite">
                             <div className="flex items-center gap-2">
                               <ShieldCheck className="w-4 h-4 text-blue-600" />
-                              Responsable du Centre
+                              Responsable du Centre (Scolarité)
                             </div>
                           </SelectItem>
                           <SelectItem value="planificateur">
@@ -164,7 +182,7 @@ export default function AdminUsers() {
                         </SelectContent>
                       </Select>
                       <p className="text-xs text-muted-foreground">
-                        {selectedRole === "admin" && "Le sous-rôle détermine les permissions spécifiques de l'administrateur."}
+                        Responsable du Centre : gère les notes, résultats et bulletins. Responsable pédagogique : gère les emplois du temps et salles.
                       </p>
                     </div>
                   )}
@@ -237,7 +255,7 @@ export default function AdminUsers() {
                         )}
                       </TableCell>
                       <TableCell className="text-right">
-                        {!(isPlanificateur && user.role === "admin") && (
+                        {canDeleteUser(user) && (
                           <Button variant="ghost" size="icon" onClick={() => handleDelete(user.id)} className="text-destructive hover:bg-destructive/10">
                             <Trash2 className="w-4 h-4" />
                           </Button>
