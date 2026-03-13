@@ -90,6 +90,13 @@ function formatPeriodLabel(start: Date, numWeeks: number): string {
   return `${formatShortDate(start)} – ${formatShortDate(end)}`;
 }
 
+function isDayInPast(dayOfWeek: number, weekStart: Date): boolean {
+  const dayDate = addDays(weekStart, dayOfWeek - 1);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return dayDate < today;
+}
+
 type ViewMode = "1week" | "2weeks" | "1month";
 
 export default function AdminSchedules() {
@@ -175,6 +182,14 @@ export default function AdminSchedules() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isDayInPast(parseInt(form.dayOfWeek), startDate)) {
+      toast({
+        title: "Date déjà écoulée",
+        description: "Il est impossible de programmer un cours à une date passée.",
+        variant: "destructive",
+      });
+      return;
+    }
     try {
       await createEntry.mutateAsync({
         data: {
@@ -287,8 +302,21 @@ export default function AdminSchedules() {
     }
   };
 
+  const isCreatingInPastWeek = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const weekEnd = addDays(startDate, 6);
+    return weekEnd < today;
+  }, [startDate]);
+
   const EntryForm = ({ onSubmit, isPending, hideMonth }: { onSubmit: (e: React.FormEvent) => void; isPending: boolean; hideMonth?: boolean }) => (
     <form onSubmit={onSubmit} className="space-y-3 mt-4">
+      {!hideMonth && isCreatingInPastWeek && (
+        <div className="flex items-start gap-2 bg-destructive/10 border border-destructive/30 rounded-lg p-3 text-sm text-destructive">
+          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+          <span>Vous consultez une semaine passée. Il est impossible de programmer un cours sur des dates déjà écoulées.</span>
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1">
           <Label>Enseignant</Label>
@@ -331,7 +359,17 @@ export default function AdminSchedules() {
           <Label>Jour</Label>
           <Select value={form.dayOfWeek} onValueChange={(v) => setForm({ ...form, dayOfWeek: v })}>
             <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>{DAYS.slice(1).map((d, i) => <SelectItem key={i + 1} value={String(i + 1)}>{d}</SelectItem>)}</SelectContent>
+            <SelectContent>
+              {DAYS.slice(1).map((d, i) => {
+                const dayIdx = i + 1;
+                const isPast = !hideMonth && isDayInPast(dayIdx, startDate);
+                return (
+                  <SelectItem key={dayIdx} value={String(dayIdx)} disabled={isPast}>
+                    {d}{isPast ? " — passé" : ""}
+                  </SelectItem>
+                );
+              })}
+            </SelectContent>
           </Select>
         </div>
         <div className="space-y-1">
