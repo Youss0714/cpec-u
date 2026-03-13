@@ -17,7 +17,14 @@ const STATUS_CONFIG = {
 
 type Status = keyof typeof STATUS_CONFIG;
 
-type StudentRow = { studentId: number; studentName: string; status: Status; note: string };
+type StudentRow = {
+  studentId: number;
+  studentName: string;
+  status: Status;
+  note: string;
+  startTime: string;
+  endTime: string;
+};
 
 function todayDate() {
   return new Date().toISOString().split("T")[0];
@@ -52,7 +59,7 @@ export default function TeacherAttendance() {
   useEffect(() => {
     if (!selectedAssignment || !sessionDate) return;
     const students = enrolledStudents as any[];
-    setRows(students.map((s: any) => ({ studentId: s.id, studentName: s.name, status: "present", note: "" })));
+    setRows(students.map((s: any) => ({ studentId: s.id, studentName: s.name, status: "present", note: "", startTime: "", endTime: "" })));
     setSentAt(null);
 
     const { subjectId, classId } = selectedAssignment;
@@ -63,7 +70,9 @@ export default function TeacherAttendance() {
           setRows(prev =>
             prev.map(row => {
               const found = records.find((r: any) => r.studentId === row.studentId);
-              return found ? { ...row, status: found.status as Status, note: found.note ?? "" } : row;
+              return found
+                ? { ...row, status: found.status as Status, note: found.note ?? "", startTime: found.startTime ?? "", endTime: found.endTime ?? "" }
+                : row;
             })
           );
         }
@@ -77,6 +86,26 @@ export default function TeacherAttendance() {
   const setNote = (studentId: number, note: string) => {
     setRows(prev => prev.map(r => r.studentId === studentId ? { ...r, note } : r));
   };
+  const setStartTime = (studentId: number, startTime: string) => {
+    setRows(prev => prev.map(r => r.studentId === studentId ? { ...r, startTime } : r));
+  };
+  const setEndTime = (studentId: number, endTime: string) => {
+    setRows(prev => prev.map(r => r.studentId === studentId ? { ...r, endTime } : r));
+  };
+
+  const buildPayload = () => ({
+    subjectId: selectedAssignment!.subjectId,
+    classId: selectedAssignment!.classId,
+    semesterId: selectedAssignment!.semesterId,
+    sessionDate,
+    records: rows.map(r => ({
+      studentId: r.studentId,
+      status: r.status,
+      note: r.note || undefined,
+      startTime: r.status !== "present" && r.startTime ? r.startTime : undefined,
+      endTime: r.status !== "present" && r.endTime ? r.endTime : undefined,
+    })),
+  });
 
   const handleSave = async () => {
     if (!selectedAssignment) return;
@@ -85,13 +114,7 @@ export default function TeacherAttendance() {
       await apiFetch("/teacher/attendance/save", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          subjectId: selectedAssignment.subjectId,
-          classId: selectedAssignment.classId,
-          semesterId: selectedAssignment.semesterId,
-          sessionDate,
-          records: rows.map(r => ({ studentId: r.studentId, status: r.status, note: r.note || undefined })),
-        }),
+        body: JSON.stringify(buildPayload()),
       });
       toast({ title: "Présences sauvegardées" });
     } catch {
@@ -108,13 +131,7 @@ export default function TeacherAttendance() {
       await apiFetch("/teacher/attendance/save", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          subjectId: selectedAssignment.subjectId,
-          classId: selectedAssignment.classId,
-          semesterId: selectedAssignment.semesterId,
-          sessionDate,
-          records: rows.map(r => ({ studentId: r.studentId, status: r.status, note: r.note || undefined })),
-        }),
+        body: JSON.stringify(buildPayload()),
       });
       const { sentAt: sa } = await apiFetch("/teacher/attendance/send", {
         method: "POST",
@@ -214,40 +231,66 @@ export default function TeacherAttendance() {
             <div className="space-y-2">
               {rows.map((row) => {
                 const cfg = STATUS_CONFIG[row.status];
+                const isAbsentOrLate = row.status !== "present";
                 return (
                   <div
                     key={row.studentId}
-                    className="bg-card border border-border rounded-xl px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3"
+                    className="bg-card border border-border rounded-xl px-4 py-3 flex flex-col gap-3"
                   >
-                    <div className="flex items-center gap-3 flex-1 min-w-0">
-                      <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${cfg.dot}`} />
-                      <span className="font-medium text-foreground truncate">{row.studentName}</span>
+                    {/* Top row: name + status buttons */}
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${cfg.dot}`} />
+                        <span className="font-medium text-foreground truncate">{row.studentName}</span>
+                      </div>
+                      <div className="flex flex-wrap gap-2 items-center">
+                        {(["present", "absent", "late"] as Status[]).map((s) => {
+                          const c = STATUS_CONFIG[s];
+                          const active = row.status === s;
+                          return (
+                            <button
+                              key={s}
+                              onClick={() => setStatus(row.studentId, s)}
+                              className={`text-xs font-semibold px-3 py-1.5 rounded-full border transition-all ${
+                                active ? c.color : "border-border text-muted-foreground hover:border-primary/40"
+                              }`}
+                            >
+                              {c.label}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
-                    <div className="flex flex-wrap gap-2 items-center">
-                      {(["present", "absent", "late"] as Status[]).map((s) => {
-                        const c = STATUS_CONFIG[s];
-                        const active = row.status === s;
-                        return (
-                          <button
-                            key={s}
-                            onClick={() => setStatus(row.studentId, s)}
-                            className={`text-xs font-semibold px-3 py-1.5 rounded-full border transition-all ${
-                              active ? c.color : "border-border text-muted-foreground hover:border-primary/40"
-                            }`}
-                          >
-                            {c.label}
-                          </button>
-                        );
-                      })}
-                      {row.status !== "present" && (
+
+                    {/* Bottom row: time range + note (only for absent/late) */}
+                    {isAbsentOrLate && (
+                      <div className="flex flex-wrap gap-2 items-center pl-5">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs text-muted-foreground font-medium">De</span>
+                          <Input
+                            type="time"
+                            value={row.startTime}
+                            onChange={(e) => setStartTime(row.studentId, e.target.value)}
+                            className="h-7 text-xs w-28 bg-background"
+                          />
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs text-muted-foreground font-medium">À</span>
+                          <Input
+                            type="time"
+                            value={row.endTime}
+                            onChange={(e) => setEndTime(row.studentId, e.target.value)}
+                            className="h-7 text-xs w-28 bg-background"
+                          />
+                        </div>
                         <Input
                           value={row.note}
                           onChange={(e) => setNote(row.studentId, e.target.value)}
                           placeholder="Motif (optionnel)"
                           className="h-7 text-xs w-40 bg-background"
                         />
-                      )}
-                    </div>
+                      </div>
+                    )}
                   </div>
                 );
               })}

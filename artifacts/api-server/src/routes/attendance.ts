@@ -33,6 +33,8 @@ router.get("/teacher/attendance", requireRole("teacher", "admin"), async (req, r
         studentId: attendanceTable.studentId,
         status: attendanceTable.status,
         note: attendanceTable.note,
+        startTime: attendanceTable.startTime,
+        endTime: attendanceTable.endTime,
       })
       .from(attendanceTable)
       .where(
@@ -73,7 +75,7 @@ router.post("/teacher/attendance/save", requireRole("teacher", "admin"), async (
       classId: number;
       semesterId: number;
       sessionDate: string;
-      records: { studentId: number; status: string; note?: string }[];
+      records: { studentId: number; status: string; note?: string; startTime?: string; endTime?: string }[];
     };
     if (!subjectId || !classId || !semesterId || !sessionDate || !Array.isArray(records)) {
       res.status(400).json({ error: "Données manquantes" });
@@ -92,6 +94,8 @@ router.post("/teacher/attendance/save", requireRole("teacher", "admin"), async (
           studentId: r.studentId,
           status: r.status || "present",
           note: r.note ?? null,
+          startTime: r.startTime ?? null,
+          endTime: r.endTime ?? null,
         })
         .onConflictDoUpdate({
           target: [
@@ -101,7 +105,7 @@ router.post("/teacher/attendance/save", requireRole("teacher", "admin"), async (
             attendanceTable.sessionDate,
             attendanceTable.studentId,
           ],
-          set: { status: r.status || "present", note: r.note ?? null },
+          set: { status: r.status || "present", note: r.note ?? null, startTime: r.startTime ?? null, endTime: r.endTime ?? null },
         });
     }
 
@@ -222,6 +226,8 @@ router.get("/admin/attendance/sessions/:id", requireRole("admin"), async (req, r
         studentName: usersTable.name,
         status: attendanceTable.status,
         note: attendanceTable.note,
+        startTime: attendanceTable.startTime,
+        endTime: attendanceTable.endTime,
       })
       .from(attendanceTable)
       .innerJoin(usersTable, eq(usersTable.id, attendanceTable.studentId))

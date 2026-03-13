@@ -174,9 +174,18 @@ export default function AdminAttendance() {
                     const cfg = STATUS_CONFIG[r.status as keyof typeof STATUS_CONFIG] ?? STATUS_CONFIG.present;
                     const Icon = cfg.icon;
                     return (
-                      <div key={r.studentId} className="flex items-center justify-between px-4 py-2.5 border-b border-border last:border-0">
-                        <span className="text-sm font-medium">{r.studentName}</span>
-                        <div className="flex items-center gap-2">
+                      <div key={r.studentId} className="flex items-center justify-between px-4 py-2.5 border-b border-border last:border-0 gap-2">
+                        <span className="text-sm font-medium flex-1 min-w-0 truncate">{r.studentName}</span>
+                        <div className="flex items-center gap-2 flex-wrap justify-end">
+                          {(r.startTime || r.endTime) && (
+                            <span className="text-xs text-muted-foreground font-mono whitespace-nowrap">
+                              {r.startTime && r.endTime
+                                ? `${r.startTime} → ${r.endTime}`
+                                : r.startTime
+                                ? `Dès ${r.startTime}`
+                                : `Jusqu'à ${r.endTime}`}
+                            </span>
+                          )}
                           {r.note && <span className="text-xs text-muted-foreground italic">{r.note}</span>}
                           <span className={`flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full ${cfg.cls}`}>
                             <Icon className="w-3.5 h-3.5" />

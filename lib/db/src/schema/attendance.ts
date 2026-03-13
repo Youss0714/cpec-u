@@ -14,6 +14,8 @@ export const attendanceTable = pgTable("attendance", {
   studentId: integer("student_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
   status: varchar("status", { length: 20 }).notNull().default("present"),
   note: text("note"),
+  startTime: varchar("start_time", { length: 5 }),
+  endTime: varchar("end_time", { length: 5 }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (t) => [unique().on(t.teacherId, t.subjectId, t.classId, t.sessionDate, t.studentId)]);
 
