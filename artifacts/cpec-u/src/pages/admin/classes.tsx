@@ -42,7 +42,7 @@ function ClassStudentsSheet({
 
   const enrolledIds = new Set((students as any[]).map((s) => s.id));
   const availableStudents = (allUsers as any[]).filter(
-    (u) => u.role === "student" && !enrolledIds.has(u.id)
+    (u) => u.role === "student" && !enrolledIds.has(u.id) && !u.classId
   );
 
   const invalidate = () => {
