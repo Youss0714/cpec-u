@@ -13,6 +13,7 @@ import scolariteRouter from "./scolarite.js";
 import honorairesRouter from "./honoraires.js";
 import attendanceRouter from "./attendance.js";
 import messagesRouter from "./messages.js";
+import housingRouter from "./housing.js";
 
 const router: IRouter = Router();
 
@@ -30,5 +31,6 @@ router.use("/scolarite", scolariteRouter);
 router.use("/honoraires", honorairesRouter);
 router.use(attendanceRouter);
 router.use(messagesRouter);
+router.use(housingRouter);
 
 export default router;

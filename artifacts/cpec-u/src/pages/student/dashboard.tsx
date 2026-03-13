@@ -4,13 +4,33 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { GraduationCap, Award, Book, AlertCircle } from "lucide-react";
+import { GraduationCap, Award, Book, AlertCircle, Building2, BedDouble, CalendarDays } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { useQuery } from "@tanstack/react-query";
+
+function useMyHousing() {
+  return useQuery({
+    queryKey: ["/api/housing/my"],
+    queryFn: async () => {
+      const res = await fetch("/api/housing/my", { credentials: "include" });
+      if (!res.ok) return null;
+      return res.json();
+    },
+  });
+}
+
+const ROOM_TYPES: Record<string, string> = {
+  simple: "Simple",
+  double: "Double",
+  triple: "Triple",
+  quad: "Quadruple",
+};
 
 export default function StudentDashboard() {
   const { data: profile } = useGetStudentProfile();
   const { data: semesters } = useListSemesters();
+  const { data: housing } = useMyHousing();
   
   // Find latest published semester as default
   const latestPublished = semesters?.filter(s => s.published).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
@@ -44,6 +64,30 @@ export default function StudentDashboard() {
             </p>
           </div>
         </motion.div>
+
+        {/* Housing Card */}
+        {housing && (
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
+            <Card className="border-border shadow-sm overflow-hidden">
+              <CardContent className="p-0">
+                <div className="flex items-center gap-4 p-5">
+                  <div className="w-12 h-12 rounded-2xl bg-teal-50 flex items-center justify-center flex-shrink-0">
+                    <Building2 className="w-6 h-6 text-teal-600" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-0.5">Mon Hébergement</p>
+                    <p className="font-bold text-foreground">{housing.buildingName} — Chambre {housing.roomNumber}</p>
+                    <p className="text-sm text-muted-foreground">Étage {housing.floor} · {ROOM_TYPES[housing.type] ?? housing.type} · {housing.capacity} pers.</p>
+                  </div>
+                  <div className="text-right flex-shrink-0 space-y-1">
+                    <p className="font-bold text-teal-700">{parseFloat(housing.pricePerMonth).toLocaleString("fr-FR")} FCFA<span className="text-xs font-normal text-muted-foreground">/mois</span></p>
+                    <p className="text-xs text-muted-foreground flex items-center gap-1 justify-end"><CalendarDays className="w-3 h-3" />Depuis le {new Date(housing.startDate).toLocaleDateString("fr-FR")}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
 
         {/* Results Section */}
         <div className="space-y-6">

@@ -25,11 +25,13 @@ const SUB_ROLE_LABELS: Record<string, string> = {
   scolarite: "Assistant(e) de Direction",
   planificateur: "Responsable pédagogique",
   directeur: "Directeur du Centre",
+  hebergement: "Responsable Hébergement",
 };
 const SUB_ROLE_COLORS: Record<string, string> = {
   scolarite: "bg-blue-100 text-blue-700 border-blue-200",
   planificateur: "bg-amber-100 text-amber-700 border-amber-200",
   directeur: "bg-violet-100 text-violet-700 border-violet-200",
+  hebergement: "bg-teal-100 text-teal-700 border-teal-200",
 };
 
 type Tab = "teachers" | "students" | "scolarite" | "responsables" | "honoraires";
@@ -659,6 +661,7 @@ export default function AdminUsers() {
                           <SelectItem value="scolarite">Assistant(e) de Direction</SelectItem>
                           <SelectItem value="planificateur">Responsable pédagogique</SelectItem>
                           <SelectItem value="directeur">Directeur du Centre</SelectItem>
+                          <SelectItem value="hebergement">Responsable Hébergement</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>

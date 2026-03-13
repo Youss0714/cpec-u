@@ -24,6 +24,7 @@ import {
   ScrollText,
   Bell,
   MessageSquare,
+  Building2,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
@@ -137,6 +138,13 @@ export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
     { name: "Bilan des Absences", href: "/admin/attendance/summary", icon: BarChart3 },
     { name: "Résultats & Bulletins", href: "/admin/results", icon: GraduationCap },
     { name: "Journal d'Activité", href: "/admin/activity-log", icon: ScrollText },
+    { name: "Hébergement", href: "/admin/housing", icon: Building2 },
+    { name: "Messages", href: "/admin/messages", icon: MessageSquare },
+  ];
+
+  const hebergementNavItems = [
+    { name: "Tableau de bord", href: "/admin/housing", icon: LayoutDashboard },
+    { name: "Hébergement", href: "/admin/housing", icon: Building2 },
     { name: "Messages", href: "/admin/messages", icon: MessageSquare },
   ];
 
@@ -146,6 +154,8 @@ export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
         ? planificateurNavItems
         : adminSubRole === "directeur"
         ? directeurNavItems
+        : adminSubRole === "hebergement"
+        ? hebergementNavItems
         : scolariteNavItems
       : user.role === "teacher"
       ? [
@@ -169,6 +179,8 @@ export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
         ? "Responsable pédagogique"
         : adminSubRole === "directeur"
         ? "Directeur du Centre"
+        : adminSubRole === "hebergement"
+        ? "Responsable Hébergement"
         : "Assistant(e) de Direction"
       : user.role === "teacher"
       ? "Enseignant"
@@ -180,6 +192,8 @@ export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
         ? "bg-amber-100 text-amber-800 border-amber-200"
         : adminSubRole === "directeur"
         ? "bg-violet-100 text-violet-800 border-violet-200"
+        : adminSubRole === "hebergement"
+        ? "bg-teal-100 text-teal-800 border-teal-200"
         : "bg-blue-100 text-blue-800 border-blue-200"
       : user.role === "teacher"
       ? "bg-green-100 text-green-800 border-green-200"

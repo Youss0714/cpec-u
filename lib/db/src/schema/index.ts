@@ -14,3 +14,4 @@ export * from "./payments";
 export * from "./honoraria";
 export * from "./attendance";
 export * from "./messages";
+export * from "./housing";
