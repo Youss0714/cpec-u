@@ -232,6 +232,7 @@ export default function AdminSubjects() {
           </Table>
           </div>
         </div>
+      </div>
       <ConfirmDialog
         open={pendingDeleteId !== null}
         onOpenChange={(open) => { if (!open) setPendingDeleteId(null); }}

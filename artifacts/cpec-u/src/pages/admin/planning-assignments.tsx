@@ -227,6 +227,7 @@ export default function PlanningAssignments() {
             </TableBody>
           </Table>
         </div>
+      </div>
       <ConfirmDialog
         open={pendingDeleteId !== null}
         onOpenChange={(open) => { if (!open) setPendingDeleteId(null); }}

@@ -166,6 +166,7 @@ export default function BlockedDates() {
             ))}
           </div>
         )}
+      </div>
       <ConfirmDialog
         open={pendingDeleteId !== null}
         onOpenChange={(open) => { if (!open) setPendingDeleteId(null); }}

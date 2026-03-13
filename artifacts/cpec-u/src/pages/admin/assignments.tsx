@@ -154,6 +154,7 @@ export default function AdminAssignments() {
             </TableBody>
           </Table>
         </div>
+      </div>
       <ConfirmDialog
         open={pendingDeleteId !== null}
         onOpenChange={(open) => { if (!open) setPendingDeleteId(null); }}
