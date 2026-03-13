@@ -63,7 +63,7 @@ export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
       setFarewellSubRole("directeur");
       setShowFarewell(true);
       setTimeout(() => logoutMutation.mutate(), 2800);
-    } else if (subRole === "scolarite" || subRole === "planificateur") {
+    } else if (subRole === "scolarite" || subRole === "planificateur" || subRole === "hebergement") {
       setFarewellSubRole(subRole);
       setShowFarewell(true);
       setTimeout(() => logoutMutation.mutate(), 2500);

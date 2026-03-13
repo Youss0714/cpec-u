@@ -36,7 +36,7 @@ export default function Login() {
         if (subRole === "directeur") {
           setWelcomeUser({ name: data.user.name, initial: data.user.name.charAt(0), subRole: "directeur" });
           setTimeout(redirect, 3000);
-        } else if (subRole === "scolarite" || subRole === "planificateur") {
+        } else if (subRole === "scolarite" || subRole === "planificateur" || subRole === "hebergement") {
           setWelcomeUser({ name: data.user.name, initial: data.user.name.charAt(0), subRole });
           setTimeout(redirect, 2500);
         } else {
