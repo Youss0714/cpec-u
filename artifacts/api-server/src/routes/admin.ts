@@ -584,6 +584,7 @@ async function computeStudentResult(studentId: number, semesterId: number) {
           eq(attendanceTable.studentId, studentId),
           eq(attendanceTable.semesterId, semesterId),
           ne(attendanceTable.status, "present"),
+          eq(attendanceTable.justified, false),
           isNotNull(attendanceTable.startTime),
           isNotNull(attendanceTable.endTime)
         )

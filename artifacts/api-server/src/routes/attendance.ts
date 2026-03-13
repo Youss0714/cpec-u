@@ -228,6 +228,7 @@ router.get("/admin/attendance/sessions/:id", requireRole("admin"), async (req, r
         note: attendanceTable.note,
         startTime: attendanceTable.startTime,
         endTime: attendanceTable.endTime,
+        justified: attendanceTable.justified,
       })
       .from(attendanceTable)
       .innerJoin(usersTable, eq(usersTable.id, attendanceTable.studentId))
@@ -321,11 +322,12 @@ router.patch("/admin/attendance/sessions/:sessionId/student/:studentId", require
 
     if (!session) { res.status(404).json({ error: "Session introuvable" }); return; }
 
-    const { status, note, startTime, endTime } = req.body as {
+    const { status, note, startTime, endTime, justified } = req.body as {
       status?: string;
       note?: string | null;
       startTime?: string | null;
       endTime?: string | null;
+      justified?: boolean;
     };
 
     const updateSet: Record<string, any> = {};
@@ -333,6 +335,7 @@ router.patch("/admin/attendance/sessions/:sessionId/student/:studentId", require
     if (note !== undefined) updateSet.note = note;
     if (startTime !== undefined) updateSet.startTime = startTime;
     if (endTime !== undefined) updateSet.endTime = endTime;
+    if (justified !== undefined) updateSet.justified = justified;
 
     if (Object.keys(updateSet).length === 0) {
       res.status(400).json({ error: "Aucun champ à mettre à jour" });

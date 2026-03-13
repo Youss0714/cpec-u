@@ -1,4 +1,4 @@
-import { pgTable, serial, integer, varchar, text, timestamp, date, unique } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, varchar, text, timestamp, date, unique, boolean } from "drizzle-orm/pg-core";
 import { usersTable } from "./users";
 import { subjectsTable } from "./subjects";
 import { classesTable } from "./classes";
@@ -16,6 +16,7 @@ export const attendanceTable = pgTable("attendance", {
   note: text("note"),
   startTime: varchar("start_time", { length: 5 }),
   endTime: varchar("end_time", { length: 5 }),
+  justified: boolean("justified").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (t) => [unique().on(t.teacherId, t.subjectId, t.classId, t.sessionDate, t.studentId)]);
 

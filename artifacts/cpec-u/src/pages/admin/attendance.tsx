@@ -3,10 +3,11 @@ import { AppLayout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useGetCurrentUser } from "@workspace/api-client-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { CheckCircle2, XCircle, Clock, ClipboardList, Pencil, X, Check } from "lucide-react";
+import { CheckCircle2, XCircle, Clock, ClipboardList, Pencil, X, Check, ShieldCheck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 async function apiFetch(path: string, options?: RequestInit) {
@@ -32,10 +33,12 @@ function StudentRow({
   r,
   sessionId,
   onSaved,
+  canManage,
 }: {
   r: any;
   sessionId: number;
   onSaved: () => void;
+  canManage: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -87,6 +90,23 @@ function StudentRow({
         body: JSON.stringify({ startTime: null, endTime: null }),
       });
       toast({ title: "Heures d'absence annulées" });
+      onSaved();
+    } catch {
+      toast({ title: "Erreur", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleToggleJustified = async () => {
+    setSaving(true);
+    try {
+      await apiFetch(`/admin/attendance/sessions/${sessionId}/student/${r.studentId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ justified: !r.justified }),
+      });
+      toast({ title: r.justified ? "Absence marquée non justifiée" : "Absence justifiée — déduction supprimée" });
       onSaved();
     } catch {
       toast({ title: "Erreur", variant: "destructive" });
@@ -195,6 +215,27 @@ function StudentRow({
           <Icon className="w-3.5 h-3.5" />
           {cfg.label}
         </span>
+        {r.status !== "present" && canManage && (
+          <button
+            onClick={handleToggleJustified}
+            disabled={saving}
+            title={r.justified ? "Retirer la justification" : "Marquer comme justifiée"}
+            className={`flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full border transition-all ${
+              r.justified
+                ? "bg-emerald-100 text-emerald-700 border-emerald-300"
+                : "border-dashed border-muted-foreground/40 text-muted-foreground hover:border-emerald-400 hover:text-emerald-600"
+            }`}
+          >
+            <ShieldCheck className="w-3 h-3" />
+            {r.justified ? "Justifiée" : "Justifier"}
+          </button>
+        )}
+        {r.status !== "present" && !canManage && r.justified && (
+          <span className="flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full bg-emerald-100 text-emerald-700">
+            <ShieldCheck className="w-3 h-3" />
+            Justifiée
+          </span>
+        )}
         <button
           onClick={startEdit}
           title="Modifier"
@@ -210,6 +251,8 @@ function StudentRow({
 export default function AdminAttendance() {
   const [selectedSessionId, setSelectedSessionId] = useState<number | null>(null);
   const queryClient = useQueryClient();
+  const { data: currentUser } = useGetCurrentUser({ query: { retry: false } } as any);
+  const canManage = (currentUser as any)?.adminSubRole === "scolarite" || (currentUser as any)?.adminSubRole === "directeur";
 
   const { data: sessions = [], isLoading } = useQuery({
     queryKey: ["/api/admin/attendance/sessions"],
@@ -369,6 +412,7 @@ export default function AdminAttendance() {
                       r={r}
                       sessionId={selectedSessionId!}
                       onSaved={handleRecordSaved}
+                      canManage={canManage}
                     />
                   ))}
                 </div>
