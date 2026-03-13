@@ -111,7 +111,7 @@ export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
     { name: "Classes", href: "/admin/classes", icon: School },
     { name: "Matières", href: "/admin/subjects", icon: BookOpen },
     { name: "Semestres", href: "/admin/semesters", icon: Calendar },
-    { name: "Enseignants", href: "/admin/users?role=teacher", icon: Users },
+    { name: "Utilisateurs", href: "/admin/users", icon: Users },
   ];
 
   const directeurNavItems = [
