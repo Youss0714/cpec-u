@@ -1,6 +1,6 @@
 import { ReactNode, useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
-import { useGetCurrentUser, useLogout } from "@workspace/api-client-react";
+import { useGetCurrentUser, useLogout, useGetUnreadNotificationCount } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import {
   LayoutDashboard,
@@ -21,6 +21,7 @@ import {
   BarChart,
   CalendarOff,
   ScrollText,
+  Bell,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
@@ -42,6 +43,9 @@ export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showFarewell, setShowFarewell] = useState(false);
   const [farewellSubRole, setFarewellSubRole] = useState<string | null>(null);
+  const { data: unreadData } = useGetUnreadNotificationCount({
+    enabled: !!(user && user.role === "student"),
+  } as any);
 
   const logoutMutation = useLogout({
     mutation: {
@@ -141,9 +145,10 @@ export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
           { name: "Saisie des Notes", href: "/teacher/grades", icon: PenTool },
         ]
       : [
-          { name: "Mon Profil", href: "/student", icon: LayoutDashboard },
-          { name: "Mon Emploi du Temps", href: "/student/schedule", icon: CalendarDays },
-          { name: "Mes Résultats", href: "/student/grades", icon: FileText },
+          { name: "Mon Profil", href: "/student", icon: LayoutDashboard, badge: null },
+          { name: "Mon Emploi du Temps", href: "/student/schedule", icon: CalendarDays, badge: null },
+          { name: "Mes Résultats", href: "/student/grades", icon: FileText, badge: null },
+          { name: "Notifications", href: "/student/notifications", icon: Bell, badge: (unreadData?.count ?? 0) > 0 ? unreadData!.count : null },
         ];
 
   const roleLabel =
@@ -206,7 +211,12 @@ export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
               }`}
             >
               <item.icon className={`w-5 h-5 ${isActive ? "" : "opacity-70"}`} />
-              <span className="font-medium text-sm">{item.name}</span>
+              <span className="font-medium text-sm flex-1">{item.name}</span>
+              {(item as any).badge != null && (
+                <span className="min-w-[1.25rem] h-5 px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
+                  {(item as any).badge > 9 ? "9+" : (item as any).badge}
+                </span>
+              )}
             </Link>
           );
         })}
@@ -249,16 +259,30 @@ export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
             <img src={`${import.meta.env.BASE_URL}images/logo.jpg`} alt="CPEC-U Logo" className="w-8 h-8 object-contain rounded-md" />
             <span className="font-serif font-bold text-lg">CPEC-U</span>
           </div>
-          <Sheet>
-            <SheetTrigger asChild>
-              <Button variant="ghost" size="icon">
-                <Menu className="w-6 h-6" />
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="left" className="p-0 w-72 border-none">
-              <SidebarContent />
-            </SheetContent>
-          </Sheet>
+          <div className="flex items-center gap-1">
+            {user?.role === "student" && (
+              <Link href="/student/notifications">
+                <Button variant="ghost" size="icon" className="relative">
+                  <Bell className="w-5 h-5" />
+                  {(unreadData?.count ?? 0) > 0 && (
+                    <span className="absolute -top-0.5 -right-0.5 min-w-[1.1rem] h-[1.1rem] px-0.5 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center">
+                      {unreadData!.count > 9 ? "9+" : unreadData!.count}
+                    </span>
+                  )}
+                </Button>
+              </Link>
+            )}
+            <Sheet>
+              <SheetTrigger asChild>
+                <Button variant="ghost" size="icon">
+                  <Menu className="w-6 h-6" />
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="left" className="p-0 w-72 border-none">
+                <SidebarContent />
+              </SheetContent>
+            </Sheet>
+          </div>
         </header>
 
         <div className="flex-1 overflow-auto p-4 md:p-8">

@@ -11,6 +11,7 @@ import {
 } from "@workspace/db";
 import { eq, and, lte, gte } from "drizzle-orm";
 import { requireRole } from "../lib/auth.js";
+import { notifyStudentsOfClasses, notifyStudentsBySemester } from "./notifications.js";
 
 const router = Router();
 
@@ -124,6 +125,17 @@ router.post("/publish", requirePlanificateur, async (req, res) => {
       .update(scheduleEntriesTable)
       .set({ published: Boolean(published) })
       .where(eq(scheduleEntriesTable.semesterId, semesterId));
+
+    if (Boolean(published)) {
+      const [sem] = await db.select({ name: semestersTable.name }).from(semestersTable).where(eq(semestersTable.id, parseInt(semesterId))).limit(1);
+      await notifyStudentsBySemester(
+        parseInt(semesterId),
+        "schedule_published",
+        "Emploi du temps disponible",
+        `L'emploi du temps${sem ? ` du semestre ${sem.name}` : ""} a été publié. Consultez votre planning.`
+      ).catch(console.error);
+    }
+
     res.json({ message: published ? "Emploi du temps publié" : "Mis en brouillon" });
   } catch (err) {
     console.error(err);
@@ -192,6 +204,17 @@ router.post("/publish-period", requirePlanificateur, async (req, res) => {
         publishedUntil,
       })
       .returning();
+
+    // Notify students of this class
+    const [cls] = await db.select({ name: classesTable.name }).from(classesTable).where(eq(classesTable.id, parseInt(classId))).limit(1);
+    const [sem] = await db.select({ name: semestersTable.name }).from(semestersTable).where(eq(semestersTable.id, parseInt(semesterId))).limit(1);
+    const periodLabels: Record<string, string> = { today: "aujourd'hui", "1week": "1 semaine", "2weeks": "2 semaines", "1month": "1 mois" };
+    await notifyStudentsOfClasses(
+      [parseInt(classId)],
+      "schedule_published",
+      "Emploi du temps disponible",
+      `L'emploi du temps${cls ? ` de la classe ${cls.name}` : ""}${sem ? ` (${sem.name})` : ""} est publié pour ${periodLabels[period] ?? period}.`
+    ).catch(console.error);
 
     res.json({
       message: "Emploi du temps publié",

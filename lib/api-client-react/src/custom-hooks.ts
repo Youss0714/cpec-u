@@ -431,3 +431,53 @@ export const useGetStudentMe = (options?: QueryOpts<StudentMe>) =>
     queryFn: getStudentMe,
     ...options,
   });
+
+// ─── Notifications ────────────────────────────────────────────────────────────
+
+export type AppNotification = {
+  id: number;
+  userId: number;
+  type: string;
+  title: string;
+  message: string;
+  read: boolean;
+  createdAt: string;
+};
+
+const getNotifications = (): Promise<AppNotification[]> =>
+  customFetch("/api/notifications");
+
+export const useGetNotifications = (options?: QueryOpts<AppNotification[]>) =>
+  useQuery<AppNotification[], Error>({
+    queryKey: ["notifications"],
+    queryFn: getNotifications,
+    refetchInterval: 30000, // poll every 30s
+    ...options,
+  });
+
+const getUnreadCount = (): Promise<{ count: number }> =>
+  customFetch("/api/notifications/unread-count");
+
+export const useGetUnreadNotificationCount = (options?: QueryOpts<{ count: number }>) =>
+  useQuery<{ count: number }, Error>({
+    queryKey: ["notifications", "unread-count"],
+    queryFn: getUnreadCount,
+    refetchInterval: 30000,
+    ...options,
+  });
+
+const markNotificationRead = (id: number): Promise<{ ok: boolean }> =>
+  customFetch(`/api/notifications/${id}/read`, { method: "PATCH" });
+
+export const useMarkNotificationRead = () =>
+  useMutation<{ ok: boolean }, Error, number>({
+    mutationFn: markNotificationRead,
+  });
+
+const markAllRead = (): Promise<{ ok: boolean }> =>
+  customFetch("/api/notifications/read-all", { method: "POST" });
+
+export const useMarkAllNotificationsRead = () =>
+  useMutation<{ ok: boolean }, Error, void>({
+    mutationFn: markAllRead,
+  });

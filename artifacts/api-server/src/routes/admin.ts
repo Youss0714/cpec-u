@@ -1,6 +1,7 @@
 import { Router } from "express";
 import crypto from "crypto";
 import { db } from "@workspace/db";
+import { notifyStudentsOfClasses } from "./notifications.js";
 import {
   usersTable,
   classesTable,
@@ -420,6 +421,17 @@ router.post("/semesters/:id/publish", requireRole("admin"), async (req, res) => 
       action: published ? "publication_resultats" : "depublication_resultats",
       details: `Semestre ID ${id} — résultats ${published ? "publiés" : "dépubliés"}.`,
     });
+    // Notify all enrolled students when results are published
+    if (published) {
+      const allClasses = await db.select({ id: classesTable.id }).from(classesTable);
+      const classIds = allClasses.map(c => c.id);
+      notifyStudentsOfClasses(
+        classIds,
+        "results_published",
+        "Résultats disponibles",
+        `Les résultats du semestre "${sem.name}" (${sem.academicYear}) sont désormais disponibles. Consultez votre espace étudiant.`
+      ).catch(console.error);
+    }
     res.json(sem);
   } catch (err) {
     console.error(err);
