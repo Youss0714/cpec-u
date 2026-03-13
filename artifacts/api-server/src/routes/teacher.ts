@@ -32,6 +32,7 @@ router.get("/assignments", requireRole("teacher", "admin"), async (req, res) => 
         className: classesTable.name,
         semesterId: teacherAssignmentsTable.semesterId,
         semesterName: semestersTable.name,
+        plannedHours: teacherAssignmentsTable.plannedHours,
       })
       .from(teacherAssignmentsTable)
       .innerJoin(usersTable, eq(usersTable.id, teacherAssignmentsTable.teacherId))
@@ -39,7 +40,34 @@ router.get("/assignments", requireRole("teacher", "admin"), async (req, res) => 
       .innerJoin(classesTable, eq(classesTable.id, teacherAssignmentsTable.classId))
       .innerJoin(semestersTable, eq(semestersTable.id, teacherAssignmentsTable.semesterId))
       .where(eq(teacherAssignmentsTable.teacherId, teacherId));
-    res.json(assignments);
+
+    // Compute scheduled hours per assignment from schedule entries
+    const scheduleRows = await db
+      .select({
+        subjectId: scheduleEntriesTable.subjectId,
+        classId: scheduleEntriesTable.classId,
+        semesterId: scheduleEntriesTable.semesterId,
+        startTime: scheduleEntriesTable.startTime,
+        endTime: scheduleEntriesTable.endTime,
+      })
+      .from(scheduleEntriesTable)
+      .where(eq(scheduleEntriesTable.teacherId, teacherId));
+
+    const scheduledMap: Record<string, number> = {};
+    for (const row of scheduleRows) {
+      const key = `${row.subjectId}-${row.classId}-${row.semesterId}`;
+      const [sh, sm] = row.startTime.split(":").map(Number);
+      const [eh, em] = row.endTime.split(":").map(Number);
+      const hours = ((eh * 60 + em) - (sh * 60 + sm)) / 60;
+      scheduledMap[key] = (scheduledMap[key] ?? 0) + hours;
+    }
+
+    const result = assignments.map((a) => ({
+      ...a,
+      scheduledHoursPerWeek: Math.round((scheduledMap[`${a.subjectId}-${a.classId}-${a.semesterId}`] ?? 0) * 10) / 10,
+    }));
+
+    res.json(result);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Internal Server Error" });

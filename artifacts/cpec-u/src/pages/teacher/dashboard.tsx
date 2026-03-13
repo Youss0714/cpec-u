@@ -1,15 +1,18 @@
 import { AppLayout } from "@/components/layout";
 import { useGetTeacherAssignments } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
-import { BookOpen, PenTool, Calendar } from "lucide-react";
+import { BookOpen, PenTool, Calendar, Clock, TrendingUp } from "lucide-react";
 import { useOfflineGrades } from "@/lib/offline-sync";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 
 export default function TeacherDashboard() {
   const { data: assignments, isLoading } = useGetTeacherAssignments();
   const { isOnline, pendingGrades } = useOfflineGrades();
+
+  const totalPlanned = (assignments as any[] ?? []).reduce((s: number, a: any) => s + (a.plannedHours ?? 0), 0);
+  const totalScheduledPerWeek = (assignments as any[] ?? []).reduce((s: number, a: any) => s + (a.scheduledHoursPerWeek ?? 0), 0);
 
   return (
     <AppLayout allowedRoles={["teacher"]}>
@@ -51,40 +54,101 @@ export default function TeacherDashboard() {
             </CardContent>
           </Card>
 
-          <div className="col-span-1 md:col-span-2 lg:col-span-3 mt-4">
+          {!isLoading && (assignments as any[] ?? []).length > 0 && (
+            <div className="col-span-1 md:col-span-2 lg:col-span-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <Card className="border-primary/20 bg-primary/5">
+                <CardContent className="p-5 flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                    <Clock className="w-6 h-6 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold text-foreground">{totalPlanned}h</p>
+                    <p className="text-sm text-muted-foreground">Volume horaire total attribué</p>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card className="border-green-200 bg-green-50">
+                <CardContent className="p-5 flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-xl bg-green-100 flex items-center justify-center shrink-0">
+                    <TrendingUp className="w-6 h-6 text-green-600" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold text-foreground">{Math.round(totalScheduledPerWeek * 10) / 10}h</p>
+                    <p className="text-sm text-muted-foreground">Programmé par semaine</p>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card className="border-border">
+                <CardContent className="p-5 flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-xl bg-secondary flex items-center justify-center shrink-0">
+                    <BookOpen className="w-6 h-6 text-muted-foreground" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold text-foreground">{(assignments as any[]).length}</p>
+                    <p className="text-sm text-muted-foreground">Matière{(assignments as any[]).length > 1 ? "s" : ""} assignée{(assignments as any[]).length > 1 ? "s" : ""}</p>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          <div className="col-span-1 md:col-span-2 lg:col-span-3">
             <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
               <BookOpen className="w-5 h-5 text-primary" />
               Vos classes et matières assignées
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {isLoading ? (
-                <p className="text-muted-foreground">Chargement...</p>
-              ) : assignments?.length === 0 ? (
+                Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="h-44 rounded-xl bg-muted animate-pulse" />
+                ))
+              ) : (assignments as any[] ?? []).length === 0 ? (
                 <p className="text-muted-foreground">Aucune classe ne vous a été assignée.</p>
               ) : (
-                assignments?.map(a => (
-                  <Card key={a.id} className="border-border hover:border-primary/50 transition-colors shadow-sm">
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-lg">{a.subjectName}</CardTitle>
-                      <p className="text-sm text-muted-foreground font-semibold">Coef. {a.coefficient}</p>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="bg-secondary/50 rounded-lg p-3 space-y-2 mt-2">
-                        <div className="flex justify-between text-sm">
-                          <span className="text-muted-foreground">Classe:</span>
-                          <span className="font-bold">{a.className}</span>
+                (assignments as any[]).map((a: any) => {
+                  const planned = a.plannedHours ?? 0;
+                  const perWeek = a.scheduledHoursPerWeek ?? 0;
+                  const pct = planned > 0 ? Math.min(100, Math.round((perWeek / planned) * 100 * 10)) : 0;
+                  return (
+                    <Card key={a.id} className="border-border hover:border-primary/50 transition-colors shadow-sm">
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-lg leading-tight">{a.subjectName}</CardTitle>
+                        <p className="text-xs text-muted-foreground font-medium">Coef. {a.coefficient}</p>
+                      </CardHeader>
+                      <CardContent className="space-y-3">
+                        <div className="bg-secondary/50 rounded-lg p-3 space-y-2">
+                          <div className="flex justify-between text-sm">
+                            <span className="text-muted-foreground">Classe</span>
+                            <span className="font-bold">{a.className}</span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span className="text-muted-foreground">Semestre</span>
+                            <span className="font-medium flex items-center gap-1">
+                              <Calendar className="w-3 h-3" />
+                              {a.semesterName}
+                            </span>
+                          </div>
                         </div>
-                        <div className="flex justify-between text-sm">
-                          <span className="text-muted-foreground">Semestre:</span>
-                          <span className="font-medium flex items-center gap-1">
-                            <Calendar className="w-3 h-3" />
-                            {a.semesterName}
-                          </span>
+                        <div className="space-y-1.5">
+                          <div className="flex justify-between text-sm">
+                            <span className="text-muted-foreground flex items-center gap-1">
+                              <Clock className="w-3.5 h-3.5" />Volume horaire
+                            </span>
+                            <span className="font-bold text-primary">{planned}h</span>
+                          </div>
+                          {perWeek > 0 && (
+                            <>
+                              <Progress value={pct} className="h-1.5" />
+                              <p className="text-xs text-muted-foreground text-right">
+                                {perWeek}h/sem. planifiée{perWeek > 1 ? "s" : ""}
+                              </p>
+                            </>
+                          )}
                         </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))
+                      </CardContent>
+                    </Card>
+                  );
+                })
               )}
             </div>
           </div>
