@@ -80,6 +80,11 @@ export default function StudentDashboard() {
                   <CardContent className="p-6 text-center">
                     <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-2">Moyenne Générale</p>
                     <p className="text-5xl font-bold font-mono text-primary">{results.average?.toFixed(2) || "-"}</p>
+                    {(results as any).absenceDeduction > 0 && (
+                      <p className="text-xs text-red-500 font-medium mt-1">
+                        −{(results as any).absenceDeduction.toFixed(2)} ({(results as any).absenceDeductionHours}h d'absence)
+                      </p>
+                    )}
                   </CardContent>
                 </Card>
                 <Card className="bg-card shadow-sm border-border">

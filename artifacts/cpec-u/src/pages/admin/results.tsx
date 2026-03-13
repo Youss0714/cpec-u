@@ -365,8 +365,15 @@ export default function AdminResults() {
                       <TableRow key={res.studentId} className="hover:bg-muted/50">
                         <TableCell className="font-bold">{res.studentName}</TableCell>
                         <TableCell>{res.className}</TableCell>
-                        <TableCell className="text-center font-mono font-bold text-lg">
-                          {res.average !== null ? res.average?.toFixed(2) : "—"}
+                        <TableCell className="text-center">
+                          <span className="font-mono font-bold text-lg block">
+                            {res.average !== null ? res.average?.toFixed(2) : "—"}
+                          </span>
+                          {res.absenceDeduction > 0 && (
+                            <span className="text-xs text-red-500 font-medium" title={`${res.absenceDeductionHours}h d'absence × 0,1`}>
+                              −{res.absenceDeduction.toFixed(2)} absences
+                            </span>
+                          )}
                         </TableCell>
                         <TableCell className="text-center">
                           {res.rank ? `${res.rank} / ${res.totalStudents}` : "—"}

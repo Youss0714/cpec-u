@@ -12,8 +12,9 @@ import {
   teacherAssignmentsTable,
   subjectApprovalsTable,
   activityLogTable,
+  attendanceTable,
 } from "@workspace/db";
-import { eq, and, sql, count, inArray, desc } from "drizzle-orm";
+import { eq, and, sql, count, inArray, desc, ne, isNotNull } from "drizzle-orm";
 import { requireRole } from "../lib/auth.js";
 
 const router = Router();
@@ -569,9 +570,41 @@ async function computeStudentResult(studentId: number, semesterId: number) {
     const totalCoeff = gradedSubjects.reduce((sum, g) => sum + g.coefficient, 0);
     const totalPoints = gradedSubjects.reduce((sum, g) => sum + (g.value! * g.coefficient), 0);
     average = totalCoeff > 0 ? Math.round((totalPoints / totalCoeff) * 100) / 100 : null;
-    if (average !== null) {
-      decision = average >= 12 ? "Admis" : "Ajourné";
+  }
+
+  // ── Absence deduction: -0.1 per complete hour of absence ────────────────────
+  let absenceDeductionHours = 0;
+  let absenceDeduction = 0;
+  if (average !== null) {
+    const absenceRecords = await db
+      .select({ startTime: attendanceTable.startTime, endTime: attendanceTable.endTime })
+      .from(attendanceTable)
+      .where(
+        and(
+          eq(attendanceTable.studentId, studentId),
+          eq(attendanceTable.semesterId, semesterId),
+          ne(attendanceTable.status, "present"),
+          isNotNull(attendanceTable.startTime),
+          isNotNull(attendanceTable.endTime)
+        )
+      );
+
+    let totalMinutes = 0;
+    for (const r of absenceRecords) {
+      if (r.startTime && r.endTime) {
+        const [sh, sm] = r.startTime.split(":").map(Number);
+        const [eh, em] = r.endTime.split(":").map(Number);
+        const diff = (eh * 60 + em) - (sh * 60 + sm);
+        if (diff > 0) totalMinutes += diff;
+      }
     }
+    absenceDeductionHours = Math.floor(totalMinutes / 60);
+    absenceDeduction = Math.round(absenceDeductionHours * 0.1 * 100) / 100;
+    average = Math.max(0, Math.round((average - absenceDeduction) * 100) / 100);
+  }
+
+  if (average !== null) {
+    decision = average >= 12 ? "Admis" : "Ajourné";
   }
 
   return {
@@ -579,6 +612,7 @@ async function computeStudentResult(studentId: number, semesterId: number) {
     classId, className,
     semesterId, semesterName: semester.name,
     average, decision, grades,
+    absenceDeductionHours, absenceDeduction,
     rank: null, totalStudents: null,
   };
 }
