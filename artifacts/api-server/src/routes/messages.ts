@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { messagesTable, usersTable } from "@workspace/db";
+import { messagesTable, usersTable, classesTable, classEnrollmentsTable } from "@workspace/db";
 import { eq, and, or, desc, isNull, sql } from "drizzle-orm";
 import { requireAuth } from "../lib/auth.js";
 
@@ -92,6 +92,65 @@ router.get("/messages/contacts/list", requireAuth, async (req, res) => {
       )
       .orderBy(usersTable.name);
     res.json(contacts);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// ─── Get classes list for broadcast (MUST be before /:userId) ────────────────
+router.get("/messages/classes/list", requireAuth, async (req, res) => {
+  try {
+    const classes = await db
+      .select({
+        id: classesTable.id,
+        name: classesTable.name,
+        studentCount: sql<number>`count(ce.id)::int`,
+      })
+      .from(classesTable)
+      .leftJoin(classEnrollmentsTable, eq(classEnrollmentsTable.classId, classesTable.id))
+      .groupBy(classesTable.id, classesTable.name)
+      .orderBy(classesTable.name);
+    res.json(classes);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// ─── Broadcast message to all students in a class ────────────────────────────
+router.post("/messages/class/:classId", requireAuth, async (req, res) => {
+  try {
+    const senderId = req.session!.userId!;
+    const classId = parseInt(req.params.classId);
+    const { content } = req.body as { content: string };
+
+    if (!content?.trim()) {
+      res.status(400).json({ error: "content requis" });
+      return;
+    }
+
+    // Get all students enrolled in this class
+    const enrollments = await db
+      .select({ studentId: classEnrollmentsTable.studentId })
+      .from(classEnrollmentsTable)
+      .where(eq(classEnrollmentsTable.classId, classId));
+
+    if (enrollments.length === 0) {
+      res.status(404).json({ error: "Aucun étudiant dans cette classe" });
+      return;
+    }
+
+    // Insert a message for each student
+    const values = enrollments.map((e) => ({
+      senderId,
+      recipientId: e.studentId,
+      content: content.trim(),
+    }));
+
+    await db.insert(messagesTable).values(values);
+
+    res.json({ sent: enrollments.length });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Internal Server Error" });

@@ -2,10 +2,12 @@ import { useState, useEffect, useRef } from "react";
 import { AppLayout } from "@/components/layout";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { MessageSquare, Send, Search, UserCircle2, GraduationCap, BookOpen, Plus } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { MessageSquare, Send, Search, UserCircle2, GraduationCap, BookOpen, Plus, Users, CheckCircle2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 async function apiFetch(path: string, options?: RequestInit) {
@@ -46,6 +48,12 @@ export default function AdminMessages() {
   const [search, setSearch] = useState("");
   const [showNewDialog, setShowNewDialog] = useState(false);
   const [contactSearch, setContactSearch] = useState("");
+  // Broadcast state
+  const [broadcastClassId, setBroadcastClassId] = useState<number | null>(null);
+  const [broadcastText, setBroadcastText] = useState("");
+  const [broadcastSending, setBroadcastSending] = useState(false);
+  const [broadcastSent, setBroadcastSent] = useState<number | null>(null);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -68,6 +76,11 @@ export default function AdminMessages() {
     queryFn: () => apiFetch("/messages/contacts/list"),
   });
 
+  const { data: classes = [] } = useQuery({
+    queryKey: ["/api/messages/classes/list"],
+    queryFn: () => apiFetch("/messages/classes/list"),
+  });
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [thread?.messages]);
@@ -76,12 +89,13 @@ export default function AdminMessages() {
     if (selectedUserId) {
       queryClient.invalidateQueries({ queryKey: ["/api/messages"] });
     }
-  }, [thread?.messages?.length]);
+  }, [(thread?.messages as any[])?.length]);
 
   const convs = conversations as any[];
   const msgs = (thread?.messages ?? []) as any[];
   const other = thread?.other as any;
   const allContacts = contacts as any[];
+  const allClasses = classes as any[];
 
   const filteredConvs = convs.filter((c: any) =>
     c.userName?.toLowerCase().includes(search.toLowerCase())
@@ -110,7 +124,7 @@ export default function AdminMessages() {
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSend();
@@ -121,6 +135,36 @@ export default function AdminMessages() {
     setSelectedUserId(userId);
     setShowNewDialog(false);
     setContactSearch("");
+  };
+
+  const handleBroadcast = async () => {
+    if (!broadcastClassId || !broadcastText.trim()) return;
+    setBroadcastSending(true);
+    setBroadcastSent(null);
+    try {
+      const data = await apiFetch(`/messages/class/${broadcastClassId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: broadcastText.trim() }),
+      });
+      setBroadcastSent(data.sent);
+      setBroadcastText("");
+      queryClient.invalidateQueries({ queryKey: ["/api/messages"] });
+    } catch (e: any) {
+      toast({ title: "Erreur lors de l'envoi", description: e.message, variant: "destructive" });
+    } finally {
+      setBroadcastSending(false);
+    }
+  };
+
+  const handleDialogClose = (open: boolean) => {
+    setShowNewDialog(open);
+    if (!open) {
+      setBroadcastClassId(null);
+      setBroadcastText("");
+      setBroadcastSent(null);
+      setContactSearch("");
+    }
   };
 
   return (
@@ -254,47 +298,127 @@ export default function AdminMessages() {
         </div>
 
         {/* New conversation dialog */}
-        <Dialog open={showNewDialog} onOpenChange={setShowNewDialog}>
-          <DialogContent className="max-w-sm">
+        <Dialog open={showNewDialog} onOpenChange={handleDialogClose}>
+          <DialogContent className="max-w-md">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <Plus className="w-5 h-5 text-primary" />
                 Nouveau message
               </DialogTitle>
             </DialogHeader>
-            <div className="space-y-3 mt-1">
-              <div className="relative">
-                <Search className="absolute left-2.5 top-2.5 w-3.5 h-3.5 text-muted-foreground" />
-                <Input
-                  placeholder="Rechercher un étudiant ou enseignant…"
-                  value={contactSearch}
-                  onChange={(e) => setContactSearch(e.target.value)}
-                  className="pl-8"
-                  autoFocus
-                />
-              </div>
-              <div className="max-h-64 overflow-y-auto rounded-xl border border-border divide-y divide-border">
-                {filteredContacts.length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-6">Aucun résultat</p>
+
+            <Tabs defaultValue="individuel" className="mt-1">
+              <TabsList className="w-full">
+                <TabsTrigger value="individuel" className="flex-1 gap-2">
+                  <UserCircle2 className="w-3.5 h-3.5" />
+                  Individuel
+                </TabsTrigger>
+                <TabsTrigger value="classe" className="flex-1 gap-2">
+                  <Users className="w-3.5 h-3.5" />
+                  Toute une classe
+                </TabsTrigger>
+              </TabsList>
+
+              {/* Individual tab */}
+              <TabsContent value="individuel" className="space-y-3 mt-3">
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-2.5 w-3.5 h-3.5 text-muted-foreground" />
+                  <Input
+                    placeholder="Rechercher un étudiant ou enseignant…"
+                    value={contactSearch}
+                    onChange={(e) => setContactSearch(e.target.value)}
+                    className="pl-8"
+                    autoFocus
+                  />
+                </div>
+                <div className="max-h-64 overflow-y-auto rounded-xl border border-border divide-y divide-border">
+                  {filteredContacts.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-6">Aucun résultat</p>
+                  ) : (
+                    filteredContacts.map((c: any) => (
+                      <button
+                        key={c.id}
+                        onClick={() => startConversation(c.id)}
+                        className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-muted/50 transition-colors text-left"
+                      >
+                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary flex-shrink-0">
+                          <RoleIcon role={c.role} />
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium">{c.name}</p>
+                          <p className="text-xs text-muted-foreground">{roleLabel(c.role)}</p>
+                        </div>
+                      </button>
+                    ))
+                  )}
+                </div>
+              </TabsContent>
+
+              {/* Broadcast tab */}
+              <TabsContent value="classe" className="space-y-3 mt-3">
+                {broadcastSent !== null ? (
+                  <div className="flex flex-col items-center gap-3 py-6">
+                    <CheckCircle2 className="w-12 h-12 text-green-500" />
+                    <p className="text-sm font-semibold text-foreground">
+                      Message envoyé à {broadcastSent} étudiant{broadcastSent > 1 ? "s" : ""} !
+                    </p>
+                    <Button variant="outline" size="sm" onClick={() => setBroadcastSent(null)}>
+                      Envoyer un autre message
+                    </Button>
+                  </div>
                 ) : (
-                  filteredContacts.map((c: any) => (
-                    <button
-                      key={c.id}
-                      onClick={() => startConversation(c.id)}
-                      className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-muted/50 transition-colors text-left"
+                  <>
+                    <div>
+                      <p className="text-xs text-muted-foreground mb-2">Sélectionnez une classe :</p>
+                      <div className="grid grid-cols-1 gap-1.5 max-h-44 overflow-y-auto pr-1">
+                        {allClasses.map((cls: any) => (
+                          <button
+                            key={cls.id}
+                            onClick={() => setBroadcastClassId(cls.id)}
+                            className={`flex items-center justify-between px-3 py-2 rounded-lg border text-left transition-colors text-sm ${
+                              broadcastClassId === cls.id
+                                ? "border-primary bg-primary/5 text-primary font-medium"
+                                : "border-border hover:bg-muted/50"
+                            }`}
+                          >
+                            <span className="flex items-center gap-2">
+                              <Users className="w-3.5 h-3.5 flex-shrink-0" />
+                              {cls.name}
+                            </span>
+                            <Badge variant="secondary" className="text-[10px] px-1.5">
+                              {cls.studentCount} étud.
+                            </Badge>
+                          </button>
+                        ))}
+                        {allClasses.length === 0 && (
+                          <p className="text-sm text-muted-foreground text-center py-4">Aucune classe disponible</p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div>
+                      <p className="text-xs text-muted-foreground mb-2">Message :</p>
+                      <Textarea
+                        placeholder="Rédigez votre message pour toute la classe…"
+                        value={broadcastText}
+                        onChange={(e) => setBroadcastText(e.target.value)}
+                        rows={4}
+                        className="resize-none"
+                      />
+                    </div>
+
+                    <Button
+                      className="w-full gap-2"
+                      disabled={!broadcastClassId || !broadcastText.trim() || broadcastSending}
+                      onClick={handleBroadcast}
                     >
-                      <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary flex-shrink-0">
-                        <RoleIcon role={c.role} />
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium">{c.name}</p>
-                        <p className="text-xs text-muted-foreground">{roleLabel(c.role)}</p>
-                      </div>
-                    </button>
-                  ))
+                      <Send className="w-4 h-4" />
+                      {broadcastSending ? "Envoi en cours…" : "Envoyer à toute la classe"}
+                    </Button>
+                  </>
                 )}
-              </div>
-            </div>
+              </TabsContent>
+            </Tabs>
           </DialogContent>
         </Dialog>
       </div>
