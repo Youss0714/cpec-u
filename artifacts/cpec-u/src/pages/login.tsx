@@ -65,9 +65,17 @@ export default function Login() {
         />
         <div className="absolute inset-0 bg-gradient-to-t from-sidebar via-sidebar/60 to-sidebar/20 z-20" />
         
+        <motion.div
+          className="absolute top-10 left-10 z-30"
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+        >
+          <img src={`${import.meta.env.BASE_URL}images/logo.jpg`} alt="Logo" className="w-20 h-20 object-contain rounded-2xl shadow-lg" />
+        </motion.div>
+
         <div className="absolute bottom-16 left-16 z-30 max-w-xl text-sidebar-foreground">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-            <img src={`${import.meta.env.BASE_URL}images/logo.jpg`} alt="Logo" className="w-24 h-24 mb-8 object-contain rounded-2xl shadow-lg" />
             <h1 className="text-5xl font-serif font-bold leading-tight mb-4 text-white">
               L'Excellence Académique <br/> au Quotidien.
             </h1>
