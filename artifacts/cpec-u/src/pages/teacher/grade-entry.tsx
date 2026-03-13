@@ -1,7 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { AppLayout } from "@/components/layout";
 import { useGetTeacherAssignments, useGetTeacherGrades, useSubmitGradesBulk, SubmitGradeRequest } from "@workspace/api-client-react";
-import { useListSubjectApprovals } from "@workspace/api-client-react";
+import { useListSubjectApprovals, useGetClassStudents } from "@workspace/api-client-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -25,6 +25,28 @@ export default function GradeEntry() {
     { query: { enabled: !!selectedAssignment } as any }
   );
 
+  // Fetch enrolled students for the selected class
+  const { data: enrolledStudents = [] } = useGetClassStudents(
+    selectedAssignment?.classId ?? 0,
+    { query: { enabled: !!selectedAssignment } } as any
+  );
+
+  // Merge enrolled students with existing grades → one row per student
+  const studentRows = useMemo(() => {
+    if (!selectedAssignment) return [];
+    const gradesMap = new Map((initialGrades ?? []).map((g: any) => [g.studentId, g]));
+    return (enrolledStudents as any[]).map((s: any) => {
+      const existing = gradesMap.get(s.id);
+      return {
+        studentId: s.id,
+        studentName: s.name,
+        subjectId: selectedAssignment.subjectId,
+        semesterId: selectedAssignment.semesterId,
+        value: existing?.value ?? null,
+      };
+    });
+  }, [enrolledStudents, initialGrades, selectedAssignment]);
+
   // Check if subject is approved (locked)
   const { data: approvals = [] } = useListSubjectApprovals(
     selectedAssignment
@@ -42,15 +64,15 @@ export default function GradeEntry() {
   const { toast } = useToast();
 
   useEffect(() => {
-    if (initialGrades) {
+    if (studentRows.length > 0) {
       const map: Record<number, string> = {};
-      initialGrades.forEach(g => {
+      studentRows.forEach(g => {
         const pending = pendingGrades.find(p => p.studentId === g.studentId && p.subjectId === g.subjectId && p.semesterId === g.semesterId);
-        map[g.studentId] = pending ? pending.value.toString() : (g.value !== null ? g.value.toString() : "");
+        map[g.studentId] = pending ? pending.value.toString() : (g.value !== null && g.value !== undefined ? g.value.toString() : "");
       });
       setLocalGrades(map);
     }
-  }, [initialGrades, pendingGrades]);
+  }, [studentRows, pendingGrades]);
 
   useEffect(() => {
     if (isOnline && pendingGrades.length > 0) {
@@ -150,14 +172,16 @@ export default function GradeEntry() {
           <div className="space-y-4 mt-8">
             <div className="flex justify-between items-end mb-4 px-2">
               <h3 className="font-bold text-xl">Liste des étudiants</h3>
-              <span className="text-sm text-muted-foreground font-semibold">{initialGrades?.length || 0} étudiants</span>
+              <span className="text-sm text-muted-foreground font-semibold">{studentRows.length} étudiant{studentRows.length > 1 ? "s" : ""}</span>
             </div>
 
             {isLoading ? (
               <div className="text-center py-12 text-muted-foreground">Chargement de la liste...</div>
+            ) : studentRows.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground">Aucun étudiant inscrit dans cette classe.</div>
             ) : (
               <div className="space-y-3">
-                {initialGrades?.map(grade => {
+                {studentRows.map(grade => {
                   const val = localGrades[grade.studentId];
                   const isPending = pendingGrades.some(p => p.studentId === grade.studentId && p.subjectId === grade.subjectId && p.semesterId === grade.semesterId);
 
