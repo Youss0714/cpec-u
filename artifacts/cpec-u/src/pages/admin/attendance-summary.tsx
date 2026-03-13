@@ -43,6 +43,7 @@ export default function AttendanceSummary() {
       return apiFetch(`/admin/attendance/summary?${params}`);
     },
     enabled: !!semesterId,
+    refetchInterval: 15000,
   });
 
   const rows = summary as any[];
