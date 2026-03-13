@@ -154,11 +154,15 @@ router.delete("/users/:id", requireRole("admin"), async (req, res) => {
     const id = parseInt(req.params.id);
     const currentUser = req.session.user!;
 
-    // Un planificateur ne peut pas supprimer un autre admin
+    // Un planificateur ne peut pas supprimer un admin ni un étudiant
     if (currentUser.adminSubRole === "planificateur") {
       const [target] = await db.select().from(usersTable).where(eq(usersTable.id, id));
       if (target && target.role === "admin") {
         res.status(403).json({ error: "Un responsable pédagogique ne peut pas supprimer un administrateur." });
+        return;
+      }
+      if (target && target.role === "student") {
+        res.status(403).json({ error: "Un responsable pédagogique ne peut pas supprimer un étudiant." });
         return;
       }
     }

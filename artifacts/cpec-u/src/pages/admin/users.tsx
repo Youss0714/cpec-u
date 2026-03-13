@@ -89,7 +89,7 @@ export default function AdminUsers() {
 
   const canDeleteUser = (targetUser: any) => {
     if (targetUser.role === "admin") return isDirecteur;
-    if (isPlanificateur) return targetUser.role !== "admin";
+    if (isPlanificateur) return targetUser.role !== "admin" && targetUser.role !== "student";
     return true;
   };
 
