@@ -437,36 +437,40 @@ export default function AdminResults() {
 
       {/* Derogation modal */}
       <Dialog open={!!derogationTarget} onOpenChange={(o) => { if (!o) setDerogationTarget(null); }}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <FileEdit className="w-5 h-5 text-amber-500" />
+        <DialogContent className="w-[calc(100vw-2rem)] max-w-md max-h-[90vh] flex flex-col overflow-hidden">
+          <DialogHeader className="flex-shrink-0">
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <FileEdit className="w-5 h-5 text-amber-500 flex-shrink-0" />
               Modifier une note — Dérogation
             </DialogTitle>
           </DialogHeader>
           {derogationTarget && (
-            <div className="space-y-4 mt-2">
+            <div className="flex-1 overflow-y-auto space-y-4 pr-1">
               <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-800">
                 <p className="font-semibold">{derogationTarget.studentName}</p>
                 <p className="text-xs mt-0.5">Cette action sera tracée dans le Journal d'Activité avec votre justification obligatoire.</p>
               </div>
-              <div className="space-y-1">
+              <div className="space-y-1.5">
                 <Label>Matière concernée</Label>
                 <Select
                   value={derogationTarget.selectedSubjectId}
                   onValueChange={(v) => setDerogationTarget((prev) => prev ? { ...prev, selectedSubjectId: v } : null)}
                 >
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent position="popper" className="max-w-[calc(100vw-4rem)]">
                     {derogationTarget.grades.map((g) => (
                       <SelectItem key={g.subjectId} value={String(g.subjectId)}>
-                        {g.subjectName} — note actuelle: {g.value ?? "—"}
+                        <span className="block truncate max-w-xs">
+                          {g.subjectName} — note: {g.value ?? "—"}
+                        </span>
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-1">
+              <div className="space-y-1.5">
                 <Label>Nouvelle note <span className="text-muted-foreground text-xs">(0–20)</span></Label>
                 <Input
                   type="number" step="0.5" min="0" max="20"
@@ -475,7 +479,7 @@ export default function AdminResults() {
                   onChange={(e) => setDerogationValue(e.target.value)}
                 />
               </div>
-              <div className="space-y-1">
+              <div className="space-y-1.5">
                 <Label>Justification <span className="text-destructive">*</span></Label>
                 <Textarea
                   placeholder="Suite à la délibération du jury du 12/03/2026..."
