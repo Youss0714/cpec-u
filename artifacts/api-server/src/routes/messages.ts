@@ -105,7 +105,7 @@ router.get("/messages/classes/list", requireAuth, async (req, res) => {
       .select({
         id: classesTable.id,
         name: classesTable.name,
-        studentCount: sql<number>`count(ce.id)::int`,
+        studentCount: sql<number>`count("class_enrollments"."id")::int`,
       })
       .from(classesTable)
       .leftJoin(classEnrollmentsTable, eq(classEnrollmentsTable.classId, classesTable.id))
