@@ -476,35 +476,75 @@ export default function AdminSchedules() {
             <p className="text-muted-foreground">Gérez, publiez et imprimez la grille des cours.</p>
           </div>
           <div className="flex gap-2 flex-wrap justify-end">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant={activePub ? "outline" : "default"}
-                  disabled={publishPeriod.isPending}
-                  className={activePub ? "border-green-400 text-green-700 hover:bg-green-50 gap-1" : "gap-1"}
-                >
-                  {activePub
-                    ? <><CheckCircle className="w-4 h-4 text-green-600" />Publié<ChevronDown className="w-3 h-3 ml-1" /></>
-                    : <><Send className="w-4 h-4" />Publier<ChevronDown className="w-3 h-3 ml-1" /></>}
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-52">
-                <DropdownMenuLabel className="text-xs text-muted-foreground">Publier pour les étudiants</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => handlePublishPeriod("today")} className="cursor-pointer">
-                  <CalendarDays className="w-4 h-4 mr-2 text-blue-500" />Aujourd'hui seulement
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handlePublishPeriod("1week")} className="cursor-pointer">
-                  <CalendarDays className="w-4 h-4 mr-2 text-green-500" />1 semaine
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handlePublishPeriod("2weeks")} className="cursor-pointer">
-                  <CalendarDays className="w-4 h-4 mr-2 text-orange-500" />2 semaines
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handlePublishPeriod("1month")} className="cursor-pointer">
-                  <CalendarDays className="w-4 h-4 mr-2 text-purple-500" />1 mois
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            {(() => {
+              const selectedClass = (classes as any[]).find((c) => String(c.id) === filterClass);
+              const selectedSemester = (semesters as any[]).find((s) => String(s.id) === filterSemester);
+              const canPublish = filterClass !== "all" && filterSemester !== "all";
+              return (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant={activePub ? "outline" : "default"}
+                      disabled={publishPeriod.isPending}
+                      className={activePub ? "border-green-400 text-green-700 hover:bg-green-50 gap-1" : "gap-1"}
+                    >
+                      {activePub
+                        ? <><CheckCircle className="w-4 h-4 text-green-600" />Publié<ChevronDown className="w-3 h-3 ml-1" /></>
+                        : <><Send className="w-4 h-4" />Publier<ChevronDown className="w-3 h-3 ml-1" /></>}
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-64">
+                    {!canPublish ? (
+                      <>
+                        <div className="px-3 py-2.5 space-y-1">
+                          <p className="text-xs font-semibold text-foreground">Sélectionner la classe</p>
+                          <p className="text-xs text-muted-foreground leading-snug">
+                            Choisissez une classe et un semestre dans les filtres ci-dessous pour publier l'emploi du temps correspondant.
+                          </p>
+                        </div>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem disabled className="text-muted-foreground/50 cursor-not-allowed">
+                          <CalendarDays className="w-4 h-4 mr-2" />Aujourd'hui seulement
+                        </DropdownMenuItem>
+                        <DropdownMenuItem disabled className="text-muted-foreground/50 cursor-not-allowed">
+                          <CalendarDays className="w-4 h-4 mr-2" />1 semaine
+                        </DropdownMenuItem>
+                        <DropdownMenuItem disabled className="text-muted-foreground/50 cursor-not-allowed">
+                          <CalendarDays className="w-4 h-4 mr-2" />2 semaines
+                        </DropdownMenuItem>
+                        <DropdownMenuItem disabled className="text-muted-foreground/50 cursor-not-allowed">
+                          <CalendarDays className="w-4 h-4 mr-2" />1 mois
+                        </DropdownMenuItem>
+                      </>
+                    ) : (
+                      <>
+                        <div className="px-3 py-2.5 space-y-0.5">
+                          <p className="text-xs font-semibold text-foreground">
+                            {selectedClass?.name}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {selectedSemester?.name} — Publier pour les étudiants
+                          </p>
+                        </div>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => handlePublishPeriod("today")} className="cursor-pointer">
+                          <CalendarDays className="w-4 h-4 mr-2 text-blue-500" />Aujourd'hui seulement
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handlePublishPeriod("1week")} className="cursor-pointer">
+                          <CalendarDays className="w-4 h-4 mr-2 text-green-500" />1 semaine
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handlePublishPeriod("2weeks")} className="cursor-pointer">
+                          <CalendarDays className="w-4 h-4 mr-2 text-orange-500" />2 semaines
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handlePublishPeriod("1month")} className="cursor-pointer">
+                          <CalendarDays className="w-4 h-4 mr-2 text-purple-500" />1 mois
+                        </DropdownMenuItem>
+                      </>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              );
+            })()}
             <Button variant="outline" onClick={() => window.print()}>
               <Printer className="w-4 h-4 mr-2" />Imprimer
             </Button>
