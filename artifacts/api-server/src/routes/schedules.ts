@@ -2,13 +2,14 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import {
   scheduleEntriesTable,
+  schedulePublicationsTable,
   usersTable,
   subjectsTable,
   classesTable,
   roomsTable,
   semestersTable,
 } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, and, lte, gte } from "drizzle-orm";
 import { requireRole } from "../lib/auth.js";
 
 const router = Router();
@@ -59,13 +60,54 @@ async function getEnrichedEntries(filters?: { semesterId?: number; classId?: num
   return filtered.sort((a, b) => a.dayOfWeek - b.dayOfWeek || a.startTime.localeCompare(b.startTime));
 }
 
+async function getActivePublications(classId?: number, semesterId?: number) {
+  const now = new Date();
+  const allPubs = await db
+    .select()
+    .from(schedulePublicationsTable);
+
+  return allPubs.filter((p) => {
+    const active = p.publishedFrom <= now && p.publishedUntil >= now;
+    if (!active) return false;
+    if (classId !== undefined && p.classId !== classId) return false;
+    if (semesterId !== undefined && p.semesterId !== semesterId) return false;
+    return true;
+  });
+}
+
+router.get("/publications", requireRole("admin", "teacher", "student"), async (req, res) => {
+  try {
+    const classId = req.query.classId ? parseInt(req.query.classId as string) : undefined;
+    const semesterId = req.query.semesterId ? parseInt(req.query.semesterId as string) : undefined;
+    const activePubs = await getActivePublications(classId, semesterId);
+    res.json(activePubs);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
 router.get("/", requireRole("admin", "teacher", "student"), async (req, res) => {
   try {
     const semesterId = req.query.semesterId ? parseInt(req.query.semesterId as string) : undefined;
     const classId = req.query.classId ? parseInt(req.query.classId as string) : undefined;
     const entries = await getEnrichedEntries({ semesterId, classId });
     const user = (req as any).session?.user;
-    res.json(user?.role === "admin" ? entries : entries.filter((e) => e.published));
+
+    if (user?.role === "admin") {
+      return res.json(entries);
+    }
+
+    // For students/teachers: only show entries from classes with active publications
+    const activePubs = await getActivePublications();
+    const activeClassSemesterPairs = new Set(
+      activePubs.map((p) => `${p.classId}-${p.semesterId}`)
+    );
+
+    const visible = entries.filter(
+      (e) => e.published && activeClassSemesterPairs.has(`${e.classId}-${e.semesterId}`)
+    );
+    res.json(visible);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Internal Server Error" });
@@ -83,6 +125,78 @@ router.post("/publish", requirePlanificateur, async (req, res) => {
       .set({ published: Boolean(published) })
       .where(eq(scheduleEntriesTable.semesterId, semesterId));
     res.json({ message: published ? "Emploi du temps publié" : "Mis en brouillon" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+router.post("/publish-period", requirePlanificateur, async (req, res) => {
+  try {
+    const { classId, semesterId, period } = req.body;
+    if (!classId || !semesterId || !period) {
+      return res.status(400).json({ error: "classId, semesterId et period sont requis" });
+    }
+
+    const validPeriods = ["today", "1week", "2weeks", "1month"];
+    if (!validPeriods.includes(period)) {
+      return res.status(400).json({ error: "Période invalide" });
+    }
+
+    const now = new Date();
+    const publishedUntil = new Date(now);
+    if (period === "today") {
+      publishedUntil.setHours(23, 59, 59, 999);
+    } else if (period === "1week") {
+      publishedUntil.setDate(publishedUntil.getDate() + 7);
+    } else if (period === "2weeks") {
+      publishedUntil.setDate(publishedUntil.getDate() + 14);
+    } else if (period === "1month") {
+      publishedUntil.setDate(publishedUntil.getDate() + 30);
+    }
+
+    // Mark all matching entries as published
+    await db
+      .update(scheduleEntriesTable)
+      .set({ published: true })
+      .where(
+        and(
+          eq(scheduleEntriesTable.classId, parseInt(classId)),
+          eq(scheduleEntriesTable.semesterId, parseInt(semesterId))
+        )
+      );
+
+    // Upsert: delete existing publication for same class+semester, then insert new one
+    const existing = await db
+      .select()
+      .from(schedulePublicationsTable)
+      .where(
+        and(
+          eq(schedulePublicationsTable.classId, parseInt(classId)),
+          eq(schedulePublicationsTable.semesterId, parseInt(semesterId))
+        )
+      );
+
+    if (existing.length > 0) {
+      await db
+        .delete(schedulePublicationsTable)
+        .where(eq(schedulePublicationsTable.id, existing[0].id));
+    }
+
+    const [pub] = await db
+      .insert(schedulePublicationsTable)
+      .values({
+        classId: parseInt(classId),
+        semesterId: parseInt(semesterId),
+        publishedFrom: now,
+        publishedUntil,
+      })
+      .returning();
+
+    res.json({
+      message: "Emploi du temps publié",
+      publication: pub,
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Internal Server Error" });

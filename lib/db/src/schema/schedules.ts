@@ -25,3 +25,14 @@ export const scheduleEntriesTable = pgTable("schedule_entries", {
 export const insertScheduleEntrySchema = createInsertSchema(scheduleEntriesTable).omit({ id: true, createdAt: true });
 export type InsertScheduleEntry = z.infer<typeof insertScheduleEntrySchema>;
 export type ScheduleEntry = typeof scheduleEntriesTable.$inferSelect;
+
+export const schedulePublicationsTable = pgTable("schedule_publications", {
+  id: serial("id").primaryKey(),
+  classId: integer("class_id").notNull().references(() => classesTable.id, { onDelete: "cascade" }),
+  semesterId: integer("semester_id").notNull().references(() => semestersTable.id, { onDelete: "cascade" }),
+  publishedFrom: timestamp("published_from").notNull(),
+  publishedUntil: timestamp("published_until").notNull(),
+  publishedAt: timestamp("published_at").defaultNow().notNull(),
+});
+
+export type SchedulePublication = typeof schedulePublicationsTable.$inferSelect;

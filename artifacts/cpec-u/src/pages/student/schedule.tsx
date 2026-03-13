@@ -9,8 +9,9 @@ import {
   useListScheduleEntries,
   useListSemesters,
   useGetStudentMe,
+  useListSchedulePublications,
 } from "@workspace/api-client-react";
-import { CalendarDays, Clock, MapPin, ChevronLeft, ChevronRight, BookOpen } from "lucide-react";
+import { CalendarDays, Clock, MapPin, ChevronLeft, ChevronRight, BookOpen, Eye, EyeOff } from "lucide-react";
 
 const DAYS = ["", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
 const DAY_COLORS = [
@@ -60,6 +61,23 @@ export default function StudentSchedule() {
   );
 
   const [filterSemester, setFilterSemester] = useState<string>("all");
+
+  const pubParams = useMemo(() => ({
+    classId: classId ?? undefined,
+    semesterId: filterSemester !== "all" ? parseInt(filterSemester) : undefined,
+  }), [classId, filterSemester]);
+
+  const { data: publications = [] } = useListSchedulePublications(
+    pubParams,
+    { enabled: !!classId } as any
+  );
+
+  const activePub = useMemo(() => {
+    const now = new Date();
+    return (publications as any[]).find((p: any) => {
+      return new Date(p.publishedFrom) <= now && new Date(p.publishedUntil) >= now;
+    }) ?? null;
+  }, [publications]);
   const [viewMode, setViewMode] = useState<ViewMode>("1week");
   const [startDate, setStartDate] = useState<Date>(getMondayOfCurrentWeek);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -154,6 +172,26 @@ export default function StudentSchedule() {
               : "Vous n'êtes inscrit dans aucune classe."}
           </p>
         </div>
+
+        {/* Publication status banner */}
+        {classId && (
+          activePub ? (
+            <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-xl px-4 py-3">
+              <Eye className="w-5 h-5 text-green-600 shrink-0" />
+              <p className="text-green-800 text-sm">
+                Emploi du temps disponible jusqu'au{" "}
+                <strong>{new Date(activePub.publishedUntil).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</strong>
+              </p>
+            </div>
+          ) : (
+            <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+              <EyeOff className="w-5 h-5 text-amber-600 shrink-0" />
+              <p className="text-amber-800 text-sm">
+                Aucun emploi du temps publié pour le moment. Contactez votre administration.
+              </p>
+            </div>
+          )
+        )}
 
         {!classId ? (
           <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">

@@ -48,6 +48,23 @@ export type PublishScheduleRequest = {
   published: boolean;
 };
 
+export type PublishPeriod = "today" | "1week" | "2weeks" | "1month";
+
+export type PublishSchedulePeriodRequest = {
+  classId: number;
+  semesterId: number;
+  period: PublishPeriod;
+};
+
+export type SchedulePublication = {
+  id: number;
+  classId: number;
+  semesterId: number;
+  publishedFrom: string;
+  publishedUntil: string;
+  publishedAt: string;
+};
+
 export type UpdateScheduleEntryRequest = {
   teacherId: number;
   subjectId: number;
@@ -158,6 +175,36 @@ export const usePublishSchedule = (options?: UseMutationOptions<{ message: strin
   useMutation<{ message: string }, unknown, PublishScheduleRequest>({
     mutationKey: ["publishSchedule"],
     mutationFn: publishSchedule,
+    ...options,
+  });
+
+// ─── Schedule Publish Period ──────────────────────────────────────────────────
+
+export const publishSchedulePeriod = (data: PublishSchedulePeriodRequest): Promise<{ message: string; publication: SchedulePublication }> =>
+  customFetch<{ message: string; publication: SchedulePublication }>("/api/admin/schedules/publish-period", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+
+export const usePublishSchedulePeriod = (options?: UseMutationOptions<{ message: string; publication: SchedulePublication }, unknown, PublishSchedulePeriodRequest>) =>
+  useMutation<{ message: string; publication: SchedulePublication }, unknown, PublishSchedulePeriodRequest>({
+    mutationKey: ["publishSchedulePeriod"],
+    mutationFn: publishSchedulePeriod,
+    ...options,
+  });
+
+export const listSchedulePublications = (params?: { classId?: number; semesterId?: number }): Promise<SchedulePublication[]> => {
+  const qs = new URLSearchParams();
+  if (params?.classId) qs.set("classId", String(params.classId));
+  if (params?.semesterId) qs.set("semesterId", String(params.semesterId));
+  return customFetch<SchedulePublication[]>(`/api/admin/schedules/publications${qs.toString() ? "?" + qs.toString() : ""}`);
+};
+
+export const useListSchedulePublications = (params?: { classId?: number; semesterId?: number }, options?: QueryOpts<SchedulePublication[]>) =>
+  useQuery<SchedulePublication[]>({
+    queryKey: ["/api/admin/schedules/publications", params],
+    queryFn: () => listSchedulePublications(params),
     ...options,
   });
 

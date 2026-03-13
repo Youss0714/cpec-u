@@ -10,16 +10,21 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
+  DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import {
   useListScheduleEntries, useCreateScheduleEntry, useDeleteScheduleEntry,
   useListRooms, useListClasses, useListSemesters, useListSubjects, useListUsers,
   usePublishSchedule, useUpdateScheduleEntry,
+  usePublishSchedulePeriod, useListSchedulePublications,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Plus, Trash2, CalendarDays, Clock, MapPin, AlertTriangle, CheckCircle,
-  Printer, Eye, EyeOff, Pencil, ChevronLeft, ChevronRight,
+  Printer, Eye, EyeOff, Pencil, ChevronLeft, ChevronRight, Send, ChevronDown,
 } from "lucide-react";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 
@@ -104,6 +109,7 @@ export default function AdminSchedules() {
   const deleteEntry = useDeleteScheduleEntry();
   const updateEntry = useUpdateScheduleEntry();
   const publishSchedule = usePublishSchedule();
+  const publishPeriod = usePublishSchedulePeriod();
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<any>(null);
@@ -114,6 +120,23 @@ export default function AdminSchedules() {
   const [startDate, setStartDate] = useState<Date>(getMondayOfCurrentWeek);
   const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  const pubParams = useMemo(() => ({
+    classId: filterClass !== "all" ? parseInt(filterClass) : undefined,
+    semesterId: filterSemester !== "all" ? parseInt(filterSemester) : undefined,
+  }), [filterClass, filterSemester]);
+
+  const { data: publications = [], refetch: refetchPubs } = useListSchedulePublications(
+    pubParams,
+    { enabled: filterClass !== "all" && filterSemester !== "all" } as any
+  );
+
+  const activePub = useMemo(() => {
+    const now = new Date();
+    return (publications as any[]).find((p: any) => {
+      return new Date(p.publishedFrom) <= now && new Date(p.publishedUntil) >= now;
+    }) ?? null;
+  }, [publications]);
 
   const numWeeks = viewMode === "1week" ? 1 : viewMode === "2weeks" ? 2 : 4;
 
@@ -149,12 +172,6 @@ export default function AdminSchedules() {
     }
     return map;
   }, [filteredEntries]);
-
-  const isPublished = useMemo(() => {
-    if (filterSemester === "all") return false;
-    const semEntries = (entries as any[]).filter((e) => e.semesterId === parseInt(filterSemester));
-    return semEntries.length > 0 && semEntries.every((e) => e.published);
-  }, [entries, filterSemester]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -242,6 +259,31 @@ export default function AdminSchedules() {
       invalidate();
     } catch {
       toast({ title: "Erreur", variant: "destructive" });
+    }
+  };
+
+  const handlePublishPeriod = async (period: "today" | "1week" | "2weeks" | "1month") => {
+    if (filterClass === "all" || filterSemester === "all") {
+      toast({ title: "Sélectionnez une classe et un semestre d'abord", variant: "destructive" });
+      return;
+    }
+    const periodLabels: Record<string, string> = {
+      today: "aujourd'hui",
+      "1week": "1 semaine",
+      "2weeks": "2 semaines",
+      "1month": "1 mois",
+    };
+    try {
+      await publishPeriod.mutateAsync({
+        classId: parseInt(filterClass),
+        semesterId: parseInt(filterSemester),
+        period,
+      });
+      toast({ title: `Emploi du temps publié pour ${periodLabels[period]} !` });
+      await refetchPubs();
+      invalidate();
+    } catch {
+      toast({ title: "Erreur lors de la publication", variant: "destructive" });
     }
   };
 
@@ -396,18 +438,35 @@ export default function AdminSchedules() {
             <p className="text-muted-foreground">Gérez, publiez et imprimez la grille des cours.</p>
           </div>
           <div className="flex gap-2 flex-wrap justify-end">
-            {filterSemester !== "all" && (
-              <Button
-                variant={isPublished ? "outline" : "default"}
-                onClick={() => handlePublish(!isPublished)}
-                disabled={publishSchedule.isPending}
-                className={isPublished ? "border-green-300 text-green-700 hover:bg-green-50" : ""}
-              >
-                {isPublished
-                  ? <><CheckCircle className="w-4 h-4 mr-2 text-green-600" />Publié</>
-                  : <><EyeOff className="w-4 h-4 mr-2" />Brouillon — Publier</>}
-              </Button>
-            )}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant={activePub ? "outline" : "default"}
+                  disabled={publishPeriod.isPending}
+                  className={activePub ? "border-green-400 text-green-700 hover:bg-green-50 gap-1" : "gap-1"}
+                >
+                  {activePub
+                    ? <><CheckCircle className="w-4 h-4 text-green-600" />Publié<ChevronDown className="w-3 h-3 ml-1" /></>
+                    : <><Send className="w-4 h-4" />Publier<ChevronDown className="w-3 h-3 ml-1" /></>}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-52">
+                <DropdownMenuLabel className="text-xs text-muted-foreground">Publier pour les étudiants</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => handlePublishPeriod("today")} className="cursor-pointer">
+                  <CalendarDays className="w-4 h-4 mr-2 text-blue-500" />Aujourd'hui seulement
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handlePublishPeriod("1week")} className="cursor-pointer">
+                  <CalendarDays className="w-4 h-4 mr-2 text-green-500" />1 semaine
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handlePublishPeriod("2weeks")} className="cursor-pointer">
+                  <CalendarDays className="w-4 h-4 mr-2 text-orange-500" />2 semaines
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handlePublishPeriod("1month")} className="cursor-pointer">
+                  <CalendarDays className="w-4 h-4 mr-2 text-purple-500" />1 mois
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <Button variant="outline" onClick={() => window.print()}>
               <Printer className="w-4 h-4 mr-2" />Imprimer
             </Button>
@@ -459,15 +518,17 @@ export default function AdminSchedules() {
                 {classes.map((c: any) => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}
               </SelectContent>
             </Select>
-            {filterSemester !== "all" && (
-              <Badge variant="outline"
-                className={isPublished
-                  ? "border-green-300 text-green-700 bg-green-50"
-                  : "border-amber-300 text-amber-700 bg-amber-50"}>
-                {isPublished
-                  ? <><Eye className="w-3 h-3 mr-1 inline" />Publié</>
-                  : <><EyeOff className="w-3 h-3 mr-1 inline" />Brouillon</>}
-              </Badge>
+            {filterClass !== "all" && filterSemester !== "all" && (
+              activePub ? (
+                <Badge variant="outline" className="border-green-300 text-green-700 bg-green-50 gap-1">
+                  <Eye className="w-3 h-3" />
+                  Visible jusqu'au {new Date(activePub.publishedUntil).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })}
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="border-amber-300 text-amber-700 bg-amber-50 gap-1">
+                  <EyeOff className="w-3 h-3" />Non publié
+                </Badge>
+              )
             )}
           </div>
 
