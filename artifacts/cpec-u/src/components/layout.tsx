@@ -41,6 +41,7 @@ export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
   });
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showFarewell, setShowFarewell] = useState(false);
+  const [farewellSubRole, setFarewellSubRole] = useState<string | null>(null);
 
   const logoutMutation = useLogout({
     mutation: {
@@ -52,8 +53,13 @@ export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
     setShowLogoutConfirm(false);
     const subRole = (user as any)?.adminSubRole;
     if (subRole === "directeur") {
+      setFarewellSubRole("directeur");
       setShowFarewell(true);
       setTimeout(() => logoutMutation.mutate(), 2800);
+    } else if (subRole === "scolarite" || subRole === "planificateur") {
+      setFarewellSubRole(subRole);
+      setShowFarewell(true);
+      setTimeout(() => logoutMutation.mutate(), 2500);
     } else {
       logoutMutation.mutate();
     }
@@ -280,23 +286,27 @@ export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
         </DialogContent>
       </Dialog>
 
-      {/* Farewell overlay — directeur only */}
+      {/* Farewell overlay */}
       {showFarewell && (
         <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-background/95 backdrop-blur-sm animate-in fade-in duration-500">
           <div className="flex flex-col items-center gap-6 text-center px-8">
             <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center text-primary text-4xl font-bold">
-              {user?.name?.charAt(0) ?? "D"}
+              {user?.name?.charAt(0) ?? "U"}
             </div>
             <div className="space-y-2">
               <p className="text-3xl font-serif font-bold text-foreground">
-                À bientôt Monsieur le DG
+                {farewellSubRole === "directeur"
+                  ? "À bientôt Monsieur le DG"
+                  : "À bientôt"}
               </p>
               <p className="text-muted-foreground text-sm">Déconnexion en cours…</p>
             </div>
             <div className="w-48 h-1.5 rounded-full bg-muted overflow-hidden">
               <div
                 className="h-full bg-primary rounded-full"
-                style={{ animation: "farewell-progress 2.8s linear forwards" }}
+                style={{
+                  animation: `farewell-progress ${farewellSubRole === "directeur" ? "2.8" : "2.5"}s linear forwards`,
+                }}
               />
             </div>
           </div>

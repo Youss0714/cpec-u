@@ -21,7 +21,7 @@ type LoginForm = z.infer<typeof loginSchema>;
 export default function Login() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
-  const [welcomeUser, setWelcomeUser] = useState<{ name: string; initial: string } | null>(null);
+  const [welcomeUser, setWelcomeUser] = useState<{ name: string; initial: string; subRole: string } | null>(null);
 
   const loginMutation = useLogin({
     mutation: {
@@ -34,8 +34,11 @@ export default function Login() {
         };
 
         if (subRole === "directeur") {
-          setWelcomeUser({ name: data.user.name, initial: data.user.name.charAt(0) });
+          setWelcomeUser({ name: data.user.name, initial: data.user.name.charAt(0), subRole: "directeur" });
           setTimeout(redirect, 3000);
+        } else if (subRole === "scolarite" || subRole === "planificateur") {
+          setWelcomeUser({ name: data.user.name, initial: data.user.name.charAt(0), subRole });
+          setTimeout(redirect, 2500);
         } else {
           toast({ title: "Connexion réussie", description: `Bienvenue ${data.user.name}` });
           redirect();
@@ -139,7 +142,7 @@ export default function Login() {
           </Card>
         </motion.div>
       </div>
-      {/* Welcome overlay — directeur only */}
+      {/* Welcome overlay */}
       <AnimatePresence>
         {welcomeUser && (
           <motion.div
@@ -169,12 +172,28 @@ export default function Login() {
                 transition={{ delay: 0.35 }}
                 className="space-y-2"
               >
-                <p className="text-sm font-medium text-muted-foreground uppercase tracking-widest">
-                  Bienvenue
-                </p>
-                <p className="text-4xl font-serif font-bold text-foreground">
-                  Monsieur le Directeur Général
-                </p>
+                {welcomeUser.subRole === "directeur" ? (
+                  <>
+                    <p className="text-sm font-medium text-muted-foreground uppercase tracking-widest">
+                      Bienvenue
+                    </p>
+                    <p className="text-4xl font-serif font-bold text-foreground">
+                      Monsieur le Directeur Général
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-sm font-medium text-muted-foreground uppercase tracking-widest">
+                      Connexion réussie
+                    </p>
+                    <p className="text-4xl font-serif font-bold text-foreground">
+                      Je vous souhaite la bienvenue
+                    </p>
+                    <p className="text-lg text-muted-foreground mt-1 font-medium">
+                      {welcomeUser.name}
+                    </p>
+                  </>
+                )}
                 <p className="text-muted-foreground text-sm mt-1">
                   Redirection vers votre tableau de bord…
                 </p>
@@ -188,7 +207,7 @@ export default function Login() {
               >
                 <div
                   className="h-full bg-primary rounded-full"
-                  style={{ animation: "farewell-progress 3s linear forwards" }}
+                  style={{ animation: `farewell-progress ${welcomeUser.subRole === "directeur" ? "3" : "2.5"}s linear forwards` }}
                 />
               </motion.div>
             </motion.div>
