@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { messagesTable, usersTable, classesTable, classEnrollmentsTable } from "@workspace/db";
+import { messagesTable, usersTable, classesTable, classEnrollmentsTable, notificationsTable } from "@workspace/db";
 import { eq, and, or, desc, isNull, sql } from "drizzle-orm";
 import { requireAuth } from "../lib/auth.js";
 
@@ -141,14 +141,33 @@ router.post("/messages/class/:classId", requireAuth, async (req, res) => {
       return;
     }
 
+    // Get sender name
+    const [sender] = await db
+      .select({ name: usersTable.name })
+      .from(usersTable)
+      .where(eq(usersTable.id, senderId))
+      .limit(1);
+
+    const trimmedContent = content.trim();
+    const preview = trimmedContent.length > 80 ? trimmedContent.slice(0, 80) + "…" : trimmedContent;
+    const senderName = sender?.name ?? "l'administration";
+
     // Insert a message for each student
-    const values = enrollments.map((e) => ({
+    const messageValues = enrollments.map((e) => ({
       senderId,
       recipientId: e.studentId,
-      content: content.trim(),
+      content: trimmedContent,
     }));
+    await db.insert(messagesTable).values(messageValues);
 
-    await db.insert(messagesTable).values(values);
+    // Create a notification for each student
+    const notifValues = enrollments.map((e) => ({
+      userId: e.studentId,
+      type: "message",
+      title: `Nouveau message de ${senderName}`,
+      message: preview,
+    }));
+    await db.insert(notificationsTable).values(notifValues);
 
     res.json({ sent: enrollments.length });
   } catch (err) {
@@ -218,10 +237,26 @@ router.post("/messages", requireAuth, async (req, res) => {
       return;
     }
 
+    // Get sender name
+    const [sender] = await db
+      .select({ name: usersTable.name })
+      .from(usersTable)
+      .where(eq(usersTable.id, senderId))
+      .limit(1);
+
     const [msg] = await db
       .insert(messagesTable)
       .values({ senderId, recipientId, content: content.trim() })
       .returning();
+
+    // Create notification for recipient
+    const preview = content.trim().length > 80 ? content.trim().slice(0, 80) + "…" : content.trim();
+    await db.insert(notificationsTable).values({
+      userId: recipientId,
+      type: "message",
+      title: `Nouveau message de ${sender?.name ?? "l'administration"}`,
+      message: preview,
+    });
 
     res.json(msg);
   } catch (err) {

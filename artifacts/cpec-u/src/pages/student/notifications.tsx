@@ -6,15 +6,17 @@ import {
   useMarkAllNotificationsRead,
   AppNotification,
 } from "@workspace/api-client-react";
-import { Bell, Calendar, Trophy, CheckCheck, Loader2 } from "lucide-react";
+import { Bell, Calendar, Trophy, CheckCheck, Loader2, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
 import { fr } from "date-fns/locale";
+import { useLocation } from "wouter";
 
 function NotifIcon({ type }: { type: string }) {
   if (type === "schedule_published") return <Calendar className="w-5 h-5 text-blue-500" />;
   if (type === "results_published") return <Trophy className="w-5 h-5 text-amber-500" />;
+  if (type === "message") return <MessageSquare className="w-5 h-5 text-primary" />;
   return <Bell className="w-5 h-5 text-muted-foreground" />;
 }
 
@@ -23,15 +25,20 @@ export default function NotificationsPage() {
   const markRead = useMarkNotificationRead();
   const markAll = useMarkAllNotificationsRead();
   const queryClient = useQueryClient();
+  const [, setLocation] = useLocation();
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["notifications"] });
   };
 
   const handleMarkRead = async (n: AppNotification) => {
-    if (n.read) return;
-    await markRead.mutateAsync(n.id);
-    invalidate();
+    if (!n.read) {
+      await markRead.mutateAsync(n.id);
+      invalidate();
+    }
+    if (n.type === "message") {
+      setLocation("/student/messages");
+    }
   };
 
   const handleMarkAll = async () => {
