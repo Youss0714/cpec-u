@@ -24,8 +24,6 @@ async function apiFetch(path: string, options?: RequestInit) {
 const ROOM_TYPES = [
   { value: "simple", label: "Simple (1 pers.)" },
   { value: "double", label: "Double (2 pers.)" },
-  { value: "triple", label: "Triple (3 pers.)" },
-  { value: "quad", label: "Quadruple (4 pers.)" },
 ];
 
 const ROOM_STATUSES = [

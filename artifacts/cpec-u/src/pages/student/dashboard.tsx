@@ -23,8 +23,6 @@ function useMyHousing() {
 const ROOM_TYPES: Record<string, string> = {
   simple: "Simple",
   double: "Double",
-  triple: "Triple",
-  quad: "Quadruple",
 };
 
 export default function StudentDashboard() {
