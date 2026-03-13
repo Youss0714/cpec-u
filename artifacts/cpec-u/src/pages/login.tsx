@@ -58,13 +58,12 @@ export default function Login() {
   return (
     <div className="min-h-screen w-full flex bg-background">
       <div className="hidden lg:flex flex-1 relative bg-sidebar overflow-hidden">
-        <div className="absolute inset-0 bg-primary/20 mix-blend-multiply z-10" />
         <img 
-          src={`${import.meta.env.BASE_URL}images/login-bg.png`}
-          alt="Campus" 
-          className="w-full h-full object-cover opacity-80"
+          src={`${import.meta.env.BASE_URL}images/login-bg.jpg`}
+          alt="Étudiants CPEC-U" 
+          className="w-full h-full object-cover object-center"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-sidebar via-sidebar/50 to-transparent z-20" />
+        <div className="absolute inset-0 bg-gradient-to-t from-sidebar via-sidebar/60 to-sidebar/20 z-20" />
         
         <div className="absolute bottom-16 left-16 z-30 max-w-xl text-sidebar-foreground">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
