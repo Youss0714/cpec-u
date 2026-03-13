@@ -9,6 +9,7 @@ import schedulesRouter from "./schedules.js";
 import teacherAssignmentsRouter from "./teacher_assignments.js";
 import blockedDatesRouter from "./blocked_dates.js";
 import notificationsRouter from "./notifications.js";
+import scolariteRouter from "./scolarite.js";
 
 const router: IRouter = Router();
 
@@ -22,5 +23,6 @@ router.use("/admin/blocked-dates", blockedDatesRouter);
 router.use("/teacher", teacherRouter);
 router.use("/student", studentRouter);
 router.use("/notifications", notificationsRouter);
+router.use("/scolarite", scolariteRouter);
 
 export default router;

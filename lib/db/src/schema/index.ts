@@ -10,3 +10,4 @@ export * from "./blocked_dates";
 export * from "./subject_approvals";
 export * from "./activity_log";
 export * from "./notifications";
+export * from "./payments";

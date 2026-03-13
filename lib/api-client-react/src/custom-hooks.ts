@@ -481,3 +481,92 @@ export const useMarkAllNotificationsRead = () =>
   useMutation<{ ok: boolean }, Error, void>({
     mutationFn: markAllRead,
   });
+
+// ─── Scolarité / Payments ─────────────────────────────────────────────────────
+
+export type StudentFeeRow = {
+  id: number;
+  name: string;
+  email: string;
+  classId: number | null;
+  className: string | null;
+  feeId: number | null;
+  totalAmount: number;
+  totalPaid: number;
+  remaining: number;
+  academicYear: string | null;
+  notes: string | null;
+  status: "paid" | "partial" | "unpaid";
+};
+
+export type ScolariteStats = {
+  totalExpected: number;
+  totalPaid: number;
+  totalRemaining: number;
+  recoveryRate: number;
+  studentCount: number;
+  fullyPaid: number;
+  partial: number;
+  noPay: number;
+};
+
+export type StudentPayment = {
+  id: number;
+  studentId: number;
+  amount: number;
+  description: string | null;
+  paymentDate: string;
+  createdAt: string;
+  recordedByName: string | null;
+};
+
+const getScolariteStudents = (): Promise<StudentFeeRow[]> =>
+  customFetch("/api/scolarite/students");
+
+export const useGetScolariteStudents = (options?: QueryOpts<StudentFeeRow[]>) =>
+  useQuery<StudentFeeRow[], Error>({
+    queryKey: ["scolarite", "students"],
+    queryFn: getScolariteStudents,
+    ...options,
+  });
+
+const getScolariteStats = (): Promise<ScolariteStats> =>
+  customFetch("/api/scolarite/stats");
+
+export const useGetScolariteStats = (options?: QueryOpts<ScolariteStats>) =>
+  useQuery<ScolariteStats, Error>({
+    queryKey: ["scolarite", "stats"],
+    queryFn: getScolariteStats,
+    ...options,
+  });
+
+const getStudentPayments = (studentId: number): Promise<StudentPayment[]> =>
+  customFetch(`/api/scolarite/payments/${studentId}`);
+
+export const useGetStudentPayments = (studentId: number, options?: QueryOpts<StudentPayment[]>) =>
+  useQuery<StudentPayment[], Error>({
+    queryKey: ["scolarite", "payments", studentId],
+    queryFn: () => getStudentPayments(studentId),
+    enabled: studentId > 0,
+    ...options,
+  });
+
+type SetFeeInput = { studentId: number; totalAmount: number; academicYear?: string; notes?: string };
+const setStudentFee = ({ studentId, ...body }: SetFeeInput): Promise<any> =>
+  customFetch(`/api/scolarite/fees/${studentId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+
+export const useSetStudentFee = () =>
+  useMutation<any, Error, SetFeeInput>({ mutationFn: setStudentFee });
+
+type AddPaymentInput = { studentId: number; amount: number; description?: string; paymentDate: string };
+const addPayment = (body: AddPaymentInput): Promise<StudentPayment> =>
+  customFetch("/api/scolarite/payments", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+
+export const useAddPayment = () =>
+  useMutation<StudentPayment, Error, AddPaymentInput>({ mutationFn: addPayment });
+
+const deletePayment = (id: number): Promise<{ ok: boolean }> =>
+  customFetch(`/api/scolarite/payments/${id}`, { method: "DELETE" });
+
+export const useDeletePayment = () =>
+  useMutation<{ ok: boolean }, Error, number>({ mutationFn: deletePayment });
