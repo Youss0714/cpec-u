@@ -9,9 +9,11 @@ import { useToast } from "@/hooks/use-toast";
 import { Plus, CheckCircle, XCircle } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 
 export default function AdminSemesters() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [pendingUnpublishId, setPendingUnpublishId] = useState<number | null>(null);
   const { data: semesters, isLoading } = useListSemesters();
   const createSemester = useCreateSemester();
   const publishMutation = usePublishSemesterResults();
@@ -36,19 +38,17 @@ export default function AdminSemesters() {
     }
   };
 
-  const togglePublish = async (id: number, currentStatus: boolean) => {
-    if (!confirm(`Voulez-vous vraiment ${currentStatus ? 'masquer' : 'publier'} les résultats pour ce semestre ?`)) return;
+  const doPublish = async (id: number, publish: boolean) => {
     try {
-      await publishMutation.mutateAsync({
-        id,
-        data: { published: !currentStatus }
-      });
-      toast({ title: `Résultats ${!currentStatus ? 'publiés' : 'masqués'} avec succès` });
+      await publishMutation.mutateAsync({ id, data: { published: publish } });
+      toast({ title: `Résultats ${publish ? "publiés" : "retirés"} avec succès` });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/semesters"] });
     } catch {
       toast({ title: "Erreur", variant: "destructive" });
     }
   };
+
+  const pendingSemester = semesters?.find(s => s.id === pendingUnpublishId);
 
   return (
     <AppLayout allowedRoles={["admin"]}>
@@ -58,7 +58,7 @@ export default function AdminSemesters() {
             <h1 className="text-3xl font-serif font-bold text-foreground">Semestres & Publications</h1>
             <p className="text-muted-foreground">Gérez les périodes académiques et la visibilité des notes.</p>
           </div>
-          
+
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
               <Button className="shadow-md">
@@ -106,8 +106,14 @@ export default function AdminSemesters() {
                 </div>
 
                 <div className="mt-8">
-                  <Button 
-                    onClick={() => togglePublish(sem.id, sem.published)}
+                  <Button
+                    onClick={() => {
+                      if (sem.published) {
+                        setPendingUnpublishId(sem.id);
+                      } else {
+                        doPublish(sem.id, true);
+                      }
+                    }}
                     variant={sem.published ? "outline" : "default"}
                     className={`w-full font-bold ${sem.published ? 'hover:bg-destructive hover:text-white border-destructive text-destructive' : 'bg-primary hover:bg-primary/90'}`}
                     disabled={publishMutation.isPending}
@@ -115,8 +121,8 @@ export default function AdminSemesters() {
                     {sem.published ? "Retirer la publication" : "Publier les résultats aux étudiants"}
                   </Button>
                   <p className="text-xs text-center mt-3 text-muted-foreground">
-                    {sem.published 
-                      ? "Attention : Les étudiants peuvent voir leurs notes." 
+                    {sem.published
+                      ? "Attention : Les étudiants peuvent voir leurs notes."
                       : "Les notes sont invisibles pour les étudiants."}
                   </p>
                 </div>
@@ -124,6 +130,18 @@ export default function AdminSemesters() {
             </Card>
           ))}
         </div>
+
+        <ConfirmDialog
+          open={pendingUnpublishId !== null}
+          onOpenChange={(open) => { if (!open) setPendingUnpublishId(null); }}
+          title="Retirer la publication des résultats ?"
+          description={`Les étudiants n'auront plus accès aux résultats du semestre "${pendingSemester?.name ?? ""}" (${pendingSemester?.academicYear ?? ""}). Cette action est réversible.`}
+          confirmLabel="Retirer la publication"
+          onConfirm={() => {
+            if (pendingUnpublishId !== null) doPublish(pendingUnpublishId, false);
+            setPendingUnpublishId(null);
+          }}
+        />
       </div>
     </AppLayout>
   );
