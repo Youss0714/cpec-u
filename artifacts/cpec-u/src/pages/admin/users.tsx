@@ -30,7 +30,7 @@ const SUB_ROLE_COLORS: Record<string, string> = {
   directeur: "bg-violet-100 text-violet-700 border-violet-200",
 };
 
-type Tab = "teachers" | "students" | "scolarite";
+type Tab = "teachers" | "students" | "scolarite" | "responsables";
 
 function StatCard({ label, value, sub, color }: { label: string; value: string; sub?: string; color?: string }) {
   return (
@@ -314,6 +314,7 @@ export default function AdminUsers() {
 
   const teachers = users?.filter((u: any) => u.role === "teacher") || [];
   const students = users?.filter((u: any) => u.role === "student") || [];
+  const admins = users?.filter((u: any) => u.role === "admin") || [];
 
   const handleCreate = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -371,10 +372,11 @@ export default function AdminUsers() {
   const tabs: { key: Tab; label: string; icon: any; count?: number }[] = [
     { key: "teachers", label: "Enseignants", icon: BookOpen, count: teachers.length },
     { key: "students", label: "Étudiants", icon: GraduationCap, count: students.length },
+    ...(isDirecteur ? [{ key: "responsables" as Tab, label: "Responsables", icon: ShieldCheck, count: admins.length }] : []),
     ...(!isPlanificateur ? [{ key: "scolarite" as Tab, label: "Scolarité", icon: Wallet }] : []),
   ];
 
-  const listToShow = activeTab === "teachers" ? teachers : students;
+  const listToShow = activeTab === "teachers" ? teachers : activeTab === "responsables" ? admins : students;
 
   return (
     <AppLayout allowedRoles={["admin"]}>
@@ -463,8 +465,8 @@ export default function AdminUsers() {
         {/* Scolarité tab */}
         {activeTab === "scolarite" && <ScolariteTab />}
 
-        {/* Teachers / Students tab */}
-        {(activeTab === "teachers" || activeTab === "students") && (
+        {/* Teachers / Students / Responsables tab */}
+        {(activeTab === "teachers" || activeTab === "students" || activeTab === "responsables") && (
           <div className="rounded-xl border overflow-hidden">
             <Table>
               <TableHeader>
