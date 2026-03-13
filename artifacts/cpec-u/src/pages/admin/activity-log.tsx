@@ -87,7 +87,7 @@ export default function ActivityLog() {
             <p>Aucune activité enregistrée pour l'instant.</p>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="overflow-y-auto max-h-[calc(100vh-13rem)] space-y-3 pr-2">
             {(entries as any[]).map((entry) => {
               const meta = ACTION_META[entry.action] ?? {
                 label: entry.action,
