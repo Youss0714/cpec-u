@@ -301,7 +301,9 @@ router.get("/subjects", requireRole("admin", "teacher"), async (req, res) => {
   try {
     const subjects = await db.select().from(subjectsTable);
     const classes = await db.select().from(classesTable);
+    const semesters = await db.select().from(semestersTable);
     const classMap = new Map(classes.map((c) => [c.id, c.name]));
+    const semesterMap = new Map(semesters.map((s) => [s.id, s.name]));
 
     const assignments = await db.select({
       subjectId: teacherAssignmentsTable.subjectId,
@@ -316,6 +318,7 @@ router.get("/subjects", requireRole("admin", "teacher"), async (req, res) => {
     res.json(subjects.map((s) => ({
       ...s,
       className: s.classId ? (classMap.get(s.classId) ?? null) : null,
+      semesterName: s.semesterId ? (semesterMap.get(s.semesterId) ?? null) : null,
       teacherId: assignMap.get(s.id)?.teacherId ?? null,
       teacherName: assignMap.get(s.id)?.teacherName ?? null,
     })));
@@ -332,11 +335,12 @@ router.post("/subjects", requireRole("admin"), async (req, res) => {
       res.status(403).json({ error: "Forbidden", message: "L'Assistant(e) de Direction ne peut pas créer de matière." });
       return;
     }
-    const { name, coefficient, description, classId } = req.body;
+    const { name, coefficient, description, classId, semesterId } = req.body;
     if (!name || coefficient === undefined) { res.status(400).json({ error: "Bad Request", message: "Name and coefficient are required" }); return; }
-    const [subj] = await db.insert(subjectsTable).values({ name, coefficient, description, classId: classId ?? null }).returning();
+    const [subj] = await db.insert(subjectsTable).values({ name, coefficient, description, classId: classId ?? null, semesterId: semesterId ?? null }).returning();
     const cls = classId ? await db.select({ name: classesTable.name }).from(classesTable).where(eq(classesTable.id, classId)).limit(1) : [];
-    res.status(201).json({ ...subj, className: cls[0]?.name ?? null, teacherId: null, teacherName: null });
+    const sem = semesterId ? await db.select({ name: semestersTable.name }).from(semestersTable).where(eq(semestersTable.id, semesterId)).limit(1) : [];
+    res.status(201).json({ ...subj, className: cls[0]?.name ?? null, semesterName: sem[0]?.name ?? null, teacherId: null, teacherName: null });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Internal Server Error" });
@@ -346,11 +350,12 @@ router.post("/subjects", requireRole("admin"), async (req, res) => {
 router.put("/subjects/:id", requireRole("admin"), async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    const { name, coefficient, description, classId } = req.body;
-    const [subj] = await db.update(subjectsTable).set({ name, coefficient, description, classId: classId ?? null }).where(eq(subjectsTable.id, id)).returning();
+    const { name, coefficient, description, classId, semesterId } = req.body;
+    const [subj] = await db.update(subjectsTable).set({ name, coefficient, description, classId: classId ?? null, semesterId: semesterId ?? null }).where(eq(subjectsTable.id, id)).returning();
     if (!subj) { res.status(404).json({ error: "Not Found" }); return; }
     const cls = subj.classId ? await db.select({ name: classesTable.name }).from(classesTable).where(eq(classesTable.id, subj.classId)).limit(1) : [];
-    res.json({ ...subj, className: cls[0]?.name ?? null, teacherId: null, teacherName: null });
+    const sem = subj.semesterId ? await db.select({ name: semestersTable.name }).from(semestersTable).where(eq(semestersTable.id, subj.semesterId)).limit(1) : [];
+    res.json({ ...subj, className: cls[0]?.name ?? null, semesterName: sem[0]?.name ?? null, teacherId: null, teacherName: null });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Internal Server Error" });
@@ -522,7 +527,12 @@ async function computeStudentResult(studentId: number, semesterId: number) {
   const className = enroll?.className ?? "";
 
   const subjects = classId
-    ? await db.select().from(subjectsTable).where(eq(subjectsTable.classId, classId))
+    ? await db.select().from(subjectsTable).where(
+        and(
+          eq(subjectsTable.classId, classId),
+          eq(subjectsTable.semesterId, semesterId)
+        )
+      )
     : [];
 
   const studentGrades = await db

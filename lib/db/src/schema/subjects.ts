@@ -2,6 +2,7 @@ import { pgTable, serial, varchar, text, timestamp, integer, real } from "drizzl
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { classesTable } from "./classes";
+import { semestersTable } from "./semesters";
 
 export const subjectsTable = pgTable("subjects", {
   id: serial("id").primaryKey(),
@@ -9,6 +10,7 @@ export const subjectsTable = pgTable("subjects", {
   coefficient: real("coefficient").notNull().default(1),
   description: text("description"),
   classId: integer("class_id").references(() => classesTable.id, { onDelete: "set null" }),
+  semesterId: integer("semester_id").references(() => semestersTable.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
