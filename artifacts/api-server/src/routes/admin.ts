@@ -80,6 +80,7 @@ router.post("/users", requireRole("admin"), async (req, res) => {
     const [user] = await db.insert(usersTable).values({
       email, name, passwordHash, role,
       adminSubRole: role === "admin" ? (adminSubRole ?? null) : null,
+      mustChangePassword: true,
     }).returning();
 
     if (classId && role === "student") {

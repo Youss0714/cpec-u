@@ -65,6 +65,7 @@ router.post("/login", async (req, res) => {
         name: user.name,
         role: user.role,
         adminSubRole: user.adminSubRole ?? null,
+        mustChangePassword: user.mustChangePassword,
         classId,
         className,
       },
@@ -112,11 +113,43 @@ router.get("/me", requireAuth, async (req, res) => {
       name: user.name,
       role: user.role,
       adminSubRole: user.adminSubRole ?? null,
+      mustChangePassword: user.mustChangePassword,
       classId,
       className,
     });
   } catch (err) {
     console.error("Get me error:", err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+router.post("/change-password", requireAuth, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    if (!currentPassword || !newPassword) {
+      res.status(400).json({ error: "Bad Request", message: "Champs requis manquants" });
+      return;
+    }
+    if (newPassword.length < 6) {
+      res.status(400).json({ error: "Bad Request", message: "Le mot de passe doit contenir au moins 6 caractères" });
+      return;
+    }
+    const users = await db.select().from(usersTable).where(eq(usersTable.id, req.session!.userId!)).limit(1);
+    const user = users[0];
+    if (!user) { res.status(404).json({ error: "Not Found" }); return; }
+
+    if (hashPassword(currentPassword) !== user.passwordHash) {
+      res.status(401).json({ error: "Unauthorized", message: "Mot de passe actuel incorrect" });
+      return;
+    }
+
+    await db.update(usersTable)
+      .set({ passwordHash: hashPassword(newPassword), mustChangePassword: false })
+      .where(eq(usersTable.id, user.id));
+
+    res.json({ message: "Mot de passe mis à jour avec succès" });
+  } catch (err) {
+    console.error("Change password error:", err);
     res.status(500).json({ error: "Internal Server Error" });
   }
 });

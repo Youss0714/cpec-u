@@ -6,6 +6,7 @@ import NotFound from "@/pages/not-found";
 
 // Pages
 import Login from "@/pages/login";
+import ChangePassword from "@/pages/change-password";
 import AdminDashboard from "@/pages/admin/dashboard";
 import AdminUsers from "@/pages/admin/users";
 import AdminClasses from "@/pages/admin/classes";
@@ -46,6 +47,7 @@ function Router() {
       {/* Public / Auth */}
       <Route path="/" component={Login} />
       <Route path="/login" component={Login} />
+      <Route path="/change-password" component={ChangePassword} />
 
       {/* Admin Routes */}
       <Route path="/admin" component={AdminDashboard} />
