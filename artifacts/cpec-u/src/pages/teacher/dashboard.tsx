@@ -38,10 +38,16 @@ export default function TeacherDashboard() {
                   L'interface de saisie des notes est optimisée pour mobile et fonctionne même sans connexion internet. Vos saisies seront synchronisées automatiquement.
                 </p>
               </div>
-              <Link href="/teacher/grades" className="bg-white text-primary px-6 py-3 rounded-xl font-bold shadow-lg hover:shadow-xl hover:scale-105 transition-all flex items-center gap-2 whitespace-nowrap">
-                <PenTool className="w-5 h-5" />
-                Saisir les notes
-              </Link>
+              <div className="flex gap-3 flex-wrap justify-center sm:justify-end">
+                <Link href="/teacher/schedule" className="bg-white/20 border border-white/40 text-white px-5 py-3 rounded-xl font-semibold hover:bg-white/30 transition-all flex items-center gap-2 whitespace-nowrap">
+                  <Calendar className="w-5 h-5" />
+                  Mon planning
+                </Link>
+                <Link href="/teacher/grades" className="bg-white text-primary px-6 py-3 rounded-xl font-bold shadow-lg hover:shadow-xl hover:scale-105 transition-all flex items-center gap-2 whitespace-nowrap">
+                  <PenTool className="w-5 h-5" />
+                  Saisir les notes
+                </Link>
+              </div>
             </CardContent>
           </Card>
 

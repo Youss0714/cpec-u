@@ -9,6 +9,8 @@ import {
   teacherAssignmentsTable,
   classEnrollmentsTable,
   subjectApprovalsTable,
+  scheduleEntriesTable,
+  roomsTable,
 } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { requireRole } from "../lib/auth.js";
@@ -211,6 +213,47 @@ router.post("/grades/bulk", requireRole("teacher", "admin"), async (req, res) =>
     }
 
     res.json(results);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// ─── Teacher Schedule ─────────────────────────────────────────────────────────
+
+router.get("/schedule", requireRole("teacher"), async (req, res) => {
+  try {
+    const teacherId = req.session!.userId!;
+    const rows = await db
+      .select({
+        id: scheduleEntriesTable.id,
+        teacherId: scheduleEntriesTable.teacherId,
+        teacherName: usersTable.name,
+        subjectId: scheduleEntriesTable.subjectId,
+        subjectName: subjectsTable.name,
+        classId: scheduleEntriesTable.classId,
+        className: classesTable.name,
+        roomId: scheduleEntriesTable.roomId,
+        roomName: roomsTable.name,
+        semesterId: scheduleEntriesTable.semesterId,
+        semesterName: semestersTable.name,
+        dayOfWeek: scheduleEntriesTable.dayOfWeek,
+        startTime: scheduleEntriesTable.startTime,
+        endTime: scheduleEntriesTable.endTime,
+        notes: scheduleEntriesTable.notes,
+        published: scheduleEntriesTable.published,
+        createdAt: scheduleEntriesTable.createdAt,
+      })
+      .from(scheduleEntriesTable)
+      .innerJoin(usersTable, eq(usersTable.id, scheduleEntriesTable.teacherId))
+      .innerJoin(subjectsTable, eq(subjectsTable.id, scheduleEntriesTable.subjectId))
+      .innerJoin(classesTable, eq(classesTable.id, scheduleEntriesTable.classId))
+      .innerJoin(roomsTable, eq(roomsTable.id, scheduleEntriesTable.roomId))
+      .innerJoin(semestersTable, eq(semestersTable.id, scheduleEntriesTable.semesterId))
+      .where(eq(scheduleEntriesTable.teacherId, teacherId));
+
+    const sorted = rows.sort((a, b) => a.dayOfWeek - b.dayOfWeek || a.startTime.localeCompare(b.startTime));
+    res.json(sorted);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Internal Server Error" });

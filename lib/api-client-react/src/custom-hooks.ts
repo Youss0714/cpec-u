@@ -380,6 +380,38 @@ export const useUpdateScheduleEntry = (options?: UseMutationOptions<any, unknown
     ...options,
   });
 
+// ─── Teacher Schedule ─────────────────────────────────────────────────────────
+
+export type TeacherScheduleEntry = {
+  id: number;
+  teacherId: number;
+  teacherName: string;
+  subjectId: number;
+  subjectName: string;
+  classId: number;
+  className: string;
+  roomId: number;
+  roomName: string;
+  semesterId: number;
+  semesterName: string;
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+  notes: string | null;
+  published: boolean;
+  createdAt: string;
+};
+
+const getTeacherSchedule = (): Promise<TeacherScheduleEntry[]> =>
+  customFetch<TeacherScheduleEntry[]>("/api/teacher/schedule");
+
+export const useGetTeacherSchedule = (options?: QueryOpts<TeacherScheduleEntry[]>) =>
+  useQuery<TeacherScheduleEntry[], Error>({
+    queryKey: ["teacherSchedule"],
+    queryFn: getTeacherSchedule,
+    ...options,
+  });
+
 // ─── Student Me ───────────────────────────────────────────────────────────────
 
 export type StudentMe = {

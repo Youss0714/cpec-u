@@ -20,6 +20,7 @@ import BlockedDates from "@/pages/admin/blocked-dates";
 import ActivityLog from "@/pages/admin/activity-log";
 import TeacherDashboard from "@/pages/teacher/dashboard";
 import GradeEntry from "@/pages/teacher/grade-entry";
+import TeacherSchedule from "@/pages/teacher/schedule";
 import StudentDashboard from "@/pages/student/dashboard";
 import StudentSchedule from "@/pages/student/schedule";
 
@@ -56,6 +57,7 @@ function Router() {
       {/* Teacher Routes */}
       <Route path="/teacher" component={TeacherDashboard} />
       <Route path="/teacher/grades" component={GradeEntry} />
+      <Route path="/teacher/schedule" component={TeacherSchedule} />
 
       {/* Student Routes */}
       <Route path="/student" component={StudentDashboard} />

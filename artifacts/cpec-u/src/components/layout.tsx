@@ -137,6 +137,7 @@ export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
       : user.role === "teacher"
       ? [
           { name: "Tableau de bord", href: "/teacher", icon: LayoutDashboard },
+          { name: "Mon Planning", href: "/teacher/schedule", icon: CalendarDays },
           { name: "Saisie des Notes", href: "/teacher/grades", icon: PenTool },
         ]
       : [
