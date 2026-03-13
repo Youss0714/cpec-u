@@ -12,6 +12,7 @@ import notificationsRouter from "./notifications.js";
 import scolariteRouter from "./scolarite.js";
 import honorairesRouter from "./honoraires.js";
 import attendanceRouter from "./attendance.js";
+import messagesRouter from "./messages.js";
 
 const router: IRouter = Router();
 
@@ -28,5 +29,6 @@ router.use("/notifications", notificationsRouter);
 router.use("/scolarite", scolariteRouter);
 router.use("/honoraires", honorairesRouter);
 router.use(attendanceRouter);
+router.use(messagesRouter);
 
 export default router;

@@ -27,6 +27,8 @@ import AttendanceSummary from "@/pages/admin/attendance-summary";
 import StudentDashboard from "@/pages/student/dashboard";
 import StudentSchedule from "@/pages/student/schedule";
 import StudentNotifications from "@/pages/student/notifications";
+import AdminMessages from "@/pages/admin/messages";
+import SharedMessages from "@/pages/shared/messages";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -59,18 +61,25 @@ function Router() {
       <Route path="/admin/activity-log" component={ActivityLog} />
       <Route path="/admin/attendance" component={AdminAttendance} />
       <Route path="/admin/attendance/summary" component={AttendanceSummary} />
+      <Route path="/admin/messages" component={AdminMessages} />
 
       {/* Teacher Routes */}
       <Route path="/teacher" component={TeacherDashboard} />
       <Route path="/teacher/grades" component={GradeEntry} />
       <Route path="/teacher/schedule" component={TeacherSchedule} />
       <Route path="/teacher/attendance" component={TeacherAttendance} />
+      <Route path="/teacher/messages">
+        {() => <SharedMessages allowedRoles={["teacher"]} />}
+      </Route>
 
       {/* Student Routes */}
       <Route path="/student" component={StudentDashboard} />
       <Route path="/student/schedule" component={StudentSchedule} />
       <Route path="/student/grades" component={StudentDashboard} />
       <Route path="/student/notifications" component={StudentNotifications} />
+      <Route path="/student/messages">
+        {() => <SharedMessages allowedRoles={["student"]} />}
+      </Route>
 
       <Route component={NotFound} />
     </Switch>

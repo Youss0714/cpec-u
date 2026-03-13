@@ -23,6 +23,7 @@ import {
   CalendarOff,
   ScrollText,
   Bell,
+  MessageSquare,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
@@ -106,6 +107,7 @@ export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
     { name: "Bilan des Absences", href: "/admin/attendance/summary", icon: BarChart3 },
     { name: "Résultats & Bulletins", href: "/admin/results", icon: GraduationCap },
     { name: "Journal d'Activité", href: "/admin/activity-log", icon: ScrollText },
+    { name: "Messages", href: "/admin/messages", icon: MessageSquare },
   ];
 
   const planificateurNavItems = [
@@ -119,6 +121,7 @@ export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
     { name: "Matières", href: "/admin/subjects", icon: BookOpen },
     { name: "Semestres", href: "/admin/semesters", icon: Calendar },
     { name: "Utilisateurs", href: "/admin/users", icon: Users },
+    { name: "Messages", href: "/admin/messages", icon: MessageSquare },
   ];
 
   const directeurNavItems = [
@@ -134,6 +137,7 @@ export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
     { name: "Bilan des Absences", href: "/admin/attendance/summary", icon: BarChart3 },
     { name: "Résultats & Bulletins", href: "/admin/results", icon: GraduationCap },
     { name: "Journal d'Activité", href: "/admin/activity-log", icon: ScrollText },
+    { name: "Messages", href: "/admin/messages", icon: MessageSquare },
   ];
 
   const navItems =
@@ -149,12 +153,14 @@ export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
           { name: "Mon Planning", href: "/teacher/schedule", icon: CalendarDays },
           { name: "Gestion des Présences", href: "/teacher/attendance", icon: ClipboardList },
           { name: "Saisie des Notes", href: "/teacher/grades", icon: PenTool },
+          { name: "Messages", href: "/teacher/messages", icon: MessageSquare },
         ]
       : [
           { name: "Mon Profil", href: "/student", icon: LayoutDashboard, badge: null },
           { name: "Mon Emploi du Temps", href: "/student/schedule", icon: CalendarDays, badge: null },
           { name: "Mes Résultats", href: "/student/grades", icon: FileText, badge: null },
           { name: "Notifications", href: "/student/notifications", icon: Bell, badge: (unreadData?.count ?? 0) > 0 ? unreadData!.count : null },
+          { name: "Messages", href: "/student/messages", icon: MessageSquare, badge: null },
         ];
 
   const roleLabel =
