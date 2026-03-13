@@ -112,7 +112,7 @@ export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
     { name: "Volumes Horaires", href: "/admin/planning-assignments", icon: BarChart },
     { name: "Salles", href: "/admin/rooms", icon: DoorOpen },
     { name: "Vacances & Jours Fériés", href: "/admin/blocked-dates", icon: CalendarOff },
-    { name: "Affectations (Notes)", href: "/admin/assignments", icon: ClipboardList },
+    { name: "Affectations", href: "/admin/assignments", icon: ClipboardList },
     { name: "Classes", href: "/admin/classes", icon: School },
     { name: "Matières", href: "/admin/subjects", icon: BookOpen },
     { name: "Semestres", href: "/admin/semesters", icon: Calendar },
