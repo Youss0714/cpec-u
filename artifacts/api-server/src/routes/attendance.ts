@@ -248,4 +248,56 @@ router.get("/admin/attendance/sessions/:id", requireRole("admin"), async (req, r
   }
 });
 
+// ─── Admin: update a student's attendance record in a session ─────────────────
+router.patch("/admin/attendance/sessions/:sessionId/student/:studentId", requireRole("admin"), async (req, res) => {
+  try {
+    const sessionId = parseInt(req.params.sessionId);
+    const studentId = parseInt(req.params.studentId);
+
+    const [session] = await db
+      .select()
+      .from(attendanceSessionsTable)
+      .where(eq(attendanceSessionsTable.id, sessionId))
+      .limit(1);
+
+    if (!session) { res.status(404).json({ error: "Session introuvable" }); return; }
+
+    const { status, note, startTime, endTime } = req.body as {
+      status?: string;
+      note?: string | null;
+      startTime?: string | null;
+      endTime?: string | null;
+    };
+
+    const updateSet: Record<string, any> = {};
+    if (status !== undefined) updateSet.status = status;
+    if (note !== undefined) updateSet.note = note;
+    if (startTime !== undefined) updateSet.startTime = startTime;
+    if (endTime !== undefined) updateSet.endTime = endTime;
+
+    if (Object.keys(updateSet).length === 0) {
+      res.status(400).json({ error: "Aucun champ à mettre à jour" });
+      return;
+    }
+
+    await db
+      .update(attendanceTable)
+      .set(updateSet)
+      .where(
+        and(
+          eq(attendanceTable.teacherId, session.teacherId),
+          eq(attendanceTable.subjectId, session.subjectId),
+          eq(attendanceTable.classId, session.classId),
+          eq(attendanceTable.sessionDate, session.sessionDate),
+          eq(attendanceTable.studentId, studentId)
+        )
+      );
+
+    res.json({ message: "Enregistrement mis à jour" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
 export default router;

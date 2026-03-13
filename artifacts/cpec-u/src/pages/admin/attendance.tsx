@@ -1,26 +1,215 @@
 import { useState } from "react";
 import { AppLayout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
-import { useQuery } from "@tanstack/react-query";
+import { Input } from "@/components/ui/input";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { CheckCircle2, XCircle, Clock, ClipboardList } from "lucide-react";
+import { CheckCircle2, XCircle, Clock, ClipboardList, Pencil, X, Check } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
-async function apiFetch(path: string) {
-  const res = await fetch(`/api${path}`, { credentials: "include" });
+async function apiFetch(path: string, options?: RequestInit) {
+  const res = await fetch(`/api${path}`, { credentials: "include", ...options });
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
 
 const STATUS_CONFIG = {
-  present: { label: "Présent(e)", icon: CheckCircle2, cls: "bg-emerald-100 text-emerald-700" },
-  absent: { label: "Absent(e)", icon: XCircle, cls: "bg-red-100 text-red-700" },
-  late: { label: "Retard", icon: Clock, cls: "bg-amber-100 text-amber-700" },
+  present: { label: "Présent(e)", icon: CheckCircle2, cls: "bg-emerald-100 text-emerald-700", dot: "bg-emerald-500" },
+  absent: { label: "Absent(e)", icon: XCircle, cls: "bg-red-100 text-red-700", dot: "bg-red-500" },
+  late: { label: "Retard", icon: Clock, cls: "bg-amber-100 text-amber-700", dot: "bg-amber-500" },
 } as const;
+
+type EditState = {
+  status: string;
+  note: string;
+  startTime: string;
+  endTime: string;
+};
+
+function StudentRow({
+  r,
+  sessionId,
+  onSaved,
+}: {
+  r: any;
+  sessionId: number;
+  onSaved: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [edit, setEdit] = useState<EditState>({
+    status: r.status,
+    note: r.note ?? "",
+    startTime: r.startTime ?? "",
+    endTime: r.endTime ?? "",
+  });
+  const { toast } = useToast();
+
+  const cfg = STATUS_CONFIG[r.status as keyof typeof STATUS_CONFIG] ?? STATUS_CONFIG.present;
+  const Icon = cfg.icon;
+
+  const startEdit = () => {
+    setEdit({ status: r.status, note: r.note ?? "", startTime: r.startTime ?? "", endTime: r.endTime ?? "" });
+    setEditing(true);
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await apiFetch(`/admin/attendance/sessions/${sessionId}/student/${r.studentId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          status: edit.status,
+          note: edit.note || null,
+          startTime: edit.status !== "present" && edit.startTime ? edit.startTime : null,
+          endTime: edit.status !== "present" && edit.endTime ? edit.endTime : null,
+        }),
+      });
+      toast({ title: "Enregistrement mis à jour" });
+      setEditing(false);
+      onSaved();
+    } catch {
+      toast({ title: "Erreur lors de la mise à jour", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleCancelHours = async () => {
+    setSaving(true);
+    try {
+      await apiFetch(`/admin/attendance/sessions/${sessionId}/student/${r.studentId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ startTime: null, endTime: null }),
+      });
+      toast({ title: "Heures d'absence annulées" });
+      onSaved();
+    } catch {
+      toast({ title: "Erreur", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (editing) {
+    return (
+      <div className="px-4 py-3 border-b border-border last:border-0 space-y-2.5 bg-muted/30">
+        {/* Name */}
+        <span className="text-sm font-semibold text-foreground">{r.studentName}</span>
+
+        {/* Status buttons */}
+        <div className="flex flex-wrap gap-1.5">
+          {(["present", "absent", "late"] as const).map((s) => {
+            const c = STATUS_CONFIG[s];
+            const active = edit.status === s;
+            return (
+              <button
+                key={s}
+                onClick={() => setEdit(prev => ({ ...prev, status: s }))}
+                className={`text-xs font-semibold px-2.5 py-1 rounded-full border transition-all ${
+                  active ? c.cls + " border-transparent" : "border-border text-muted-foreground hover:border-primary/40"
+                }`}
+              >
+                {c.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Time + note (only if not present) */}
+        {edit.status !== "present" && (
+          <div className="flex flex-wrap gap-2 items-center">
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-muted-foreground">De</span>
+              <Input
+                type="time"
+                value={edit.startTime}
+                onChange={(e) => setEdit(prev => ({ ...prev, startTime: e.target.value }))}
+                className="h-7 text-xs w-28"
+              />
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-muted-foreground">À</span>
+              <Input
+                type="time"
+                value={edit.endTime}
+                onChange={(e) => setEdit(prev => ({ ...prev, endTime: e.target.value }))}
+                className="h-7 text-xs w-28"
+              />
+            </div>
+            <Input
+              value={edit.note}
+              onChange={(e) => setEdit(prev => ({ ...prev, note: e.target.value }))}
+              placeholder="Motif (optionnel)"
+              className="h-7 text-xs w-36"
+            />
+          </div>
+        )}
+
+        {/* Actions */}
+        <div className="flex gap-2">
+          <Button size="sm" onClick={handleSave} disabled={saving} className="h-7 text-xs px-3">
+            <Check className="w-3.5 h-3.5 mr-1" />
+            Enregistrer
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => setEditing(false)} disabled={saving} className="h-7 text-xs px-3">
+            Annuler
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center justify-between px-4 py-2.5 border-b border-border last:border-0 gap-2 group">
+      <div className="flex items-center gap-2 flex-1 min-w-0">
+        <div className={`w-2 h-2 rounded-full flex-shrink-0 ${cfg.dot}`} />
+        <span className="text-sm font-medium truncate">{r.studentName}</span>
+      </div>
+      <div className="flex items-center gap-2 flex-wrap justify-end">
+        {(r.startTime || r.endTime) && (
+          <div className="flex items-center gap-1">
+            <span className="text-xs text-muted-foreground font-mono whitespace-nowrap">
+              {r.startTime && r.endTime
+                ? `${r.startTime} → ${r.endTime}`
+                : r.startTime
+                ? `Dès ${r.startTime}`
+                : `Jusqu'à ${r.endTime}`}
+            </span>
+            <button
+              onClick={handleCancelHours}
+              disabled={saving}
+              title="Annuler les heures"
+              className="w-4 h-4 flex items-center justify-center rounded text-muted-foreground hover:text-red-500 hover:bg-red-50 transition-colors flex-shrink-0"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          </div>
+        )}
+        {r.note && <span className="text-xs text-muted-foreground italic">{r.note}</span>}
+        <span className={`flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full ${cfg.cls}`}>
+          <Icon className="w-3.5 h-3.5" />
+          {cfg.label}
+        </span>
+        <button
+          onClick={startEdit}
+          title="Modifier"
+          className="w-6 h-6 flex items-center justify-center rounded text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-primary hover:bg-primary/10 transition-all flex-shrink-0"
+        >
+          <Pencil className="w-3.5 h-3.5" />
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export default function AdminAttendance() {
   const [selectedSessionId, setSelectedSessionId] = useState<number | null>(null);
+  const queryClient = useQueryClient();
 
   const { data: sessions = [], isLoading } = useQuery({
     queryKey: ["/api/admin/attendance/sessions"],
@@ -32,6 +221,10 @@ export default function AdminAttendance() {
     queryFn: () => apiFetch(`/admin/attendance/sessions/${selectedSessionId}`),
     enabled: selectedSessionId !== null,
   });
+
+  const handleRecordSaved = () => {
+    queryClient.invalidateQueries({ queryKey: ["/api/admin/attendance/sessions", selectedSessionId] });
+  };
 
   const selectedSession = (sessions as any[]).find((s: any) => s.id === selectedSessionId);
   const absentCount = (sessionDetail?.records ?? []).filter((r: any) => r.status === "absent").length;
@@ -170,31 +363,14 @@ export default function AdminAttendance() {
               {/* Records */}
               <div className="rounded-xl border border-border overflow-hidden">
                 <div className="overflow-y-auto max-h-72">
-                  {(sessionDetail.records ?? []).map((r: any) => {
-                    const cfg = STATUS_CONFIG[r.status as keyof typeof STATUS_CONFIG] ?? STATUS_CONFIG.present;
-                    const Icon = cfg.icon;
-                    return (
-                      <div key={r.studentId} className="flex items-center justify-between px-4 py-2.5 border-b border-border last:border-0 gap-2">
-                        <span className="text-sm font-medium flex-1 min-w-0 truncate">{r.studentName}</span>
-                        <div className="flex items-center gap-2 flex-wrap justify-end">
-                          {(r.startTime || r.endTime) && (
-                            <span className="text-xs text-muted-foreground font-mono whitespace-nowrap">
-                              {r.startTime && r.endTime
-                                ? `${r.startTime} → ${r.endTime}`
-                                : r.startTime
-                                ? `Dès ${r.startTime}`
-                                : `Jusqu'à ${r.endTime}`}
-                            </span>
-                          )}
-                          {r.note && <span className="text-xs text-muted-foreground italic">{r.note}</span>}
-                          <span className={`flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full ${cfg.cls}`}>
-                            <Icon className="w-3.5 h-3.5" />
-                            {cfg.label}
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })}
+                  {(sessionDetail.records ?? []).map((r: any) => (
+                    <StudentRow
+                      key={r.studentId}
+                      r={r}
+                      sessionId={selectedSessionId!}
+                      onSaved={handleRecordSaved}
+                    />
+                  ))}
                 </div>
               </div>
             </div>
