@@ -248,6 +248,65 @@ router.get("/admin/attendance/sessions/:id", requireRole("admin"), async (req, r
   }
 });
 
+// ─── Admin: absence summary by semester ──────────────────────────────────────
+router.get("/admin/attendance/summary", requireRole("admin"), async (req, res) => {
+  try {
+    const { semesterId, classId } = req.query as Record<string, string>;
+    if (!semesterId) { res.status(400).json({ error: "semesterId requis" }); return; }
+
+    const conditions: any[] = [eq(attendanceTable.semesterId, parseInt(semesterId))];
+    if (classId) conditions.push(eq(attendanceTable.classId, parseInt(classId)));
+
+    const records = await db
+      .select({
+        studentId: attendanceTable.studentId,
+        studentName: usersTable.name,
+        classId: attendanceTable.classId,
+        className: classesTable.name,
+        status: attendanceTable.status,
+        startTime: attendanceTable.startTime,
+        endTime: attendanceTable.endTime,
+        sessionDate: attendanceTable.sessionDate,
+      })
+      .from(attendanceTable)
+      .innerJoin(usersTable, eq(usersTable.id, attendanceTable.studentId))
+      .innerJoin(classesTable, eq(classesTable.id, attendanceTable.classId))
+      .where(and(...conditions))
+      .orderBy(usersTable.name);
+
+    // Group by student and compute totals
+    const map = new Map<number, any>();
+    for (const r of records) {
+      if (r.status === "present") continue;
+      if (!map.has(r.studentId)) {
+        map.set(r.studentId, {
+          studentId: r.studentId,
+          studentName: r.studentName,
+          classId: r.classId,
+          className: r.className,
+          absenceCount: 0,
+          lateCount: 0,
+          totalMinutes: 0,
+        });
+      }
+      const entry = map.get(r.studentId)!;
+      if (r.status === "absent") entry.absenceCount++;
+      if (r.status === "late") entry.lateCount++;
+      if (r.startTime && r.endTime) {
+        const [sh, sm] = r.startTime.split(":").map(Number);
+        const [eh, em] = r.endTime.split(":").map(Number);
+        const diff = (eh * 60 + em) - (sh * 60 + sm);
+        if (diff > 0) entry.totalMinutes += diff;
+      }
+    }
+
+    res.json(Array.from(map.values()).sort((a, b) => a.studentName.localeCompare(b.studentName)));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
 // ─── Admin: update a student's attendance record in a session ─────────────────
 router.patch("/admin/attendance/sessions/:sessionId/student/:studentId", requireRole("admin"), async (req, res) => {
   try {

@@ -19,6 +19,7 @@ import {
   ShieldCheck,
   LayoutList,
   BarChart,
+  BarChart3,
   CalendarOff,
   ScrollText,
   Bell,
@@ -102,6 +103,7 @@ export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
     { name: "Matières", href: "/admin/subjects", icon: BookOpen },
     { name: "Semestres", href: "/admin/semesters", icon: Calendar },
     { name: "Feuilles de Présence", href: "/admin/attendance", icon: ClipboardList },
+    { name: "Bilan des Absences", href: "/admin/attendance/summary", icon: BarChart3 },
     { name: "Résultats & Bulletins", href: "/admin/results", icon: GraduationCap },
     { name: "Journal d'Activité", href: "/admin/activity-log", icon: ScrollText },
   ];
@@ -129,6 +131,7 @@ export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
     { name: "Salles", href: "/admin/rooms", icon: DoorOpen },
     { name: "Affectations", href: "/admin/assignments", icon: ClipboardList },
     { name: "Feuilles de Présence", href: "/admin/attendance", icon: ClipboardList },
+    { name: "Bilan des Absences", href: "/admin/attendance/summary", icon: BarChart3 },
     { name: "Résultats & Bulletins", href: "/admin/results", icon: GraduationCap },
     { name: "Journal d'Activité", href: "/admin/activity-log", icon: ScrollText },
   ];
