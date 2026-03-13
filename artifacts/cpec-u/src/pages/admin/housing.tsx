@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { AppLayout } from "@/components/layout";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -381,6 +381,19 @@ function AssignmentsTab() {
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("active");
+  const [studentSearch, setStudentSearch] = useState("");
+  const [studentDropdownOpen, setStudentDropdownOpen] = useState(false);
+  const studentRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (studentRef.current && !studentRef.current.contains(e.target as Node)) {
+        setStudentDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
   const { toast } = useToast();
 
   const filtered = (assignments as any[]).filter(a =>
@@ -400,6 +413,7 @@ function AssignmentsTab() {
       });
       setOpen(false);
       setForm({ studentId: "", roomId: "", startDate: new Date().toISOString().split("T")[0], endDate: "", notes: "" });
+      setStudentSearch("");
       refetch();
       queryClient.invalidateQueries({ queryKey: ["/api/housing/rooms/available"] });
       queryClient.invalidateQueries({ queryKey: ["/api/housing/unassigned-students"] });
@@ -439,7 +453,7 @@ function AssignmentsTab() {
             </SelectContent>
           </Select>
         </div>
-        <Button onClick={() => setOpen(true)} className="gap-2"><Plus className="w-4 h-4" /> Attribuer une chambre</Button>
+        <Button onClick={() => { setForm({ studentId: "", roomId: "", startDate: new Date().toISOString().split("T")[0], endDate: "", notes: "" }); setStudentSearch(""); setOpen(true); }} className="gap-2"><Plus className="w-4 h-4" /> Attribuer une chambre</Button>
       </div>
 
       <div className="rounded-2xl border border-border overflow-hidden">
@@ -487,15 +501,49 @@ function AssignmentsTab() {
           <div className="space-y-4 mt-2">
             <div className="space-y-1.5">
               <Label>Étudiant</Label>
-              <Select value={form.studentId} onValueChange={v => setForm(f => ({ ...f, studentId: v }))}>
-                <SelectTrigger><SelectValue placeholder="Choisir un étudiant" /></SelectTrigger>
-                <SelectContent className="max-h-52 overflow-y-auto">
-                  {(unassignedStudents as any[]).map((s: any) => (
-                    <SelectItem key={s.id} value={String(s.id)}>{s.name} <span className="text-muted-foreground text-xs ml-1">{s.email}</span></SelectItem>
-                  ))}
-                  {(unassignedStudents as any[]).length === 0 && <div className="text-sm text-muted-foreground px-2 py-3">Tous les étudiants ont déjà une chambre</div>}
-                </SelectContent>
-              </Select>
+              <div ref={studentRef} className="relative">
+                <Input
+                  placeholder="Rechercher un étudiant…"
+                  value={studentSearch}
+                  onChange={e => {
+                    setStudentSearch(e.target.value);
+                    setStudentDropdownOpen(true);
+                    if (!e.target.value) setForm(f => ({ ...f, studentId: "" }));
+                  }}
+                  onFocus={() => setStudentDropdownOpen(true)}
+                  className={form.studentId ? "border-primary/60 bg-primary/5" : ""}
+                />
+                {studentDropdownOpen && (
+                  <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover shadow-lg max-h-52 overflow-y-auto">
+                    {(unassignedStudents as any[])
+                      .filter((s: any) =>
+                        s.name.toLowerCase().includes(studentSearch.toLowerCase()) ||
+                        s.email.toLowerCase().includes(studentSearch.toLowerCase())
+                      )
+                      .map((s: any) => (
+                        <button
+                          key={s.id}
+                          type="button"
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-accent flex items-center justify-between gap-2"
+                          onMouseDown={() => {
+                            setForm(f => ({ ...f, studentId: String(s.id) }));
+                            setStudentSearch(s.name);
+                            setStudentDropdownOpen(false);
+                          }}
+                        >
+                          <span className="font-medium">{s.name}</span>
+                          <span className="text-muted-foreground text-xs truncate">{s.email}</span>
+                        </button>
+                      ))}
+                    {(unassignedStudents as any[]).filter((s: any) =>
+                      s.name.toLowerCase().includes(studentSearch.toLowerCase()) ||
+                      s.email.toLowerCase().includes(studentSearch.toLowerCase())
+                    ).length === 0 && (
+                      <div className="text-sm text-muted-foreground px-3 py-3">Aucun étudiant trouvé</div>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
             <div className="space-y-1.5">
               <Label>Chambre disponible</Label>
