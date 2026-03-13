@@ -333,7 +333,7 @@ function RoomsTab() {
             <div className="space-y-1.5"><Label>Étage</Label><Input type="number" min={0} value={form.floor} onChange={e => setForm(f => ({ ...f, floor: e.target.value }))} /></div>
             <div className="space-y-1.5">
               <Label>Type</Label>
-              <Select value={form.type} onValueChange={v => setForm(f => ({ ...f, type: v, capacity: v === "double" ? "2" : "1" }))}>
+              <Select value={form.type} onValueChange={v => setForm(f => ({ ...f, type: v }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>{ROOM_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
               </Select>
