@@ -187,7 +187,7 @@ export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
           </div>
         </div>
         <button
-          onClick={() => logoutMutation.mutate()}
+          onClick={() => setShowLogoutConfirm(true)}
           title="Se déconnecter"
           className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-lg text-sidebar-foreground/40 hover:text-red-500 hover:bg-red-500/10 transition-colors"
         >
