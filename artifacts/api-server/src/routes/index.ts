@@ -11,6 +11,7 @@ import blockedDatesRouter from "./blocked_dates.js";
 import notificationsRouter from "./notifications.js";
 import scolariteRouter from "./scolarite.js";
 import honorairesRouter from "./honoraires.js";
+import attendanceRouter from "./attendance.js";
 
 const router: IRouter = Router();
 
@@ -26,5 +27,6 @@ router.use("/student", studentRouter);
 router.use("/notifications", notificationsRouter);
 router.use("/scolarite", scolariteRouter);
 router.use("/honoraires", honorairesRouter);
+router.use(attendanceRouter);
 
 export default router;

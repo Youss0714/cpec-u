@@ -101,6 +101,7 @@ export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
     { name: "Classes", href: "/admin/classes", icon: School },
     { name: "Matières", href: "/admin/subjects", icon: BookOpen },
     { name: "Semestres", href: "/admin/semesters", icon: Calendar },
+    { name: "Feuilles de Présence", href: "/admin/attendance", icon: ClipboardList },
     { name: "Résultats & Bulletins", href: "/admin/results", icon: GraduationCap },
     { name: "Journal d'Activité", href: "/admin/activity-log", icon: ScrollText },
   ];
@@ -127,6 +128,7 @@ export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
     { name: "Emplois du temps", href: "/admin/schedules", icon: CalendarDays },
     { name: "Salles", href: "/admin/rooms", icon: DoorOpen },
     { name: "Affectations (Notes)", href: "/admin/assignments", icon: ClipboardList },
+    { name: "Feuilles de Présence", href: "/admin/attendance", icon: ClipboardList },
     { name: "Résultats & Bulletins", href: "/admin/results", icon: GraduationCap },
     { name: "Journal d'Activité", href: "/admin/activity-log", icon: ScrollText },
   ];
@@ -142,6 +144,7 @@ export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
       ? [
           { name: "Tableau de bord", href: "/teacher", icon: LayoutDashboard },
           { name: "Mon Planning", href: "/teacher/schedule", icon: CalendarDays },
+          { name: "Gestion des Présences", href: "/teacher/attendance", icon: ClipboardList },
           { name: "Saisie des Notes", href: "/teacher/grades", icon: PenTool },
         ]
       : [

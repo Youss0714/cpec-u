@@ -21,6 +21,8 @@ import ActivityLog from "@/pages/admin/activity-log";
 import TeacherDashboard from "@/pages/teacher/dashboard";
 import GradeEntry from "@/pages/teacher/grade-entry";
 import TeacherSchedule from "@/pages/teacher/schedule";
+import TeacherAttendance from "@/pages/teacher/attendance";
+import AdminAttendance from "@/pages/admin/attendance";
 import StudentDashboard from "@/pages/student/dashboard";
 import StudentSchedule from "@/pages/student/schedule";
 import StudentNotifications from "@/pages/student/notifications";
@@ -54,11 +56,13 @@ function Router() {
       <Route path="/admin/planning-assignments" component={PlanningAssignments} />
       <Route path="/admin/blocked-dates" component={BlockedDates} />
       <Route path="/admin/activity-log" component={ActivityLog} />
+      <Route path="/admin/attendance" component={AdminAttendance} />
 
       {/* Teacher Routes */}
       <Route path="/teacher" component={TeacherDashboard} />
       <Route path="/teacher/grades" component={GradeEntry} />
       <Route path="/teacher/schedule" component={TeacherSchedule} />
+      <Route path="/teacher/attendance" component={TeacherAttendance} />
 
       {/* Student Routes */}
       <Route path="/student" component={StudentDashboard} />
