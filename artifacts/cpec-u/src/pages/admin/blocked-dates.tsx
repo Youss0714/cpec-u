@@ -5,6 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -36,6 +37,7 @@ export default function BlockedDates() {
 
   const [isOpen, setIsOpen] = useState(false);
   const [form, setForm] = useState({ date: "", reason: "", type: "vacances" as "vacances" | "ferie" | "autre" });
+  const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -55,7 +57,6 @@ export default function BlockedDates() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm("Supprimer cette date bloquée ?")) return;
     try {
       await deleteDate.mutateAsync({ id });
       toast({ title: "Date supprimée" });
@@ -154,7 +155,7 @@ export default function BlockedDates() {
                           {TYPE_LABELS[d.type]}
                         </Badge>
                         <Button variant="ghost" size="icon" className="text-destructive hover:bg-destructive/10"
-                          onClick={() => handleDelete(d.id)}>
+                          onClick={() => setPendingDeleteId(d.id)}>
                           <Trash2 className="w-4 h-4" />
                         </Button>
                       </div>
@@ -165,7 +166,13 @@ export default function BlockedDates() {
             ))}
           </div>
         )}
-      </div>
+      <ConfirmDialog
+        open={pendingDeleteId !== null}
+        onOpenChange={(open) => { if (!open) setPendingDeleteId(null); }}
+        onConfirm={() => handleDelete(pendingDeleteId!)}
+        title="Supprimer la date bloquée"
+        description="Cette période de vacances ou jour férié sera définitivement supprimée."
+      />
     </AppLayout>
   );
 }

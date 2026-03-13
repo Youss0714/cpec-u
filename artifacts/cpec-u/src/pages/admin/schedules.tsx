@@ -21,6 +21,7 @@ import {
   Plus, Trash2, CalendarDays, Clock, MapPin, AlertTriangle, CheckCircle,
   Printer, Eye, EyeOff, Pencil, ChevronLeft, ChevronRight,
 } from "lucide-react";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 
 const DAYS = ["", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
 const DAY_COLORS = [
@@ -111,6 +112,7 @@ export default function AdminSchedules() {
   const [form, setForm] = useState(emptyForm);
   const [viewMode, setViewMode] = useState<ViewMode>("1week");
   const [startDate, setStartDate] = useState<Date>(getMondayOfCurrentWeek);
+  const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const numWeeks = viewMode === "1week" ? 1 : viewMode === "2weeks" ? 2 : 4;
@@ -220,7 +222,6 @@ export default function AdminSchedules() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm("Supprimer ce créneau ?")) return;
     try {
       await deleteEntry.mutateAsync({ entryId: id });
       toast({ title: "Créneau supprimé" });
@@ -371,7 +372,7 @@ export default function AdminSchedules() {
                         <Pencil className="w-3 h-3" />
                       </Button>
                       <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive hover:bg-destructive/10"
-                        onClick={() => handleDelete(entry.id)}>
+                        onClick={() => setPendingDeleteId(entry.id)}>
                         <Trash2 className="w-3 h-3" />
                       </Button>
                     </div>
@@ -537,7 +538,13 @@ export default function AdminSchedules() {
             ))}
           </div>
         )}
-      </div>
+      <ConfirmDialog
+        open={pendingDeleteId !== null}
+        onOpenChange={(open) => { if (!open) setPendingDeleteId(null); }}
+        onConfirm={() => handleDelete(pendingDeleteId!)}
+        title="Supprimer le créneau"
+        description="Ce créneau d'emploi du temps sera définitivement supprimé."
+      />
     </AppLayout>
   );
 }

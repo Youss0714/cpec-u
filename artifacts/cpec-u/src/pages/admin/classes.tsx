@@ -7,6 +7,7 @@ import {
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -29,6 +30,7 @@ function ClassStudentsSheet({
   const qc = useQueryClient();
   const [selectedStudentId, setSelectedStudentId] = useState<string>("");
   const [savingNextClass, setSavingNextClass] = useState(false);
+  const [pendingRemoveStudent, setPendingRemoveStudent] = useState<{ id: number; name: string } | null>(null);
   const updateClassMutation = useUpdateClassConfig();
 
   const { data: students = [], isLoading } = useGetClassStudents(cls.id, {
@@ -85,7 +87,6 @@ function ClassStudentsSheet({
   };
 
   const handleRemove = async (studentId: number, studentName: string) => {
-    if (!confirm(`Retirer ${studentName} de la classe ?`)) return;
     try {
       await unenrollMutation.mutateAsync({ data: { studentId, classId: cls.id } });
       toast({ title: `${studentName} retiré(e) de la classe.` });
@@ -237,7 +238,7 @@ function ClassStudentsSheet({
                       variant="ghost"
                       size="icon"
                       className="h-8 w-8 text-destructive opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive/10 shrink-0"
-                      onClick={() => handleRemove(student.id, student.name)}
+                      onClick={() => setPendingRemoveStudent({ id: student.id, name: student.name })}
                       disabled={unenrollMutation.isPending}
                     >
                       <UserMinus className="w-4 h-4" />
@@ -248,6 +249,13 @@ function ClassStudentsSheet({
             )}
           </div>
         </div>
+      <ConfirmDialog
+        open={pendingRemoveStudent !== null}
+        onOpenChange={(open) => { if (!open) setPendingRemoveStudent(null); }}
+        onConfirm={() => handleRemove(pendingRemoveStudent!.id, pendingRemoveStudent!.name)}
+        title="Retirer l'étudiant"
+        description={`Voulez-vous vraiment retirer ${pendingRemoveStudent?.name} de cette classe ?`}
+      />
       </SheetContent>
     </Sheet>
   );
@@ -256,6 +264,7 @@ function ClassStudentsSheet({
 export default function AdminClasses() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedClass, setSelectedClass] = useState<ClassItem | null>(null);
+  const [pendingDeleteClass, setPendingDeleteClass] = useState<{ id: number; name: string } | null>(null);
   const { data: classes, isLoading } = useListClasses();
   const { data: currentUser } = useGetCurrentUser();
   const isScolarite = (currentUser as any)?.adminSubRole === "scolarite";
@@ -289,9 +298,7 @@ export default function AdminClasses() {
     }
   };
 
-  const handleDelete = async (e: React.MouseEvent, id: number) => {
-    e.stopPropagation();
-    if (!confirm("Supprimer cette classe ? Les étudiants devront être réassignés.")) return;
+  const handleDelete = async (id: number) => {
     try {
       await deleteClass.mutateAsync({ id });
       toast({ title: "Classe supprimée" });
@@ -382,7 +389,7 @@ export default function AdminClasses() {
                   <Button
                     variant="ghost" size="icon"
                     className="h-7 w-7 text-destructive hover:bg-destructive/10 mt-1"
-                    onClick={(e) => handleDelete(e, cls.id)}
+                    onClick={(e) => { e.stopPropagation(); setPendingDeleteClass({ id: cls.id, name: cls.name }); }}
                     title="Supprimer"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
@@ -426,6 +433,13 @@ export default function AdminClasses() {
           allClasses={(classes as unknown as ClassItem[]) ?? []}
         />
       )}
+      <ConfirmDialog
+        open={pendingDeleteClass !== null}
+        onOpenChange={(open) => { if (!open) setPendingDeleteClass(null); }}
+        onConfirm={() => handleDelete(pendingDeleteClass!.id)}
+        title="Supprimer la classe"
+        description={`Supprimer "${pendingDeleteClass?.name}" ? Les étudiants devront être réassignés.`}
+      />
     </AppLayout>
   );
 }

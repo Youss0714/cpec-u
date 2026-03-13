@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { AppLayout } from "@/components/layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -51,6 +52,7 @@ export default function AdminRooms() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingRoom, setEditingRoom] = useState<any>(null);
   const [form, setForm] = useState({ name: "", capacity: "30", type: "Salle de cours", description: "" });
+  const [pendingDeleteRoom, setPendingDeleteRoom] = useState<{ id: number; name: string } | null>(null);
 
   const resetForm = () => setForm({ name: "", capacity: "30", type: "Salle de cours", description: "" });
 
@@ -90,7 +92,6 @@ export default function AdminRooms() {
   };
 
   const handleDelete = (room: any) => {
-    if (!confirm(`Supprimer la salle "${room.name}" ?`)) return;
     deleteRoom.mutate(
       { roomId: room.id },
       {
@@ -242,7 +243,7 @@ export default function AdminRooms() {
                               <RoomForm onSubmit={handleUpdate} isLoading={updateRoom.isPending} />
                             </DialogContent>
                           </Dialog>
-                          <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => handleDelete(room)}>
+                          <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => setPendingDeleteRoom({ id: room.id, name: room.name })}>
                             <Trash2 className="w-4 h-4" />
                           </Button>
                         </div>
@@ -255,6 +256,13 @@ export default function AdminRooms() {
           </CardContent>
         </Card>
       </div>
+      <ConfirmDialog
+        open={pendingDeleteRoom !== null}
+        onOpenChange={(open) => { if (!open) setPendingDeleteRoom(null); }}
+        onConfirm={() => handleDelete(pendingDeleteRoom!)}
+        title="Supprimer la salle"
+        description={`Voulez-vous vraiment supprimer la salle "${pendingDeleteRoom?.name}" ? Cette action est irréversible.`}
+      />
     </AppLayout>
   );
 }

@@ -4,6 +4,7 @@ import { useListAssignments, useCreateAssignment, useDeleteAssignment, useListUs
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
@@ -12,6 +13,7 @@ import { useQueryClient } from "@tanstack/react-query";
 
 export default function AdminAssignments() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
   const { data: assignments, isLoading } = useListAssignments();
   const { data: users } = useListUsers({ role: 'teacher' });
   const { data: classes } = useListClasses();
@@ -44,7 +46,6 @@ export default function AdminAssignments() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm("Supprimer cette affectation ? L'enseignant perdra l'accès à la saisie des notes pour cette configuration.")) return;
     try {
       await deleteAssignment.mutateAsync({ id });
       toast({ title: "Affectation supprimée" });
@@ -143,7 +144,7 @@ export default function AdminAssignments() {
                     <TableCell>{a.subjectName} <span className="text-xs text-muted-foreground ml-1">(Coef. {a.coefficient})</span></TableCell>
                     <TableCell>{a.className}</TableCell>
                     <TableCell className="text-right">
-                      <Button variant="ghost" size="icon" onClick={() => handleDelete(a.id)} className="text-destructive hover:bg-destructive/10">
+                      <Button variant="ghost" size="icon" onClick={() => setPendingDeleteId(a.id)} className="text-destructive hover:bg-destructive/10">
                         <Trash2 className="w-4 h-4" />
                       </Button>
                     </TableCell>
@@ -153,7 +154,13 @@ export default function AdminAssignments() {
             </TableBody>
           </Table>
         </div>
-      </div>
+      <ConfirmDialog
+        open={pendingDeleteId !== null}
+        onOpenChange={(open) => { if (!open) setPendingDeleteId(null); }}
+        onConfirm={() => handleDelete(pendingDeleteId!)}
+        title="Supprimer l'affectation"
+        description="L'enseignant perdra l'accès à la saisie des notes pour cette configuration."
+      />
     </AppLayout>
   );
 }

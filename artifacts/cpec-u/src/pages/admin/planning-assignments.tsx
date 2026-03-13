@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -39,6 +40,7 @@ export default function PlanningAssignments() {
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<any>(null);
+  const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
   const [form, setForm] = useState({
     teacherId: "", subjectId: "", classId: "", semesterId: "", plannedHours: "30",
   });
@@ -83,7 +85,6 @@ export default function PlanningAssignments() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm("Supprimer cette affectation ?")) return;
     try {
       await deleteAssign.mutateAsync({ id });
       toast({ title: "Affectation supprimée" });
@@ -214,7 +215,7 @@ export default function PlanningAssignments() {
                             <Pencil className="w-4 h-4" />
                           </Button>
                           <Button variant="ghost" size="icon" className="text-destructive hover:bg-destructive/10"
-                            onClick={() => handleDelete(a.id)}>
+                            onClick={() => setPendingDeleteId(a.id)}>
                             <Trash2 className="w-4 h-4" />
                           </Button>
                         </div>
@@ -226,7 +227,13 @@ export default function PlanningAssignments() {
             </TableBody>
           </Table>
         </div>
-      </div>
+      <ConfirmDialog
+        open={pendingDeleteId !== null}
+        onOpenChange={(open) => { if (!open) setPendingDeleteId(null); }}
+        onConfirm={() => handleDelete(pendingDeleteId!)}
+        title="Supprimer le volume horaire"
+        description="Cette affectation de volume horaire sera définitivement supprimée."
+      />
     </AppLayout>
   );
 }

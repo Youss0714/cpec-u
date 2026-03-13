@@ -4,6 +4,7 @@ import { useListSubjects, useCreateSubject, useUpdateSubject, useDeleteSubject, 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -19,6 +20,7 @@ export default function AdminSubjects() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingSubject, setEditingSubject] = useState<any>(null);
   const [form, setForm] = useState<SubjectForm>(emptyForm);
+  const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
 
   const { data: subjects, isLoading } = useListSubjects();
   const { data: classes } = useListClasses();
@@ -84,7 +86,6 @@ export default function AdminSubjects() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm("Supprimer cette matière ?")) return;
     try {
       await deleteSubject.mutateAsync({ id });
       toast({ title: "Matière supprimée" });
@@ -216,7 +217,7 @@ export default function AdminSubjects() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => handleDelete(sub.id)}
+                          onClick={() => setPendingDeleteId(sub.id)}
                           className="text-destructive hover:bg-destructive/10"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -231,7 +232,13 @@ export default function AdminSubjects() {
           </Table>
           </div>
         </div>
-      </div>
+      <ConfirmDialog
+        open={pendingDeleteId !== null}
+        onOpenChange={(open) => { if (!open) setPendingDeleteId(null); }}
+        onConfirm={() => handleDelete(pendingDeleteId!)}
+        title="Supprimer la matière"
+        description="Cette action est irréversible. La matière et ses données associées seront supprimées."
+      />
     </AppLayout>
   );
 }

@@ -4,6 +4,7 @@ import { useListUsers, useCreateUser, useDeleteUser, useListClasses, useGetCurre
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -34,6 +35,7 @@ export default function AdminUsers() {
   const [roleFilter, setRoleFilter] = useState<string>("all");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedRole, setSelectedRole] = useState<string>("student");
+  const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
   const { data: currentUser } = useGetCurrentUser();
   const currentSubRole = (currentUser as any)?.adminSubRole as string | null;
   const isDirecteur = currentSubRole === "directeur";
@@ -76,7 +78,6 @@ export default function AdminUsers() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm("Supprimer cet utilisateur ?")) return;
     try {
       await deleteUser.mutateAsync({ id });
       toast({ title: "Utilisateur supprimé" });
@@ -259,7 +260,7 @@ export default function AdminUsers() {
                       </TableCell>
                       <TableCell className="text-right">
                         {canDeleteUser(user) && (
-                          <Button variant="ghost" size="icon" onClick={() => handleDelete(user.id)} className="text-destructive hover:bg-destructive/10">
+                          <Button variant="ghost" size="icon" onClick={() => setPendingDeleteId(user.id)} className="text-destructive hover:bg-destructive/10">
                             <Trash2 className="w-4 h-4" />
                           </Button>
                         )}
@@ -272,7 +273,13 @@ export default function AdminUsers() {
           </Table>
           </div>
         </div>
-      </div>
+      <ConfirmDialog
+        open={pendingDeleteId !== null}
+        onOpenChange={(open) => { if (!open) setPendingDeleteId(null); }}
+        onConfirm={() => handleDelete(pendingDeleteId!)}
+        title="Supprimer l'utilisateur"
+        description="Cette action est irréversible. L'utilisateur sera définitivement supprimé du système."
+      />
     </AppLayout>
   );
 }
