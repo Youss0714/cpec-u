@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { AppLayout } from "@/components/layout";
-import { useListSemesters, useCreateSemester, usePublishSemesterResults } from "@workspace/api-client-react";
+import { useListSemesters, useCreateSemester, usePublishSemesterResults, useGetCurrentUser } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -15,6 +15,8 @@ export default function AdminSemesters() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [pendingUnpublishId, setPendingUnpublishId] = useState<number | null>(null);
   const { data: semesters, isLoading } = useListSemesters();
+  const { data: currentUser } = useGetCurrentUser();
+  const canPublish = (currentUser as any)?.adminSubRole !== "planificateur";
   const createSemester = useCreateSemester();
   const publishMutation = usePublishSemesterResults();
   const queryClient = useQueryClient();
@@ -106,25 +108,33 @@ export default function AdminSemesters() {
                 </div>
 
                 <div className="mt-8">
-                  <Button
-                    onClick={() => {
-                      if (sem.published) {
-                        setPendingUnpublishId(sem.id);
-                      } else {
-                        doPublish(sem.id, true);
-                      }
-                    }}
-                    variant={sem.published ? "outline" : "default"}
-                    className={`w-full font-bold ${sem.published ? 'hover:bg-destructive hover:text-white border-destructive text-destructive' : 'bg-primary hover:bg-primary/90'}`}
-                    disabled={publishMutation.isPending}
-                  >
-                    {sem.published ? "Retirer la publication" : "Publier les résultats aux étudiants"}
-                  </Button>
-                  <p className="text-xs text-center mt-3 text-muted-foreground">
-                    {sem.published
-                      ? "Attention : Les étudiants peuvent voir leurs notes."
-                      : "Les notes sont invisibles pour les étudiants."}
-                  </p>
+                  {canPublish ? (
+                    <>
+                      <Button
+                        onClick={() => {
+                          if (sem.published) {
+                            setPendingUnpublishId(sem.id);
+                          } else {
+                            doPublish(sem.id, true);
+                          }
+                        }}
+                        variant={sem.published ? "outline" : "default"}
+                        className={`w-full font-bold ${sem.published ? 'hover:bg-destructive hover:text-white border-destructive text-destructive' : 'bg-primary hover:bg-primary/90'}`}
+                        disabled={publishMutation.isPending}
+                      >
+                        {sem.published ? "Retirer la publication" : "Publier les résultats aux étudiants"}
+                      </Button>
+                      <p className="text-xs text-center mt-3 text-muted-foreground">
+                        {sem.published
+                          ? "Attention : Les étudiants peuvent voir leurs notes."
+                          : "Les notes sont invisibles pour les étudiants."}
+                      </p>
+                    </>
+                  ) : (
+                    <p className="text-xs text-center text-muted-foreground bg-secondary/50 rounded-lg py-3 px-4">
+                      La publication des résultats est réservée au Directeur du Centre et à l'Assistant(e) de Direction.
+                    </p>
+                  )}
                 </div>
               </CardContent>
             </Card>

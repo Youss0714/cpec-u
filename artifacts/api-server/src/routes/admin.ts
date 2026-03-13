@@ -413,7 +413,7 @@ router.post("/semesters/:id/publish", requireRole("admin"), async (req, res) => 
   try {
     const cu = req.session.user!;
     if (cu.adminSubRole !== "scolarite" && cu.adminSubRole !== "directeur") {
-      res.status(403).json({ error: "Réservé au Assistant(e) de Direction." });
+      res.status(403).json({ error: "La publication des résultats est réservée au Directeur du Centre et à l'Assistant(e) de Direction." });
       return;
     }
     const id = parseInt(req.params.id);
