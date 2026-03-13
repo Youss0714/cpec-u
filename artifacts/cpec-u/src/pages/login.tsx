@@ -28,8 +28,10 @@ export default function Login() {
       onSuccess: (data) => {
         const subRole = (data.user as any).adminSubRole;
         const redirect = () => {
-          if (data.user.role === "admin") setLocation("/admin");
-          else if (data.user.role === "teacher") setLocation("/teacher");
+          if (data.user.role === "admin") {
+            if ((data.user as any).adminSubRole === "hebergement") setLocation("/admin/housing");
+            else setLocation("/admin");
+          } else if (data.user.role === "teacher") setLocation("/teacher");
           else setLocation("/student");
         };
 

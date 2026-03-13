@@ -1,5 +1,5 @@
-import { useMemo } from "react";
-import { Link } from "wouter";
+import { useMemo, useEffect } from "react";
+import { Link, useLocation } from "wouter";
 import { AppLayout } from "@/components/layout";
 import {
   useGetCurrentUser, useListUsers, useListClasses, useListSubjects,
@@ -45,9 +45,14 @@ const quickLinks = [
 ];
 
 export default function AdminDashboard() {
+  const [, setLocation] = useLocation();
   const { data: currentUser } = useGetCurrentUser();
   const adminSubRole = (currentUser as any)?.adminSubRole as string | null;
   const isPlanificateur = adminSubRole === "planificateur";
+
+  useEffect(() => {
+    if (adminSubRole === "hebergement") setLocation("/admin/housing");
+  }, [adminSubRole]);
 
   const { data: users } = useListUsers();
   const { data: classes } = useListClasses();
