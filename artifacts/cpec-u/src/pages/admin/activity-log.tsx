@@ -40,6 +40,21 @@ const ACTION_META: Record<string, { label: string; color: string; icon: React.Re
     color: "bg-red-100 text-red-700 border-red-200",
     icon: <Trash2 className="w-4 h-4 text-red-500" />,
   },
+  modification_honoraires: {
+    label: "Honoraires modifiés",
+    color: "bg-violet-100 text-violet-700 border-violet-200",
+    icon: <Wallet className="w-4 h-4 text-violet-500" />,
+  },
+  paiement_honoraires: {
+    label: "Honoraires versés",
+    color: "bg-teal-100 text-teal-700 border-teal-200",
+    icon: <PlusCircle className="w-4 h-4 text-teal-500" />,
+  },
+  suppression_paiement_honoraires: {
+    label: "Paiement honoraires supprimé",
+    color: "bg-orange-100 text-orange-700 border-orange-200",
+    icon: <Trash2 className="w-4 h-4 text-orange-500" />,
+  },
 };
 
 function formatDate(iso: string) {

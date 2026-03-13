@@ -4,8 +4,10 @@ import {
   useListUsers, useCreateUser, useDeleteUser, useListClasses, useGetCurrentUser,
   useGetScolariteStudents, useGetScolariteStats, useGetStudentPayments,
   useSetStudentFee, useAddPayment, useDeletePayment,
+  useGetHonorairesTeachers, useGetHonorairesStats, useGetTeacherPayments,
+  useSetTeacherHonorarium, useAddTeacherPayment, useDeleteTeacherPayment,
 } from "@workspace/api-client-react";
-import type { StudentFeeRow, StudentPayment } from "@workspace/api-client-react";
+import type { StudentFeeRow, StudentPayment, TeacherHonorariumRow, TeacherPayment } from "@workspace/api-client-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -30,7 +32,7 @@ const SUB_ROLE_COLORS: Record<string, string> = {
   directeur: "bg-violet-100 text-violet-700 border-violet-200",
 };
 
-type Tab = "teachers" | "students" | "scolarite" | "responsables";
+type Tab = "teachers" | "students" | "scolarite" | "responsables" | "honoraires";
 
 function StatCard({ label, value, sub, color }: { label: string; value: string; sub?: string; color?: string }) {
   return (
@@ -296,6 +298,232 @@ function ScolariteTab() {
   );
 }
 
+// ─── Teacher Payment Modal ────────────────────────────────────────────────────
+function TeacherPaymentModal({ teacher, onClose }: { teacher: TeacherHonorariumRow; onClose: () => void }) {
+  const { data: payments = [], isLoading } = useGetTeacherPayments(teacher.id);
+  const setHonorarium = useSetTeacherHonorarium();
+  const addPaymentMut = useAddTeacherPayment();
+  const deletePaymentMut = useDeleteTeacherPayment();
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const [feeAmount, setFeeAmount] = useState(teacher.totalAmount > 0 ? teacher.totalAmount.toString() : "");
+  const [periodLabel, setPeriodLabel] = useState(teacher.periodLabel ?? "");
+  const [payAmount, setPayAmount] = useState("");
+  const [payDesc, setPayDesc] = useState("");
+  const [payDate, setPayDate] = useState(new Date().toISOString().slice(0, 10));
+
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: ["honoraires"] });
+
+  const handleSetFee = async () => {
+    const amount = parseFloat(feeAmount);
+    if (isNaN(amount) || amount < 0) { toast({ title: "Montant invalide", variant: "destructive" }); return; }
+    try {
+      await setHonorarium.mutateAsync({ teacherId: teacher.id, totalAmount: amount, periodLabel: periodLabel || undefined });
+      toast({ title: "Honoraires mis à jour" });
+      invalidate();
+    } catch { toast({ title: "Erreur", variant: "destructive" }); }
+  };
+
+  const handleAddPayment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const amount = parseFloat(payAmount);
+    if (isNaN(amount) || amount <= 0) { toast({ title: "Montant invalide", variant: "destructive" }); return; }
+    try {
+      await addPaymentMut.mutateAsync({ teacherId: teacher.id, amount, description: payDesc || undefined, paymentDate: payDate });
+      toast({ title: `${amount.toLocaleString("fr-FR")} FCFA versé` });
+      setPayAmount(""); setPayDesc("");
+      invalidate();
+    } catch { toast({ title: "Erreur", variant: "destructive" }); }
+  };
+
+  const handleDeletePayment = async (id: number) => {
+    await deletePaymentMut.mutateAsync(id);
+    toast({ title: "Paiement supprimé" });
+    invalidate();
+  };
+
+  const totalPaid = payments.reduce((s: number, p: TeacherPayment) => s + p.amount, 0);
+  const totalFee = parseFloat(feeAmount) || 0;
+  const remaining = Math.max(0, totalFee - totalPaid);
+  const progress = totalFee > 0 ? Math.min(100, (totalPaid / totalFee) * 100) : 0;
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <p className="font-bold text-lg leading-tight">{teacher.name}</p>
+        <p className="text-sm text-muted-foreground">{teacher.email}</p>
+      </div>
+
+      <div className="space-y-1.5">
+        <div className="flex justify-between text-sm font-semibold">
+          <span>Progression du versement</span>
+          <span>{progress.toFixed(0)}%</span>
+        </div>
+        <div className="h-3 rounded-full bg-muted overflow-hidden">
+          <div className="h-full rounded-full bg-primary transition-all duration-500" style={{ width: `${progress}%` }} />
+        </div>
+        <div className="flex justify-between text-xs text-muted-foreground">
+          <span>Versé : {totalPaid.toLocaleString("fr-FR")} FCFA</span>
+          <span>Reste : {remaining.toLocaleString("fr-FR")} FCFA</span>
+        </div>
+      </div>
+
+      <div className="space-y-2 border rounded-xl p-4 bg-muted/20">
+        <p className="text-xs font-bold uppercase text-muted-foreground tracking-wide">Honoraires totaux</p>
+        <div className="flex gap-2">
+          <Input type="number" value={feeAmount} onChange={e => setFeeAmount(e.target.value)} placeholder="Ex: 150000" className="flex-1" />
+          <Input value={periodLabel} onChange={e => setPeriodLabel(e.target.value)} placeholder="Période (ex: S1 2024)" className="w-36" />
+          <Button size="sm" onClick={handleSetFee} disabled={setHonorarium.isPending}>
+            <PenLine className="w-4 h-4 mr-1" /> Définir
+          </Button>
+        </div>
+      </div>
+
+      <form onSubmit={handleAddPayment} className="space-y-2 border rounded-xl p-4 bg-muted/20">
+        <p className="text-xs font-bold uppercase text-muted-foreground tracking-wide">Enregistrer un versement</p>
+        <div className="grid grid-cols-2 gap-2">
+          <Input type="number" value={payAmount} onChange={e => setPayAmount(e.target.value)} placeholder="Montant (FCFA)" required min="1" />
+          <Input type="date" value={payDate} onChange={e => setPayDate(e.target.value)} required />
+        </div>
+        <Input value={payDesc} onChange={e => setPayDesc(e.target.value)} placeholder="Description (ex: avance sur honoraires)" />
+        <Button type="submit" size="sm" disabled={addPaymentMut.isPending} className="w-full">
+          <Plus className="w-4 h-4 mr-1" /> Enregistrer
+        </Button>
+      </form>
+
+      <div>
+        <p className="text-xs font-bold uppercase text-muted-foreground tracking-wide mb-2">Historique</p>
+        {isLoading ? (
+          <p className="text-sm text-muted-foreground py-4 text-center">Chargement...</p>
+        ) : payments.length === 0 ? (
+          <p className="text-sm text-muted-foreground py-4 text-center">Aucun versement enregistré</p>
+        ) : (
+          <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
+            {[...payments].reverse().map((p: TeacherPayment) => (
+              <div key={p.id} className="flex items-center justify-between p-3 bg-card rounded-lg border">
+                <div>
+                  <p className="font-semibold text-sm">{p.amount.toLocaleString("fr-FR")} FCFA</p>
+                  <p className="text-xs text-muted-foreground">
+                    {new Date(p.paymentDate).toLocaleDateString("fr-FR")}
+                    {p.description ? ` · ${p.description}` : ""}
+                    {p.recordedByName ? ` · par ${p.recordedByName}` : ""}
+                  </p>
+                </div>
+                <Button variant="ghost" size="icon" className="text-red-400 hover:text-red-600 h-8 w-8" onClick={() => handleDeletePayment(p.id)}>
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Honoraires Tab ───────────────────────────────────────────────────────────
+function HonorairesTab() {
+  const { data: teachers = [], isLoading } = useGetHonorairesTeachers();
+  const { data: stats } = useGetHonorairesStats();
+  const [selectedTeacher, setSelectedTeacher] = useState<TeacherHonorariumRow | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const filtered = teachers.filter((t: TeacherHonorariumRow) =>
+    t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    t.email.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const fmt = (n: number) => n.toLocaleString("fr-FR");
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard label="Honoraires totaux dus" value={`${fmt(stats?.totalExpected ?? 0)} F`} sub={`${stats?.teacherCount ?? 0} enseignants enregistrés`} />
+        <StatCard label="Total versé" value={`${fmt(stats?.totalPaid ?? 0)} F`} color="border-green-200" />
+        <StatCard label="Reste à verser" value={`${fmt(stats?.totalRemaining ?? 0)} F`} color="border-red-100" />
+        <StatCard
+          label="Taux de versement"
+          value={`${stats?.recoveryRate ?? 0} %`}
+          sub={`${stats?.fullyPaid ?? 0} soldés · ${stats?.partial ?? 0} partiels · ${stats?.noPay ?? 0} non versés`}
+          color={(stats?.recoveryRate ?? 0) >= 75 ? "border-green-200" : (stats?.recoveryRate ?? 0) >= 40 ? "border-amber-200" : "border-red-100"}
+        />
+      </div>
+
+      {(stats?.totalExpected ?? 0) > 0 && (
+        <div className="space-y-1.5">
+          <div className="flex justify-between text-sm">
+            <span className="font-semibold">Versement global</span>
+            <span className="font-bold text-primary">{stats?.recoveryRate ?? 0}%</span>
+          </div>
+          <div className="h-4 rounded-full bg-muted overflow-hidden">
+            <div
+              className="h-full rounded-full transition-all duration-700"
+              style={{
+                width: `${stats?.recoveryRate ?? 0}%`,
+                background: (stats?.recoveryRate ?? 0) >= 75 ? "#22c55e" : (stats?.recoveryRate ?? 0) >= 40 ? "#f59e0b" : "#ef4444",
+              }}
+            />
+          </div>
+        </div>
+      )}
+
+      <Input placeholder="Rechercher un enseignant..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="max-w-sm" />
+
+      {isLoading ? (
+        <div className="text-center py-10 text-muted-foreground">Chargement...</div>
+      ) : (
+        <div className="rounded-xl border overflow-hidden">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-muted/50">
+                <TableHead>Enseignant</TableHead>
+                <TableHead>Email</TableHead>
+                <TableHead className="text-right">Honoraires</TableHead>
+                <TableHead className="text-right">Versé</TableHead>
+                <TableHead className="text-right">Reste</TableHead>
+                <TableHead>Statut</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filtered.length === 0 ? (
+                <TableRow><TableCell colSpan={7} className="text-center py-10 text-muted-foreground">Aucun enseignant trouvé</TableCell></TableRow>
+              ) : filtered.map((t: TeacherHonorariumRow) => (
+                <TableRow key={t.id} className="hover:bg-muted/30">
+                  <TableCell className="font-semibold">{t.name}</TableCell>
+                  <TableCell className="text-muted-foreground text-sm">{t.email}</TableCell>
+                  <TableCell className="text-right font-mono text-sm">
+                    {t.totalAmount > 0 ? `${fmt(t.totalAmount)} F` : <span className="text-muted-foreground text-xs">Non défini</span>}
+                  </TableCell>
+                  <TableCell className="text-right font-mono text-sm text-green-700">
+                    {t.totalPaid > 0 ? `${fmt(t.totalPaid)} F` : "—"}
+                  </TableCell>
+                  <TableCell className="text-right font-mono text-sm text-red-600">
+                    {t.remaining > 0 ? `${fmt(t.remaining)} F` : "—"}
+                  </TableCell>
+                  <TableCell><StatusBadge status={t.status} /></TableCell>
+                  <TableCell className="text-right">
+                    <Button size="sm" variant="outline" className="gap-1" onClick={() => setSelectedTeacher(t)}>
+                      <Wallet className="w-3.5 h-3.5" /> Gérer
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
+
+      <Dialog open={!!selectedTeacher} onOpenChange={open => !open && setSelectedTeacher(null)}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>Gestion des honoraires</DialogTitle></DialogHeader>
+          {selectedTeacher && <TeacherPaymentModal teacher={selectedTeacher} onClose={() => setSelectedTeacher(null)} />}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
 export default function AdminUsers() {
   const [activeTab, setActiveTab] = useState<Tab>("teachers");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -369,11 +597,14 @@ export default function AdminUsers() {
     return false;
   };
 
+  const isScolarite = currentSubRole === "scolarite";
+
   const tabs: { key: Tab; label: string; icon: any; count?: number }[] = [
     { key: "teachers", label: "Enseignants", icon: BookOpen, count: teachers.length },
     { key: "students", label: "Étudiants", icon: GraduationCap, count: students.length },
     ...(isDirecteur ? [{ key: "responsables" as Tab, label: "Responsables", icon: ShieldCheck, count: admins.length }] : []),
     ...(!isPlanificateur ? [{ key: "scolarite" as Tab, label: "Scolarité", icon: Wallet }] : []),
+    ...(!isScolarite ? [{ key: "honoraires" as Tab, label: "Honoraires", icon: Wallet }] : []),
   ];
 
   const listToShow = activeTab === "teachers" ? teachers : activeTab === "responsables" ? admins : students;
@@ -464,6 +695,9 @@ export default function AdminUsers() {
 
         {/* Scolarité tab */}
         {activeTab === "scolarite" && <ScolariteTab />}
+
+        {/* Honoraires tab */}
+        {activeTab === "honoraires" && <HonorairesTab />}
 
         {/* Teachers / Students / Responsables tab */}
         {(activeTab === "teachers" || activeTab === "students" || activeTab === "responsables") && (

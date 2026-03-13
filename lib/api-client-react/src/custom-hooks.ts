@@ -570,3 +570,79 @@ const deletePayment = (id: number): Promise<{ ok: boolean }> =>
 
 export const useDeletePayment = () =>
   useMutation<{ ok: boolean }, Error, number>({ mutationFn: deletePayment });
+
+// ─── Honoraires (Teacher Payments) ───────────────────────────────────────────
+
+export type TeacherHonorariumRow = {
+  id: number;
+  name: string;
+  email: string;
+  honorariumId: number | null;
+  totalAmount: number;
+  totalPaid: number;
+  remaining: number;
+  periodLabel: string | null;
+  notes: string | null;
+  status: "paid" | "partial" | "unpaid";
+};
+
+export type HonorairesStats = {
+  totalExpected: number;
+  totalPaid: number;
+  totalRemaining: number;
+  recoveryRate: number;
+  teacherCount: number;
+  fullyPaid: number;
+  partial: number;
+  noPay: number;
+};
+
+export type TeacherPayment = {
+  id: number;
+  teacherId: number;
+  amount: number;
+  description: string | null;
+  paymentDate: string;
+  createdAt: string;
+  recordedByName: string | null;
+};
+
+export const useGetHonorairesTeachers = (options?: QueryOpts<TeacherHonorariumRow[]>) =>
+  useQuery<TeacherHonorariumRow[], Error>({
+    queryKey: ["honoraires", "teachers"],
+    queryFn: () => customFetch("/api/honoraires/teachers"),
+    ...options,
+  });
+
+export const useGetHonorairesStats = (options?: QueryOpts<HonorairesStats>) =>
+  useQuery<HonorairesStats, Error>({
+    queryKey: ["honoraires", "stats"],
+    queryFn: () => customFetch("/api/honoraires/stats"),
+    ...options,
+  });
+
+export const useGetTeacherPayments = (teacherId: number, options?: QueryOpts<TeacherPayment[]>) =>
+  useQuery<TeacherPayment[], Error>({
+    queryKey: ["honoraires", "payments", teacherId],
+    queryFn: () => customFetch(`/api/honoraires/payments/${teacherId}`),
+    enabled: teacherId > 0,
+    ...options,
+  });
+
+type SetTeacherFeeInput = { teacherId: number; totalAmount: number; periodLabel?: string; notes?: string };
+export const useSetTeacherHonorarium = () =>
+  useMutation<any, Error, SetTeacherFeeInput>({
+    mutationFn: ({ teacherId, ...body }) =>
+      customFetch(`/api/honoraires/fees/${teacherId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
+  });
+
+type AddTeacherPaymentInput = { teacherId: number; amount: number; description?: string; paymentDate: string };
+export const useAddTeacherPayment = () =>
+  useMutation<TeacherPayment, Error, AddTeacherPaymentInput>({
+    mutationFn: (body) => customFetch("/api/honoraires/payments", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
+  });
+
+export const useDeleteTeacherPayment = () =>
+  useMutation<{ ok: boolean }, Error, number>({
+    mutationFn: (id) => customFetch(`/api/honoraires/payments/${id}`, { method: "DELETE" }),
+  });
