@@ -6,6 +6,7 @@ import {
   usersTable,
   classEnrollmentsTable,
   classesTable,
+  activityLogTable,
 } from "@workspace/db";
 import { eq, and, sql, inArray } from "drizzle-orm";
 import { requireRole } from "../lib/auth.js";
@@ -179,6 +180,7 @@ router.put("/fees/:studentId", requireRole("admin"), requireScolariteOrDirecteur
       res.status(400).json({ error: "Montant invalide" });
       return;
     }
+    const [student] = await db.select({ name: usersTable.name }).from(usersTable).where(eq(usersTable.id, studentId));
     const [row] = await db
       .insert(studentFeesTable)
       .values({ studentId, totalAmount, academicYear: academicYear ?? null, notes: notes ?? null })
@@ -187,6 +189,11 @@ router.put("/fees/:studentId", requireRole("admin"), requireScolariteOrDirecteur
         set: { totalAmount, academicYear: academicYear ?? null, notes: notes ?? null, updatedAt: new Date() },
       })
       .returning();
+    await db.insert(activityLogTable).values({
+      userId: req.session!.userId!,
+      action: "modification_frais_scolarite",
+      details: `Frais de scolarité de ${student?.name ?? `ID ${studentId}`} définis à ${totalAmount.toLocaleString("fr-FR")} FCFA${academicYear ? ` (${academicYear})` : ""}.`,
+    });
     res.json(row);
   } catch (err) {
     console.error(err);
@@ -228,10 +235,16 @@ router.post("/payments", requireRole("admin"), requireScolariteOrDirecteur, asyn
       res.status(400).json({ error: "studentId, amount et paymentDate sont requis" });
       return;
     }
+    const [student] = await db.select({ name: usersTable.name }).from(usersTable).where(eq(usersTable.id, studentId));
     const [row] = await db
       .insert(paymentsTable)
       .values({ studentId, amount, description: description ?? null, paymentDate, recordedById })
       .returning();
+    await db.insert(activityLogTable).values({
+      userId: recordedById,
+      action: "enregistrement_paiement",
+      details: `Paiement de ${Number(amount).toLocaleString("fr-FR")} FCFA enregistré pour ${student?.name ?? `ID ${studentId}`}${description ? ` — ${description}` : ""} (date : ${paymentDate}).`,
+    });
     res.status(201).json(row);
   } catch (err) {
     console.error(err);
@@ -243,7 +256,21 @@ router.post("/payments", requireRole("admin"), requireScolariteOrDirecteur, asyn
 router.delete("/payments/:id", requireRole("admin"), requireScolariteOrDirecteur, async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    await db.delete(paymentsTable).where(eq(paymentsTable.id, id));
+    const [payment] = await db
+      .select({ amount: paymentsTable.amount, studentId: paymentsTable.studentId, description: paymentsTable.description })
+      .from(paymentsTable)
+      .where(eq(paymentsTable.id, id));
+    if (payment) {
+      const [student] = await db.select({ name: usersTable.name }).from(usersTable).where(eq(usersTable.id, payment.studentId));
+      await db.delete(paymentsTable).where(eq(paymentsTable.id, id));
+      await db.insert(activityLogTable).values({
+        userId: req.session!.userId!,
+        action: "suppression_paiement",
+        details: `Paiement de ${Number(payment.amount).toLocaleString("fr-FR")} FCFA supprimé pour ${student?.name ?? `ID ${payment.studentId}`}${payment.description ? ` (${payment.description})` : ""}.`,
+      });
+    } else {
+      await db.delete(paymentsTable).where(eq(paymentsTable.id, id));
+    }
     res.json({ ok: true });
   } catch (err) {
     console.error(err);

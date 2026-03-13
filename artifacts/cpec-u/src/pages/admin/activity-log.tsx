@@ -2,7 +2,7 @@ import { AppLayout } from "@/components/layout";
 import { useListActivityLog } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ScrollText, CheckCircle, FileEdit, Globe, GlobeLock, Clock } from "lucide-react";
+import { ScrollText, CheckCircle, FileEdit, Globe, GlobeLock, Clock, Wallet, PlusCircle, Trash2 } from "lucide-react";
 
 const ACTION_META: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
   approbation_notes: {
@@ -25,6 +25,21 @@ const ACTION_META: Record<string, { label: string; color: string; icon: React.Re
     color: "bg-gray-100 text-gray-700 border-gray-200",
     icon: <GlobeLock className="w-4 h-4 text-gray-500" />,
   },
+  modification_frais_scolarite: {
+    label: "Frais modifiés",
+    color: "bg-indigo-100 text-indigo-700 border-indigo-200",
+    icon: <Wallet className="w-4 h-4 text-indigo-500" />,
+  },
+  enregistrement_paiement: {
+    label: "Paiement enregistré",
+    color: "bg-green-100 text-green-700 border-green-200",
+    icon: <PlusCircle className="w-4 h-4 text-green-500" />,
+  },
+  suppression_paiement: {
+    label: "Paiement supprimé",
+    color: "bg-red-100 text-red-700 border-red-200",
+    icon: <Trash2 className="w-4 h-4 text-red-500" />,
+  },
 };
 
 function formatDate(iso: string) {
@@ -45,7 +60,7 @@ export default function ActivityLog() {
             Journal d'Activité
           </h1>
           <p className="text-muted-foreground mt-1">
-            Traçabilité complète des actions sensibles — approbations, dérogations, publications.
+            Traçabilité complète des actions sensibles — approbations, dérogations, publications et opérations de scolarité.
           </p>
         </div>
 
