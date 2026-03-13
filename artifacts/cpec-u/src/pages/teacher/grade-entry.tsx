@@ -1,14 +1,21 @@
 import { useState, useEffect, useMemo } from "react";
 import { AppLayout } from "@/components/layout";
-import { useGetTeacherAssignments, useGetTeacherGrades, useSubmitGradesBulk, SubmitGradeRequest } from "@workspace/api-client-react";
+import { useGetTeacherAssignments, useGetTeacherGrades, useSubmitGradesBulk } from "@workspace/api-client-react";
 import { useListSubjectApprovals, useGetClassStudents } from "@workspace/api-client-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { useOfflineGrades } from "@/lib/offline-sync";
-import { WifiOff, Save, CheckCircle2, CloudFog, Lock } from "lucide-react";
+import { WifiOff, Save, CheckCircle2, Lock } from "lucide-react";
 import { Card } from "@/components/ui/card";
+
+const EVAL_LABELS = ["Éval 1", "Éval 2", "Éval 3", "Éval 4"] as const;
+const EVAL_COUNT = 4;
+
+type GradeKey = `${number}_${number}`;
+function gradeKey(studentId: number, evalNum: number): GradeKey {
+  return `${studentId}_${evalNum}`;
+}
 
 export default function GradeEntry() {
   const { data: assignments } = useGetTeacherAssignments();
@@ -25,27 +32,44 @@ export default function GradeEntry() {
     { query: { enabled: !!selectedAssignment } as any }
   );
 
-  // Fetch enrolled students for the selected class
   const { data: enrolledStudents = [] } = useGetClassStudents(
     selectedAssignment?.classId ?? 0,
     { query: { enabled: !!selectedAssignment } } as any
   );
 
-  // Merge enrolled students with existing grades → one row per student
+  // Build one row per student with their existing evaluations
   const studentRows = useMemo(() => {
     if (!selectedAssignment) return [];
-    const gradesMap = new Map((initialGrades ?? []).map((g: any) => [g.studentId, g]));
-    return (enrolledStudents as any[]).map((s: any) => {
-      const existing = gradesMap.get(s.id);
-      return {
-        studentId: s.id,
-        studentName: s.name,
-        subjectId: selectedAssignment.subjectId,
-        semesterId: selectedAssignment.semesterId,
-        value: existing?.value ?? null,
-      };
-    });
+    // Group existing grades by studentId → Map<studentId, Map<evalNum, value>>
+    const existingMap = new Map<number, Map<number, number>>();
+    for (const g of (initialGrades ?? []) as any[]) {
+      if (!existingMap.has(g.studentId)) existingMap.set(g.studentId, new Map());
+      existingMap.get(g.studentId)!.set(g.evaluationNumber ?? 1, g.value);
+    }
+    return (enrolledStudents as any[]).map((s: any) => ({
+      studentId: s.id,
+      studentName: s.name,
+      subjectId: selectedAssignment.subjectId,
+      semesterId: selectedAssignment.semesterId,
+      evalValues: existingMap.get(s.id) ?? new Map<number, number>(),
+    }));
   }, [enrolledStudents, initialGrades, selectedAssignment]);
+
+  // localGrades: key = `studentId_evalNum`, value = string input
+  const [localGrades, setLocalGrades] = useState<Record<GradeKey, string>>({});
+
+  const { toast } = useToast();
+  const submitBulk = useSubmitGradesBulk();
+
+  // Online detection
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  useEffect(() => {
+    const on = () => setIsOnline(true);
+    const off = () => setIsOnline(false);
+    window.addEventListener("online", on);
+    window.addEventListener("offline", off);
+    return () => { window.removeEventListener("online", on); window.removeEventListener("offline", off); };
+  }, []);
 
   // Check if subject is approved (locked)
   const { data: approvals = [] } = useListSubjectApprovals(
@@ -58,90 +82,102 @@ export default function GradeEntry() {
     (a) => a.subjectId === selectedAssignment?.subjectId && a.classId === selectedAssignment?.classId
   );
 
-  const [localGrades, setLocalGrades] = useState<Record<number, string>>({});
-  const { isOnline, pendingGrades, savePendingGrade, clearPendingGrades } = useOfflineGrades();
-  const submitBulk = useSubmitGradesBulk();
-  const { toast } = useToast();
-
+  // Populate localGrades from server data when studentRows change
   useEffect(() => {
-    if (studentRows.length > 0) {
-      const map: Record<number, string> = {};
-      studentRows.forEach(g => {
-        const pending = pendingGrades.find(p => p.studentId === g.studentId && p.subjectId === g.subjectId && p.semesterId === g.semesterId);
-        map[g.studentId] = pending ? pending.value.toString() : (g.value !== null && g.value !== undefined ? g.value.toString() : "");
-      });
-      setLocalGrades(map);
+    if (studentRows.length === 0) return;
+    const map: Record<GradeKey, string> = {};
+    for (const row of studentRows) {
+      for (let e = 1; e <= EVAL_COUNT; e++) {
+        const existing = row.evalValues.get(e);
+        map[gradeKey(row.studentId, e)] = existing !== undefined ? existing.toString() : "";
+      }
     }
-  }, [studentRows, pendingGrades]);
+    setLocalGrades(map);
+  }, [studentRows]);
 
-  useEffect(() => {
-    if (isOnline && pendingGrades.length > 0) {
-      const sync = async () => {
-        try {
-          await submitBulk.mutateAsync({ data: { grades: pendingGrades } });
-          clearPendingGrades();
-          toast({ title: "Synchronisation réussie", description: "Vos notes saisies hors ligne ont été envoyées." });
-        } catch {
-          // Silent fail
-        }
-      };
-      sync();
-    }
-  }, [isOnline, pendingGrades]);
-
-  const handleGradeChange = (studentId: number, value: string) => {
+  const handleGradeChange = (studentId: number, evalNum: number, raw: string) => {
     if (isLocked) return;
-    if (value !== "" && (parseFloat(value) < 0 || parseFloat(value) > 20)) return;
-    setLocalGrades(prev => ({ ...prev, [studentId]: value }));
+    if (raw !== "" && (parseFloat(raw) < 0 || parseFloat(raw) > 20)) return;
+    setLocalGrades(prev => ({ ...prev, [gradeKey(studentId, evalNum)]: raw }));
+  };
+
+  // Compute average for a student from current local inputs
+  const getStudentAverage = (studentId: number): string => {
+    const vals: number[] = [];
+    for (let e = 1; e <= EVAL_COUNT; e++) {
+      const v = localGrades[gradeKey(studentId, e)];
+      if (v !== "" && v !== undefined) vals.push(parseFloat(v));
+    }
+    if (vals.length === 0) return "—";
+    const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
+    return avg.toFixed(2);
   };
 
   const handleSave = async () => {
     if (!selectedAssignment || isLocked) return;
 
-    const gradesToSubmit: SubmitGradeRequest[] = Object.entries(localGrades)
-      .filter(([_, val]) => val !== "")
-      .map(([studentId, val]) => ({
-        studentId: parseInt(studentId),
-        subjectId: selectedAssignment.subjectId,
-        semesterId: selectedAssignment.semesterId,
-        value: parseFloat(val)
-      }));
-
-    if (gradesToSubmit.length === 0) return;
-
-    if (isOnline) {
-      try {
-        await submitBulk.mutateAsync({ data: { grades: gradesToSubmit } });
-        toast({ title: "Notes enregistrées avec succès" });
-      } catch (e: any) {
-        const msg = e?.message ?? "Erreur lors de l'enregistrement";
-        toast({ title: msg.includes("verrouillées") ? "Notes verrouillées par le Assistant(e) de Direction." : msg, variant: "destructive" });
+    const gradesToSubmit: any[] = [];
+    for (const row of studentRows) {
+      for (let e = 1; e <= EVAL_COUNT; e++) {
+        const val = localGrades[gradeKey(row.studentId, e)];
+        if (val !== "" && val !== undefined) {
+          const parsed = parseFloat(val);
+          if (!isNaN(parsed) && parsed >= 0 && parsed <= 20) {
+            gradesToSubmit.push({
+              studentId: row.studentId,
+              subjectId: row.subjectId,
+              semesterId: row.semesterId,
+              evaluationNumber: e,
+              value: parsed,
+            });
+          }
+        }
       }
-    } else {
-      gradesToSubmit.forEach(savePendingGrade);
+    }
+
+    if (gradesToSubmit.length === 0) {
+      toast({ title: "Aucune note à enregistrer", variant: "destructive" });
+      return;
+    }
+
+    try {
+      await submitBulk.mutateAsync({ data: { grades: gradesToSubmit } });
+      toast({ title: `${gradesToSubmit.length} note${gradesToSubmit.length > 1 ? "s" : ""} enregistrée${gradesToSubmit.length > 1 ? "s" : ""} avec succès` });
+    } catch (e: any) {
+      const msg = e?.message ?? "Erreur lors de l'enregistrement";
       toast({
-        title: "Mode hors ligne actif",
-        description: "Notes sauvegardées localement. Synchronisation automatique au retour de la connexion."
+        title: msg.includes("verrouillées") ? "Notes verrouillées par le Assistant(e) de Direction." : msg,
+        variant: "destructive"
       });
     }
   };
 
+  const filledCount = studentRows.reduce((count, row) => {
+    let rowFilled = 0;
+    for (let e = 1; e <= EVAL_COUNT; e++) {
+      const v = localGrades[gradeKey(row.studentId, e)];
+      if (v !== "" && v !== undefined) rowFilled++;
+    }
+    return count + rowFilled;
+  }, 0);
+  const totalFields = studentRows.length * EVAL_COUNT;
+
   return (
     <AppLayout allowedRoles={["teacher"]}>
-      <div className="space-y-6 max-w-4xl mx-auto pb-24">
+      <div className="space-y-6 max-w-5xl mx-auto pb-24">
         <div className="flex flex-col gap-2">
           <h1 className="text-3xl font-serif font-bold text-foreground">Saisie des Notes</h1>
           {!isOnline && (
             <div className="flex items-center gap-2 text-amber-600 bg-amber-50 p-3 rounded-lg border border-amber-200">
               <WifiOff className="w-5 h-5" />
-              <span className="font-semibold text-sm">Connexion perdue. Vos saisies seront sauvegardées sur cet appareil.</span>
+              <span className="font-semibold text-sm">Connexion perdue. Vos modifications seront perdues si vous quittez.</span>
             </div>
           )}
         </div>
 
         <Card className="p-4 shadow-sm border-border bg-card sticky top-4 z-20">
           <label className="text-sm font-semibold text-muted-foreground block mb-2">Choisir la classe et matière</label>
-          <Select value={selectedAssignmentId} onValueChange={setSelectedAssignmentId}>
+          <Select value={selectedAssignmentId} onValueChange={v => { setSelectedAssignmentId(v); setLocalGrades({}); }}>
             <SelectTrigger className="h-14 text-lg">
               <SelectValue placeholder="Sélectionner une affectation..." />
             </SelectTrigger>
@@ -172,8 +208,21 @@ export default function GradeEntry() {
           <div className="space-y-4 mt-8">
             <div className="flex justify-between items-end mb-4 px-2">
               <h3 className="font-bold text-xl">Liste des étudiants</h3>
-              <span className="text-sm text-muted-foreground font-semibold">{studentRows.length} étudiant{studentRows.length > 1 ? "s" : ""}</span>
+              <span className="text-sm text-muted-foreground font-semibold">
+                {studentRows.length} étudiant{studentRows.length > 1 ? "s" : ""} · {filledCount}/{totalFields} notes
+              </span>
             </div>
+
+            {/* Column headers */}
+            {!isLoading && studentRows.length > 0 && (
+              <div className="hidden sm:grid grid-cols-[1fr_repeat(4,5.5rem)_5rem] gap-2 px-4 pb-1">
+                <span />
+                {EVAL_LABELS.map(label => (
+                  <span key={label} className="text-center text-xs font-semibold text-muted-foreground uppercase tracking-wide">{label}</span>
+                ))}
+                <span className="text-center text-xs font-semibold text-muted-foreground uppercase tracking-wide">Moy.</span>
+              </div>
+            )}
 
             {isLoading ? (
               <div className="text-center py-12 text-muted-foreground">Chargement de la liste...</div>
@@ -181,31 +230,71 @@ export default function GradeEntry() {
               <div className="text-center py-12 text-muted-foreground">Aucun étudiant inscrit dans cette classe.</div>
             ) : (
               <div className="space-y-3">
-                {studentRows.map(grade => {
-                  const val = localGrades[grade.studentId];
-                  const isPending = pendingGrades.some(p => p.studentId === grade.studentId && p.subjectId === grade.subjectId && p.semesterId === grade.semesterId);
+                {studentRows.map(row => {
+                  const avg = getStudentAverage(row.studentId);
+                  const hasAll = Array.from({ length: EVAL_COUNT }, (_, i) => localGrades[gradeKey(row.studentId, i + 1)]).every(v => v !== "" && v !== undefined);
 
                   return (
-                    <div key={grade.studentId} className={`flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-card rounded-xl border shadow-sm gap-4 transition-colors ${isLocked ? "opacity-75 border-red-100" : "border-border hover:border-primary/50"}`}>
-                      <div className="flex-1">
-                        <p className="font-bold text-lg text-foreground">{grade.studentName}</p>
-                        {isPending && <p className="text-xs text-amber-500 font-semibold flex items-center gap-1 mt-1"><CloudFog className="w-3 h-3" /> Non synchronisé</p>}
+                    <div
+                      key={row.studentId}
+                      className={`p-4 bg-card rounded-xl border shadow-sm transition-colors ${isLocked ? "opacity-75 border-red-100" : "border-border hover:border-primary/30"}`}
+                    >
+                      {/* Mobile: stacked layout */}
+                      <div className="flex items-center justify-between mb-3 sm:hidden">
+                        <p className="font-bold text-base text-foreground">{row.studentName}</p>
+                        <span className={`text-sm font-bold px-2 py-0.5 rounded-full ${avg === "—" ? "text-muted-foreground bg-muted" : parseFloat(avg) >= 10 ? "text-green-700 bg-green-50" : "text-red-700 bg-red-50"}`}>
+                          Moy. {avg}/20
+                        </span>
                       </div>
-                      <div className="flex items-center gap-3">
-                        <Input
-                          type="number"
-                          step="0.5"
-                          min="0"
-                          max="20"
-                          placeholder=" / 20"
-                          value={val !== undefined ? val : ""}
-                          onChange={(e) => handleGradeChange(grade.studentId, e.target.value)}
-                          readOnly={isLocked}
-                          className={`w-24 text-center font-mono font-bold text-lg h-12 focus:ring-primary/30 ${isLocked ? "bg-muted cursor-not-allowed" : ""}`}
-                        />
-                        {isLocked
-                          ? <Lock className="w-5 h-5 text-red-400" />
-                          : val !== "" && val !== undefined && !isPending && <CheckCircle2 className="w-6 h-6 text-emerald-500 opacity-50" />}
+                      <div className="grid grid-cols-2 gap-2 sm:hidden">
+                        {Array.from({ length: EVAL_COUNT }, (_, i) => i + 1).map(e => {
+                          const k = gradeKey(row.studentId, e);
+                          return (
+                            <div key={e}>
+                              <label className="text-xs text-muted-foreground font-semibold block mb-1">{EVAL_LABELS[e - 1]}</label>
+                              <Input
+                                type="number"
+                                step="0.5"
+                                min="0"
+                                max="20"
+                                placeholder="—"
+                                value={localGrades[k] !== undefined ? localGrades[k] : ""}
+                                onChange={ev => handleGradeChange(row.studentId, e, ev.target.value)}
+                                readOnly={isLocked}
+                                className={`text-center font-mono font-bold h-11 focus:ring-primary/30 ${isLocked ? "bg-muted cursor-not-allowed" : ""}`}
+                              />
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Desktop: row layout */}
+                      <div className="hidden sm:grid grid-cols-[1fr_repeat(4,5.5rem)_5rem] gap-2 items-center">
+                        <div className="flex items-center gap-2">
+                          <p className="font-bold text-base text-foreground">{row.studentName}</p>
+                          {hasAll && !isLocked && <CheckCircle2 className="w-4 h-4 text-emerald-500 opacity-60" />}
+                          {isLocked && <Lock className="w-4 h-4 text-red-400" />}
+                        </div>
+                        {Array.from({ length: EVAL_COUNT }, (_, i) => i + 1).map(e => {
+                          const k = gradeKey(row.studentId, e);
+                          return (
+                            <Input
+                              key={e}
+                              type="number"
+                              step="0.5"
+                              min="0"
+                              max="20"
+                              placeholder="—"
+                              value={localGrades[k] !== undefined ? localGrades[k] : ""}
+                              onChange={ev => handleGradeChange(row.studentId, e, ev.target.value)}
+                              readOnly={isLocked}
+                              className={`text-center font-mono font-bold h-11 focus:ring-primary/30 ${isLocked ? "bg-muted cursor-not-allowed" : ""}`}
+                            />
+                          );
+                        })}
+                        <div className={`text-center font-bold text-sm px-2 py-1 rounded-lg ${avg === "—" ? "text-muted-foreground" : parseFloat(avg) >= 10 ? "text-green-700 bg-green-50" : "text-red-700 bg-red-50"}`}>
+                          {avg}/20
+                        </div>
                       </div>
                     </div>
                   );
@@ -225,7 +314,7 @@ export default function GradeEntry() {
               disabled={submitBulk.isPending}
             >
               <Save className="w-5 h-5 mr-2" />
-              {submitBulk.isPending ? "Enregistrement..." : "Tout Enregistrer ( / 20)"}
+              {submitBulk.isPending ? "Enregistrement..." : `Tout Enregistrer (${filledCount}/${totalFields} notes)`}
             </Button>
           </div>
         )}

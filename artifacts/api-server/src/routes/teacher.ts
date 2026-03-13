@@ -109,6 +109,7 @@ router.get("/grades", requireRole("teacher", "admin"), async (req, res) => {
         coefficient: subjectsTable.coefficient,
         semesterId: gradesTable.semesterId,
         semesterName: semestersTable.name,
+        evaluationNumber: gradesTable.evaluationNumber,
         value: gradesTable.value,
         createdAt: gradesTable.createdAt,
         updatedAt: gradesTable.updatedAt,
@@ -216,14 +217,15 @@ router.post("/grades/bulk", requireRole("teacher", "admin"), async (req, res) =>
 
     const results = [];
     for (const g of grades) {
-      const { studentId, subjectId, semesterId, value } = g;
+      const { studentId, subjectId, semesterId, value, evaluationNumber = 1 } = g;
       if (value < 0 || value > 20) continue;
+      if (evaluationNumber < 1 || evaluationNumber > 4) continue;
 
       const [grade] = await db
         .insert(gradesTable)
-        .values({ studentId, subjectId, semesterId, value })
+        .values({ studentId, subjectId, semesterId, evaluationNumber, value })
         .onConflictDoUpdate({
-          target: [gradesTable.studentId, gradesTable.subjectId, gradesTable.semesterId],
+          target: [gradesTable.studentId, gradesTable.subjectId, gradesTable.semesterId, gradesTable.evaluationNumber],
           set: { value, updatedAt: new Date() },
         })
         .returning();

@@ -518,13 +518,25 @@ async function computeStudentResult(studentId: number, semesterId: number) {
     .from(gradesTable)
     .where(and(eq(gradesTable.studentId, studentId), eq(gradesTable.semesterId, semesterId)));
 
-  const gradeMap = new Map(studentGrades.map((g) => [g.subjectId, g.value]));
+  // Group evaluations by subject and compute average
+  const gradeMap = new Map<number, { value: number; evaluations: { evaluationNumber: number; value: number }[] }>();
+  for (const g of studentGrades) {
+    if (!gradeMap.has(g.subjectId)) {
+      const evals = studentGrades.filter(e => e.subjectId === g.subjectId);
+      const avg = evals.reduce((s, e) => s + e.value, 0) / evals.length;
+      gradeMap.set(g.subjectId, {
+        value: Math.round(avg * 100) / 100,
+        evaluations: evals.map(e => ({ evaluationNumber: e.evaluationNumber, value: e.value })),
+      });
+    }
+  }
 
   const grades = subjects.map((s) => ({
     subjectId: s.id,
     subjectName: s.name,
     coefficient: s.coefficient,
-    value: gradeMap.get(s.id) ?? null,
+    value: gradeMap.get(s.id)?.value ?? null,
+    evaluations: gradeMap.get(s.id)?.evaluations ?? [],
   }));
 
   let average: number | null = null;
@@ -875,10 +887,11 @@ router.put("/grades/derogate", requireRole("admin"), async (req, res) => {
       .where(and(eq(gradesTable.studentId, studentId), eq(gradesTable.subjectId, subjectId), eq(gradesTable.semesterId, semesterId)))
       .limit(1);
 
-    // Upsert grade
+    // Upsert grade (derogation applies to evaluation 1 by default)
+    const evalNum = req.body.evaluationNumber ?? 1;
     await db.insert(gradesTable)
-      .values({ studentId, subjectId, semesterId, value })
-      .onConflictDoUpdate({ target: [gradesTable.studentId, gradesTable.subjectId, gradesTable.semesterId], set: { value, updatedAt: new Date() } });
+      .values({ studentId, subjectId, semesterId, evaluationNumber: evalNum, value })
+      .onConflictDoUpdate({ target: [gradesTable.studentId, gradesTable.subjectId, gradesTable.semesterId, gradesTable.evaluationNumber], set: { value, updatedAt: new Date() } });
 
     // Log derogation
     await db.insert(activityLogTable).values({
