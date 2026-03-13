@@ -180,12 +180,19 @@ export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
     <div className="flex flex-col h-full bg-sidebar border-r border-sidebar-border text-sidebar-foreground">
       <div className="p-6 flex items-center gap-3">
         <img src={`${import.meta.env.BASE_URL}images/logo.jpg`} alt="CPEC-U Logo" className="w-10 h-10 object-contain rounded-lg" />
-        <div>
+        <div className="flex-1 min-w-0">
           <div className="font-serif font-bold text-xl tracking-tight">CPEC-U</div>
           <div className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border inline-block mt-0.5 ${roleBadgeColor}`}>
             {roleLabel}
           </div>
         </div>
+        <button
+          onClick={() => logoutMutation.mutate()}
+          title="Se déconnecter"
+          className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-lg text-sidebar-foreground/40 hover:text-red-500 hover:bg-red-500/10 transition-colors"
+        >
+          <LogOut className="w-4 h-4" />
+        </button>
       </div>
 
       <div className="px-4 py-2 text-xs font-semibold text-sidebar-foreground/50 uppercase tracking-wider">
