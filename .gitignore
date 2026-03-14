@@ -47,3 +47,5 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+# Ignorer les règles semgrep de Replit
+.config/replit/.semgrep/semgrep_rules.json
