@@ -666,10 +666,10 @@ export default function AdminUsers() {
               </DialogTrigger>
               <DialogContent className="max-w-md">
                 <DialogHeader><DialogTitle>Créer un utilisateur</DialogTitle></DialogHeader>
-                <form onSubmit={handleCreate} className="space-y-4 pt-2">
-                  <div className="space-y-1"><Label>Nom complet</Label><Input name="name" required /></div>
-                  <div className="space-y-1"><Label>Email</Label><Input name="email" type="email" required /></div>
-                  <div className="space-y-1"><Label>Mot de passe</Label><Input name="password" type="password" required minLength={6} /></div>
+                <form onSubmit={handleCreate} className="space-y-4 pt-2" autoComplete="off">
+                  <div className="space-y-1"><Label>Nom complet</Label><Input name="name" required autoComplete="off" /></div>
+                  <div className="space-y-1"><Label>Email</Label><Input name="email" type="email" required autoComplete="off" /></div>
+                  <div className="space-y-1"><Label>Mot de passe</Label><Input name="password" type="password" required minLength={6} autoComplete="new-password" /></div>
                   <div className="space-y-1">
                     <Label>Rôle</Label>
                     <Select name="role" defaultValue={isPlanificateur ? "teacher" : "student"} onValueChange={setSelectedRole}>
