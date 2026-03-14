@@ -621,7 +621,7 @@ export default function AdminUsers() {
             <h1 className="text-3xl font-serif font-bold">Utilisateurs</h1>
             <p className="text-muted-foreground text-sm mt-1">Gérez les accès et les profils de l'établissement.</p>
           </div>
-          {!isPlanificateur && (
+          {(isDirecteur || isPlanificateur || isScolarite) && (
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
                 <Button className="gap-2 shrink-0"><Plus className="w-4 h-4" /> Nouvel Utilisateur</Button>
@@ -634,11 +634,11 @@ export default function AdminUsers() {
                   <div className="space-y-1"><Label>Mot de passe</Label><Input name="password" type="password" required minLength={6} /></div>
                   <div className="space-y-1">
                     <Label>Rôle</Label>
-                    <Select name="role" defaultValue="student" onValueChange={setSelectedRole}>
+                    <Select name="role" defaultValue={isPlanificateur ? "teacher" : "student"} onValueChange={setSelectedRole}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="student">Étudiant</SelectItem>
-                        <SelectItem value="teacher">Enseignant</SelectItem>
+                        {!isPlanificateur && <SelectItem value="student">Étudiant</SelectItem>}
+                        {!isScolarite && <SelectItem value="teacher">Enseignant</SelectItem>}
                         {isDirecteur && <SelectItem value="admin">Admin</SelectItem>}
                       </SelectContent>
                     </Select>
