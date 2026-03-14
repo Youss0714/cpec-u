@@ -336,8 +336,8 @@ export interface ScheduleEntry {
   roomName: string;
   semesterId: number;
   semesterName: string;
-  /** 1=Lundi, 2=Mardi, 3=Mercredi, 4=Jeudi, 5=Vendredi, 6=Samedi */
-  dayOfWeek: number;
+  /** Date précise au format YYYY-MM-DD — chaque créneau est indépendant */
+  sessionDate: string;
   /** HH:MM format */
   startTime: string;
   /** HH:MM format */
@@ -351,11 +351,8 @@ export interface CreateScheduleEntryRequest {
   classId: number;
   roomId: number;
   semesterId: number;
-  /**
-   * @minimum 1
-   * @maximum 6
-   */
-  dayOfWeek: number;
+  /** Date précise au format YYYY-MM-DD */
+  sessionDate: string;
   startTime: string;
   endTime: string;
 }

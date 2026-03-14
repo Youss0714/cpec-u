@@ -26,6 +26,10 @@ const DAY_COLORS = [
 
 type ViewMode = "1week" | "2weeks" | "1month";
 
+function toISODate(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
 function getMondayOfCurrentWeek(): Date {
   const d = new Date();
   const day = d.getDay();
@@ -78,6 +82,7 @@ export default function StudentSchedule() {
       return new Date(p.publishedFrom) <= now && new Date(p.publishedUntil) >= now;
     }) ?? null;
   }, [publications]);
+
   const [viewMode, setViewMode] = useState<ViewMode>("1week");
   const [startDate, setStartDate] = useState<Date>(getMondayOfCurrentWeek);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -104,21 +109,15 @@ export default function StudentSchedule() {
     });
   }, [allEntries, filterSemester]);
 
-  const entriesByDay = useMemo(() => {
-    const map: Record<number, any[]> = {};
-    for (let d = 1; d <= 6; d++) {
-      map[d] = filteredEntries.filter((e) => e.dayOfWeek === d)
-        .sort((a: any, b: any) => a.startTime.localeCompare(b.startTime));
-    }
-    return map;
-  }, [filteredEntries]);
-
   const DayCard = ({ day, weekStart }: { day: number; weekStart: Date }) => {
     const dayDate = addDays(weekStart, day - 1);
+    const dayISO = toISODate(dayDate);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const isToday = dayDate.getTime() === today.getTime();
-    const dayEntries = entriesByDay[day] ?? [];
+    const dayEntries = filteredEntries
+      .filter((e: any) => e.sessionDate === dayISO)
+      .sort((a: any, b: any) => a.startTime.localeCompare(b.startTime));
 
     return (
       <div className={`border rounded-2xl overflow-hidden shadow-sm ${DAY_COLORS[day]} ${isToday ? "ring-2 ring-primary ring-offset-1" : ""}`}>
@@ -248,7 +247,7 @@ export default function StudentSchedule() {
               </Button>
             </div>
 
-            {/* Schedule grid — horizontal scroll snap */}
+            {/* Schedule grid */}
             {isLoading ? (
               <p className="text-muted-foreground text-center py-8">Chargement...</p>
             ) : (

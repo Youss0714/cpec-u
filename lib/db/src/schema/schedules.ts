@@ -1,4 +1,4 @@
-import { pgTable, serial, integer, varchar, text, boolean, timestamp, unique } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, varchar, text, boolean, timestamp, date } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { usersTable } from "./users";
@@ -14,7 +14,7 @@ export const scheduleEntriesTable = pgTable("schedule_entries", {
   classId: integer("class_id").notNull().references(() => classesTable.id, { onDelete: "cascade" }),
   roomId: integer("room_id").notNull().references(() => roomsTable.id, { onDelete: "cascade" }),
   semesterId: integer("semester_id").notNull().references(() => semestersTable.id, { onDelete: "cascade" }),
-  dayOfWeek: integer("day_of_week").notNull(), // 1=Lundi, 2=Mardi, ..., 6=Samedi
+  sessionDate: date("session_date").notNull(), // "2025-01-15" — date précise, indépendante
   startTime: varchar("start_time", { length: 5 }).notNull(), // "08:00"
   endTime: varchar("end_time", { length: 5 }).notNull(),     // "10:00"
   notes: text("notes"),

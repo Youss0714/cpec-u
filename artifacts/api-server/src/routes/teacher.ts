@@ -267,7 +267,7 @@ router.get("/schedule", requireRole("teacher"), async (req, res) => {
         roomName: roomsTable.name,
         semesterId: scheduleEntriesTable.semesterId,
         semesterName: semestersTable.name,
-        dayOfWeek: scheduleEntriesTable.dayOfWeek,
+        sessionDate: scheduleEntriesTable.sessionDate,
         startTime: scheduleEntriesTable.startTime,
         endTime: scheduleEntriesTable.endTime,
         notes: scheduleEntriesTable.notes,
@@ -282,7 +282,7 @@ router.get("/schedule", requireRole("teacher"), async (req, res) => {
       .innerJoin(semestersTable, eq(semestersTable.id, scheduleEntriesTable.semesterId))
       .where(eq(scheduleEntriesTable.teacherId, teacherId));
 
-    const sorted = rows.sort((a, b) => a.dayOfWeek - b.dayOfWeek || a.startTime.localeCompare(b.startTime));
+    const sorted = rows.sort((a, b) => (a.sessionDate as string).localeCompare(b.sessionDate as string) || a.startTime.localeCompare(b.startTime));
     res.json(sorted);
   } catch (err) {
     console.error(err);

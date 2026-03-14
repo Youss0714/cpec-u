@@ -24,7 +24,7 @@ function countConflicts(entries: any[]) {
   for (let i = 0; i < entries.length; i++) {
     for (let j = i + 1; j < entries.length; j++) {
       const a = entries[i], b = entries[j];
-      if (a.dayOfWeek !== b.dayOfWeek) continue;
+      if (a.sessionDate !== b.sessionDate) continue;
       const aS = timesToMinutes(a.startTime), aE = timesToMinutes(a.endTime);
       const bS = timesToMinutes(b.startTime), bE = timesToMinutes(b.endTime);
       if (aS >= bE || bS >= aE) continue;

@@ -30,6 +30,10 @@ const CLASS_BADGE_COLORS = [
 
 type ViewMode = "1week" | "2weeks" | "1month";
 
+function toISODate(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
 function getMondayOfCurrentWeek(): Date {
   const d = new Date();
   const day = d.getDay();
@@ -97,31 +101,33 @@ export default function TeacherSchedule() {
     });
   }, [allEntries, filterSemester]);
 
-  const entriesByDay = useMemo(() => {
-    const map: Record<number, any[]> = {};
-    for (let d = 1; d <= 6; d++) {
-      map[d] = filteredEntries.filter((e) => e.dayOfWeek === d)
-        .sort((a: any, b: any) => a.startTime.localeCompare(b.startTime));
-    }
-    return map;
-  }, [filteredEntries]);
+  // Count entries in the currently visible period
+  const visibleEntries = useMemo(() => {
+    if (weeks.length === 0) return filteredEntries;
+    const periodStart = toISODate(weeks[0]);
+    const periodEnd = toISODate(addDays(weeks[weeks.length - 1], 6));
+    return filteredEntries.filter((e: any) => e.sessionDate >= periodStart && e.sessionDate <= periodEnd);
+  }, [filteredEntries, weeks]);
 
-  const totalHoursPerWeek = useMemo(() => {
+  const totalHoursVisible = useMemo(() => {
     let minutes = 0;
-    for (const e of filteredEntries) {
+    for (const e of visibleEntries) {
       const [sh, sm] = e.startTime.split(":").map(Number);
       const [eh, em] = e.endTime.split(":").map(Number);
       minutes += (eh * 60 + em) - (sh * 60 + sm);
     }
     return Math.round(minutes / 60 * 10) / 10;
-  }, [filteredEntries]);
+  }, [visibleEntries]);
 
   const DayCard = ({ day, weekStart }: { day: number; weekStart: Date }) => {
     const dayDate = addDays(weekStart, day - 1);
+    const dayISO = toISODate(dayDate);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const isToday = dayDate.getTime() === today.getTime();
-    const dayEntries = entriesByDay[day] ?? [];
+    const dayEntries = filteredEntries
+      .filter((e: any) => e.sessionDate === dayISO)
+      .sort((a: any, b: any) => a.startTime.localeCompare(b.startTime));
 
     return (
       <div className={`border rounded-2xl overflow-hidden shadow-sm ${DAY_COLORS[day]} ${isToday ? "ring-2 ring-primary ring-offset-1" : ""}`}>
@@ -190,15 +196,15 @@ export default function TeacherSchedule() {
           </div>
         </div>
 
-        {filteredEntries.length > 0 && (
+        {visibleEntries.length > 0 && (
           <div className="flex gap-3 flex-wrap">
             <div className="bg-primary/5 border border-primary/20 rounded-xl px-4 py-2 text-sm">
-              <span className="font-semibold text-primary">{filteredEntries.length}</span>
-              <span className="text-muted-foreground ml-1">créneau{filteredEntries.length > 1 ? "x" : ""} par semaine</span>
+              <span className="font-semibold text-primary">{visibleEntries.length}</span>
+              <span className="text-muted-foreground ml-1">cours sur la période</span>
             </div>
             <div className="bg-primary/5 border border-primary/20 rounded-xl px-4 py-2 text-sm">
-              <span className="font-semibold text-primary">{totalHoursPerWeek}h</span>
-              <span className="text-muted-foreground ml-1">par semaine</span>
+              <span className="font-semibold text-primary">{totalHoursVisible}h</span>
+              <span className="text-muted-foreground ml-1">sur la période</span>
             </div>
             {Object.keys(classColorMap).length > 1 && (
               <div className="bg-primary/5 border border-primary/20 rounded-xl px-4 py-2 text-sm">

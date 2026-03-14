@@ -70,7 +70,7 @@ export type UpdateScheduleEntryRequest = {
   subjectId: number;
   classId: number;
   roomId: number;
-  dayOfWeek: number;
+  sessionDate: string;
   startTime: string;
   endTime: string;
   notes?: string | null;
@@ -394,7 +394,7 @@ export type TeacherScheduleEntry = {
   roomName: string;
   semesterId: number;
   semesterName: string;
-  dayOfWeek: number;
+  sessionDate: string;
   startTime: string;
   endTime: string;
   notes: string | null;

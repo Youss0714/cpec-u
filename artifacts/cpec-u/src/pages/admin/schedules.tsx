@@ -39,9 +39,17 @@ const DAY_COLORS = [
   "bg-orange-50 border-orange-200",
 ];
 
+function toISODate(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+function todayISO(): string {
+  return toISODate(new Date());
+}
+
 const emptyForm = {
   teacherId: "", subjectId: "", classId: "", roomId: "", semesterId: "",
-  dayOfWeek: "1", startTime: "08:00", endTime: "10:00", notes: "",
+  sessionDate: todayISO(), startTime: "08:00", endTime: "10:00", notes: "",
 };
 
 function timesToMinutes(t: string) {
@@ -55,7 +63,7 @@ function detectConflicts(entries: any[]) {
   for (let i = 0; i < entries.length; i++) {
     for (let j = i + 1; j < entries.length; j++) {
       const a = entries[i], b = entries[j];
-      if (a.dayOfWeek !== b.dayOfWeek) continue;
+      if (a.sessionDate !== b.sessionDate) continue;
       const aStart = timesToMinutes(a.startTime), aEnd = timesToMinutes(a.endTime);
       const bStart = timesToMinutes(b.startTime), bEnd = timesToMinutes(b.endTime);
       if (aStart >= bEnd || bStart >= aEnd) continue;
@@ -64,6 +72,12 @@ function detectConflicts(entries: any[]) {
     }
   }
   return { teacherConflicts, roomConflicts };
+}
+
+function isDateInPast(dateStr: string): boolean {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return new Date(dateStr) < today;
 }
 
 function getMondayOfCurrentWeek(): Date {
@@ -88,13 +102,6 @@ function formatShortDate(date: Date): string {
 function formatPeriodLabel(start: Date, numWeeks: number): string {
   const end = addDays(start, numWeeks * 7 - 1);
   return `${formatShortDate(start)} – ${formatShortDate(end)}`;
-}
-
-function isDayInPast(dayOfWeek: number, weekStart: Date): boolean {
-  const dayDate = addDays(weekStart, dayOfWeek - 1);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return dayDate < today;
 }
 
 type ViewMode = "1week" | "2weeks" | "1month";
@@ -171,18 +178,9 @@ export default function AdminSchedules() {
   const { teacherConflicts, roomConflicts } = useMemo(() => detectConflicts(filteredEntries), [filteredEntries]);
   const conflictIds = useMemo(() => new Set([...teacherConflicts, ...roomConflicts]), [teacherConflicts, roomConflicts]);
 
-  const entriesByDay = useMemo(() => {
-    const map: Record<number, any[]> = {};
-    for (let d = 1; d <= 6; d++) {
-      map[d] = filteredEntries.filter((e) => e.dayOfWeek === d)
-        .sort((a, b) => a.startTime.localeCompare(b.startTime));
-    }
-    return map;
-  }, [filteredEntries]);
-
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isDayInPast(parseInt(form.dayOfWeek), startDate)) {
+    if (isDateInPast(form.sessionDate)) {
       toast({
         title: "Date déjà écoulée",
         description: "Il est impossible de programmer un cours à une date passée.",
@@ -198,7 +196,7 @@ export default function AdminSchedules() {
           classId: parseInt(form.classId),
           roomId: parseInt(form.roomId),
           semesterId: parseInt(form.semesterId),
-          dayOfWeek: parseInt(form.dayOfWeek),
+          sessionDate: form.sessionDate,
           startTime: form.startTime,
           endTime: form.endTime,
         },
@@ -223,7 +221,7 @@ export default function AdminSchedules() {
           subjectId: parseInt(form.subjectId),
           classId: parseInt(form.classId),
           roomId: parseInt(form.roomId),
-          dayOfWeek: parseInt(form.dayOfWeek),
+          sessionDate: form.sessionDate,
           startTime: form.startTime,
           endTime: form.endTime,
           notes: form.notes || null,
@@ -246,7 +244,7 @@ export default function AdminSchedules() {
       classId: String(entry.classId),
       roomId: String(entry.roomId),
       semesterId: String(entry.semesterId),
-      dayOfWeek: String(entry.dayOfWeek),
+      sessionDate: entry.sessionDate,
       startTime: entry.startTime,
       endTime: entry.endTime,
       notes: entry.notes ?? "",
@@ -305,16 +303,16 @@ export default function AdminSchedules() {
   const isCreatingInPastWeek = useMemo(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const weekEnd = addDays(startDate, 6);
+    const weekEnd = addDays(startDate, numWeeks * 7 - 1);
     return weekEnd < today;
-  }, [startDate]);
+  }, [startDate, numWeeks]);
 
   const EntryForm = ({ onSubmit, isPending, hideMonth }: { onSubmit: (e: React.FormEvent) => void; isPending: boolean; hideMonth?: boolean }) => (
     <form onSubmit={onSubmit} className="space-y-3 mt-4">
       {!hideMonth && isCreatingInPastWeek && (
         <div className="flex items-start gap-2 bg-destructive/10 border border-destructive/30 rounded-lg p-3 text-sm text-destructive">
           <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-          <span>Vous consultez une semaine passée. Il est impossible de programmer un cours sur des dates déjà écoulées.</span>
+          <span>Vous consultez une période passée. Il est impossible de programmer un cours sur des dates déjà écoulées.</span>
         </div>
       )}
       <div className="grid grid-cols-2 gap-3">
@@ -356,21 +354,13 @@ export default function AdminSchedules() {
           </div>
         )}
         <div className="space-y-1">
-          <Label>Jour</Label>
-          <Select value={form.dayOfWeek} onValueChange={(v) => setForm({ ...form, dayOfWeek: v })}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {DAYS.slice(1).map((d, i) => {
-                const dayIdx = i + 1;
-                const isPast = !hideMonth && isDayInPast(dayIdx, startDate);
-                return (
-                  <SelectItem key={dayIdx} value={String(dayIdx)} disabled={isPast}>
-                    {d}{isPast ? " — passé" : ""}
-                  </SelectItem>
-                );
-              })}
-            </SelectContent>
-          </Select>
+          <Label>Date du cours</Label>
+          <Input
+            type="date"
+            value={form.sessionDate}
+            onChange={(e) => setForm({ ...form, sessionDate: e.target.value })}
+            min={todayISO()}
+          />
         </div>
         <div className="space-y-1">
           <Label>Début</Label>
@@ -393,10 +383,13 @@ export default function AdminSchedules() {
 
   const DayCard = ({ day, weekStart }: { day: number; weekStart: Date }) => {
     const dayDate = addDays(weekStart, day - 1);
+    const dayISO = toISODate(dayDate);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const isToday = dayDate.getTime() === today.getTime();
-    const dayEntries = entriesByDay[day] ?? [];
+    const dayEntries = filteredEntries
+      .filter((e) => e.sessionDate === dayISO)
+      .sort((a: any, b: any) => a.startTime.localeCompare(b.startTime));
 
     return (
       <div className={`border rounded-2xl overflow-hidden shadow-sm ${DAY_COLORS[day]} ${isToday ? "ring-2 ring-primary ring-offset-1" : ""}`}>
@@ -574,7 +567,7 @@ export default function AdminSchedules() {
             <AlertTriangle className="w-5 h-5 text-red-500 shrink-0" />
             <p className="text-red-700 font-medium">
               {conflictIds.size} créneau{conflictIds.size > 1 ? "x" : ""} en conflit —
-              un enseignant ou une salle est doublement réservé(e).
+              un enseignant ou une salle est doublement réservé(e) à la même date.
             </p>
           </div>
         )}

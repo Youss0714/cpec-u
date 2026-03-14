@@ -9,7 +9,7 @@ import {
   roomsTable,
   semestersTable,
 } from "@workspace/db";
-import { eq, and, lte, gte } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { requireRole } from "../lib/auth.js";
 import { notifyStudentsOfClasses, notifyStudentsBySemester } from "./notifications.js";
 
@@ -40,7 +40,7 @@ async function getEnrichedEntries(filters?: { semesterId?: number; classId?: num
       roomName: roomsTable.name,
       semesterId: scheduleEntriesTable.semesterId,
       semesterName: semestersTable.name,
-      dayOfWeek: scheduleEntriesTable.dayOfWeek,
+      sessionDate: scheduleEntriesTable.sessionDate,
       startTime: scheduleEntriesTable.startTime,
       endTime: scheduleEntriesTable.endTime,
       notes: scheduleEntriesTable.notes,
@@ -58,7 +58,9 @@ async function getEnrichedEntries(filters?: { semesterId?: number; classId?: num
   if (filters?.semesterId) filtered = filtered.filter((r) => r.semesterId === filters.semesterId);
   if (filters?.classId) filtered = filtered.filter((r) => r.classId === filters.classId);
 
-  return filtered.sort((a, b) => a.dayOfWeek - b.dayOfWeek || a.startTime.localeCompare(b.startTime));
+  return filtered.sort((a, b) =>
+    a.sessionDate.localeCompare(b.sessionDate) || a.startTime.localeCompare(b.startTime)
+  );
 }
 
 async function getActivePublications(classId?: number, semesterId?: number) {
@@ -167,7 +169,6 @@ router.post("/publish-period", requirePlanificateur, async (req, res) => {
       publishedUntil.setDate(publishedUntil.getDate() + 30);
     }
 
-    // Mark all matching entries as published
     await db
       .update(scheduleEntriesTable)
       .set({ published: true })
@@ -178,7 +179,6 @@ router.post("/publish-period", requirePlanificateur, async (req, res) => {
         )
       );
 
-    // Upsert: delete existing publication for same class+semester, then insert new one
     const existing = await db
       .select()
       .from(schedulePublicationsTable)
@@ -205,7 +205,6 @@ router.post("/publish-period", requirePlanificateur, async (req, res) => {
       })
       .returning();
 
-    // Notify students of this class
     const [cls] = await db.select({ name: classesTable.name }).from(classesTable).where(eq(classesTable.id, parseInt(classId))).limit(1);
     const [sem] = await db.select({ name: semestersTable.name }).from(semestersTable).where(eq(semestersTable.id, parseInt(semesterId))).limit(1);
     const periodLabels: Record<string, string> = { today: "aujourd'hui", "1week": "1 semaine", "2weeks": "2 semaines", "1month": "1 mois" };
@@ -228,13 +227,13 @@ router.post("/publish-period", requirePlanificateur, async (req, res) => {
 
 router.post("/", requirePlanificateur, async (req, res) => {
   try {
-    const { teacherId, subjectId, classId, roomId, semesterId, dayOfWeek, startTime, endTime, notes } = req.body;
-    if (!teacherId || !subjectId || !classId || !roomId || !semesterId || !dayOfWeek || !startTime || !endTime) {
+    const { teacherId, subjectId, classId, roomId, semesterId, sessionDate, startTime, endTime, notes } = req.body;
+    if (!teacherId || !subjectId || !classId || !roomId || !semesterId || !sessionDate || !startTime || !endTime) {
       return res.status(400).json({ error: "Tous les champs sont requis" });
     }
     const [entry] = await db
       .insert(scheduleEntriesTable)
-      .values({ teacherId, subjectId, classId, roomId, semesterId, dayOfWeek, startTime, endTime, notes: notes ?? null, published: false })
+      .values({ teacherId, subjectId, classId, roomId, semesterId, sessionDate, startTime, endTime, notes: notes ?? null, published: false })
       .returning();
     const enriched = await getEnrichedEntries();
     res.status(201).json(enriched.find((e) => e.id === entry.id));
@@ -247,10 +246,10 @@ router.post("/", requirePlanificateur, async (req, res) => {
 router.put("/:entryId", requirePlanificateur, async (req, res) => {
   try {
     const entryId = parseInt(req.params.entryId);
-    const { teacherId, subjectId, classId, roomId, dayOfWeek, startTime, endTime, notes } = req.body;
+    const { teacherId, subjectId, classId, roomId, sessionDate, startTime, endTime, notes } = req.body;
     const [entry] = await db
       .update(scheduleEntriesTable)
-      .set({ teacherId, subjectId, classId, roomId, dayOfWeek, startTime, endTime, notes: notes ?? null })
+      .set({ teacherId, subjectId, classId, roomId, sessionDate, startTime, endTime, notes: notes ?? null })
       .where(eq(scheduleEntriesTable.id, entryId))
       .returning();
     if (!entry) return res.status(404).json({ error: "Not Found" });
