@@ -16,7 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Trash2, ShieldCheck, GraduationCap, BookOpen, Wallet, AlertCircle, CheckCircle2, Clock, PenLine, X } from "lucide-react";
+import { Plus, Trash2, ShieldCheck, GraduationCap, BookOpen, Wallet, AlertCircle, CheckCircle2, Clock, PenLine, Pencil, X } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 
@@ -531,6 +531,9 @@ export default function AdminUsers() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedRole, setSelectedRole] = useState<string>("student");
   const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
+  const [editUser, setEditUser] = useState<any | null>(null);
+  const [editForm, setEditForm] = useState({ name: "", email: "", password: "" });
+  const [editSaving, setEditSaving] = useState(false);
   const { data: currentUser } = useGetCurrentUser();
   const currentSubRole = (currentUser as any)?.adminSubRole as string | null;
   const isDirecteur = currentSubRole === "directeur";
@@ -597,6 +600,40 @@ export default function AdminUsers() {
     if (currentSubRole === "scolarite") return u.role === "student";
     if (isPlanificateur) return u.role === "teacher";
     return false;
+  };
+
+  const canEdit = (u: any) => {
+    if (isDirecteur) return true;
+    if (isPlanificateur) return u.role === "teacher";
+    return false;
+  };
+
+  const openEdit = (u: any) => {
+    setEditForm({ name: u.name, email: u.email, password: "" });
+    setEditUser(u);
+  };
+
+  const handleEditSave = async () => {
+    if (!editUser) return;
+    setEditSaving(true);
+    try {
+      const body: any = { name: editForm.name.trim(), email: editForm.email.trim() };
+      if (editForm.password.trim()) body.password = editForm.password;
+      const res = await fetch(`/api/admin/users/${editUser.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      queryClient.invalidateQueries({ queryKey: ["users"] });
+      toast({ title: "Utilisateur modifié avec succès" });
+      setEditUser(null);
+    } catch {
+      toast({ title: "Erreur lors de la modification", variant: "destructive" });
+    } finally {
+      setEditSaving(false);
+    }
   };
 
   const isScolarite = currentSubRole === "scolarite";
@@ -744,11 +781,18 @@ export default function AdminUsers() {
                         : <span className="text-muted-foreground">—</span>}
                     </TableCell>
                     <TableCell className="text-right">
-                      {canDelete(u) && (
-                        <Button variant="ghost" size="icon" className="text-red-400 hover:text-red-600" onClick={() => setPendingDeleteId(u.id)}>
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      )}
+                      <div className="flex items-center justify-end gap-1">
+                        {canEdit(u) && (
+                          <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground" onClick={() => openEdit(u)}>
+                            <Pencil className="w-4 h-4" />
+                          </Button>
+                        )}
+                        {canDelete(u) && (
+                          <Button variant="ghost" size="icon" className="text-red-400 hover:text-red-600" onClick={() => setPendingDeleteId(u.id)}>
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -756,6 +800,35 @@ export default function AdminUsers() {
             </Table>
           </div>
         )}
+
+        {/* Edit User Dialog */}
+        <Dialog open={editUser !== null} onOpenChange={open => { if (!open) setEditUser(null); }}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Modifier l'utilisateur</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 pt-2">
+              <div className="space-y-1">
+                <Label>Nom complet</Label>
+                <Input value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} />
+              </div>
+              <div className="space-y-1">
+                <Label>Email</Label>
+                <Input type="email" value={editForm.email} onChange={e => setEditForm(f => ({ ...f, email: e.target.value }))} />
+              </div>
+              <div className="space-y-1">
+                <Label>Nouveau mot de passe <span className="text-muted-foreground text-xs">(laisser vide pour ne pas changer)</span></Label>
+                <Input type="password" value={editForm.password} onChange={e => setEditForm(f => ({ ...f, password: e.target.value }))} placeholder="••••••" />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 mt-4">
+              <Button variant="outline" onClick={() => setEditUser(null)}>Annuler</Button>
+              <Button onClick={handleEditSave} disabled={editSaving || !editForm.name.trim() || !editForm.email.trim()}>
+                {editSaving ? "Enregistrement…" : "Enregistrer"}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         <ConfirmDialog
           open={pendingDeleteId !== null}
