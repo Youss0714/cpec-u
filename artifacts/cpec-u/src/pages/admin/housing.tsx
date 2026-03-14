@@ -32,7 +32,15 @@ const ROOM_STATUSES = [
   { value: "maintenance", label: "Maintenance", color: "bg-orange-100 text-orange-700 border-orange-200" },
 ];
 
-function StatusBadge({ status }: { status: string }) {
+function StatusBadge({ status, occupantCount, capacity }: { status: string; occupantCount?: number; capacity?: number }) {
+  // Show "Partielle" for double rooms with 1 occupant
+  if (status === "available" && capacity && capacity > 1 && occupantCount && occupantCount > 0) {
+    return (
+      <span className="text-xs px-2 py-0.5 rounded-full border font-medium bg-yellow-100 text-yellow-700 border-yellow-200">
+        Partielle ({occupantCount}/{capacity})
+      </span>
+    );
+  }
   const s = ROOM_STATUSES.find(r => r.value === status);
   return (
     <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${s?.color ?? "bg-muted text-muted-foreground border-border"}`}>
@@ -300,9 +308,11 @@ function RoomsTab() {
                 <td className="px-4 py-3 text-muted-foreground">{r.buildingName}</td>
                 <td className="px-4 py-3 text-muted-foreground">Ét. {r.floor}</td>
                 <td className="px-4 py-3">{ROOM_TYPES.find(t => t.value === r.type)?.label ?? r.type}</td>
-                <td className="px-4 py-3 text-center">{r.capacity}</td>
+                <td className="px-4 py-3 text-center">
+                  {r.type === "double" ? `${r.occupantCount ?? 0}/${r.capacity}` : r.capacity}
+                </td>
                 <td className="px-4 py-3 font-medium">{parseFloat(r.pricePerMonth).toLocaleString("fr-FR")} FCFA</td>
-                <td className="px-4 py-3"><StatusBadge status={r.status} /></td>
+                <td className="px-4 py-3"><StatusBadge status={r.status} occupantCount={r.occupantCount} capacity={r.capacity} /></td>
                 <td className="px-4 py-3">
                   <div className="flex gap-1 justify-end">
                     <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openEdit(r)}><Pencil className="w-3.5 h-3.5" /></Button>
@@ -333,12 +343,12 @@ function RoomsTab() {
             <div className="space-y-1.5"><Label>Étage</Label><Input type="number" min={0} value={form.floor} onChange={e => setForm(f => ({ ...f, floor: e.target.value }))} /></div>
             <div className="space-y-1.5">
               <Label>Type</Label>
-              <Select value={form.type} onValueChange={v => setForm(f => ({ ...f, type: v }))}>
+              <Select value={form.type} onValueChange={v => setForm(f => ({ ...f, type: v, capacity: v === "double" ? "2" : "1" }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>{ROOM_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <div className="space-y-1.5"><Label>Capacité</Label><Input type="number" min={1} value={form.capacity} onChange={e => setForm(f => ({ ...f, capacity: e.target.value }))} /></div>
+            <div className="space-y-1.5"><Label>Capacité</Label><Input type="number" min={1} max={form.type === "double" ? 2 : 1} value={form.capacity} onChange={e => setForm(f => ({ ...f, capacity: e.target.value }))} /></div>
             <div className="space-y-1.5"><Label>Prix/mois (FCFA)</Label><Input type="number" min={0} value={form.pricePerMonth} onChange={e => setForm(f => ({ ...f, pricePerMonth: e.target.value }))} /></div>
             <div className="space-y-1.5">
               <Label>Statut</Label>
@@ -550,11 +560,15 @@ function AssignmentsTab() {
               <Select value={form.roomId} onValueChange={v => setForm(f => ({ ...f, roomId: v }))}>
                 <SelectTrigger><SelectValue placeholder="Choisir une chambre" /></SelectTrigger>
                 <SelectContent className="max-h-52 overflow-y-auto">
-                  {(availableRooms as any[]).map((r: any) => (
-                    <SelectItem key={r.id} value={String(r.id)}>
-                      {r.buildingName} — Ch. {r.roomNumber} · Ét. {r.floor} · {ROOM_TYPES.find(t => t.value === r.type)?.label}
-                    </SelectItem>
-                  ))}
+                  {(availableRooms as any[]).map((r: any) => {
+                    const spotsLeft = r.capacity - (r.occupantCount ?? 0);
+                    const label = r.type === "double"
+                      ? `${r.buildingName} — Ch. ${r.roomNumber} · Ét. ${r.floor} · Double (${spotsLeft} place${spotsLeft > 1 ? "s" : ""} libre${spotsLeft > 1 ? "s" : ""})`
+                      : `${r.buildingName} — Ch. ${r.roomNumber} · Ét. ${r.floor} · Simple`;
+                    return (
+                      <SelectItem key={r.id} value={String(r.id)}>{label}</SelectItem>
+                    );
+                  })}
                   {(availableRooms as any[]).length === 0 && <div className="text-sm text-muted-foreground px-2 py-3">Aucune chambre disponible</div>}
                 </SelectContent>
               </Select>

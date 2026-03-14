@@ -11,6 +11,24 @@ import { requireAuth } from "../lib/auth.js";
 
 const router = Router();
 
+// Helper: recompute room status based on active assignment count vs capacity
+async function syncRoomStatus(roomId: number) {
+  const [room] = await db
+    .select({ capacity: housingRoomsTable.capacity, status: housingRoomsTable.status })
+    .from(housingRoomsTable)
+    .where(eq(housingRoomsTable.id, roomId))
+    .limit(1);
+  if (!room || room.status === "maintenance") return;
+
+  const [{ count }] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(housingAssignmentsTable)
+    .where(and(eq(housingAssignmentsTable.roomId, roomId), eq(housingAssignmentsTable.status, "active")));
+
+  const newStatus = count >= room.capacity ? "occupied" : "available";
+  await db.update(housingRoomsTable).set({ status: newStatus }).where(eq(housingRoomsTable.id, roomId));
+}
+
 // ─── BUILDINGS ────────────────────────────────────────────────────────────────
 
 router.get("/housing/buildings", requireAuth, async (req, res) => {
@@ -92,6 +110,10 @@ router.get("/housing/rooms", requireAuth, async (req, res) => {
         pricePerMonth: housingRoomsTable.pricePerMonth,
         status: housingRoomsTable.status,
         description: housingRoomsTable.description,
+        occupantCount: sql<number>`(
+          select count(*)::int from housing_assignments ha
+          where ha.room_id = ${housingRoomsTable.id} and ha.status = 'active'
+        )`,
       })
       .from(housingRoomsTable)
       .innerJoin(housingBuildingsTable, eq(housingBuildingsTable.id, housingRoomsTable.buildingId))
@@ -104,6 +126,7 @@ router.get("/housing/rooms", requireAuth, async (req, res) => {
   }
 });
 
+// Available rooms = not maintenance AND occupant count < capacity
 router.get("/housing/rooms/available", requireAuth, async (req, res) => {
   try {
     const rooms = await db
@@ -115,10 +138,17 @@ router.get("/housing/rooms/available", requireAuth, async (req, res) => {
         capacity: housingRoomsTable.capacity,
         type: housingRoomsTable.type,
         pricePerMonth: housingRoomsTable.pricePerMonth,
+        occupantCount: sql<number>`(
+          select count(*)::int from housing_assignments ha
+          where ha.room_id = ${housingRoomsTable.id} and ha.status = 'active'
+        )`,
       })
       .from(housingRoomsTable)
       .innerJoin(housingBuildingsTable, eq(housingBuildingsTable.id, housingRoomsTable.buildingId))
-      .where(eq(housingRoomsTable.status, "available"))
+      .where(sql`${housingRoomsTable.status} != 'maintenance' and (
+        select count(*)::int from housing_assignments ha
+        where ha.room_id = ${housingRoomsTable.id} and ha.status = 'active'
+      ) < ${housingRoomsTable.capacity}`)
       .orderBy(housingBuildingsTable.name, housingRoomsTable.roomNumber);
     res.json(rooms);
   } catch (err) {
@@ -131,11 +161,13 @@ router.post("/housing/rooms", requireAuth, async (req, res) => {
   try {
     const { buildingId, roomNumber, floor, capacity, type, pricePerMonth, description } = req.body as any;
     if (!buildingId || !roomNumber?.trim()) { res.status(400).json({ error: "buildingId et roomNumber requis" }); return; }
+    // Auto-set capacity from type
+    const resolvedCapacity = type === "double" ? 2 : 1;
     const [r] = await db.insert(housingRoomsTable).values({
       buildingId: parseInt(buildingId),
       roomNumber: roomNumber.trim(),
       floor: floor ?? 0,
-      capacity: capacity ?? 1,
+      capacity: capacity ?? resolvedCapacity,
       type: type ?? "simple",
       pricePerMonth: pricePerMonth?.toString() ?? "0",
       description,
@@ -151,12 +183,14 @@ router.patch("/housing/rooms/:id", requireAuth, async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     const { roomNumber, floor, capacity, type, pricePerMonth, status, description } = req.body as any;
+    // Auto-update capacity when type changes
+    const capacityOverride = capacity !== undefined ? capacity : (type === "double" ? 2 : type === "simple" ? 1 : undefined);
     const [r] = await db
       .update(housingRoomsTable)
       .set({
         ...(roomNumber && { roomNumber }),
         ...(floor !== undefined && { floor }),
-        ...(capacity !== undefined && { capacity }),
+        ...(capacityOverride !== undefined && { capacity: capacityOverride }),
         ...(type && { type }),
         ...(pricePerMonth !== undefined && { pricePerMonth: pricePerMonth.toString() }),
         ...(status && { status }),
@@ -198,6 +232,7 @@ router.get("/housing/assignments", requireAuth, async (req, res) => {
         buildingName: housingBuildingsTable.name,
         buildingId: housingBuildingsTable.id,
         type: housingRoomsTable.type,
+        capacity: housingRoomsTable.capacity,
         pricePerMonth: housingRoomsTable.pricePerMonth,
         startDate: housingAssignmentsTable.startDate,
         endDate: housingAssignmentsTable.endDate,
@@ -235,6 +270,23 @@ router.post("/housing/assignments", requireAuth, async (req, res) => {
       res.status(409).json({ error: "Cet étudiant a déjà une chambre active" }); return;
     }
 
+    // Check room has available capacity
+    const [room] = await db
+      .select({ capacity: housingRoomsTable.capacity, status: housingRoomsTable.status })
+      .from(housingRoomsTable)
+      .where(eq(housingRoomsTable.id, parseInt(roomId)))
+      .limit(1);
+    if (!room) { res.status(404).json({ error: "Chambre introuvable" }); return; }
+    if (room.status === "maintenance") { res.status(409).json({ error: "Cette chambre est en maintenance" }); return; }
+
+    const [{ count: activeCount }] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(housingAssignmentsTable)
+      .where(and(eq(housingAssignmentsTable.roomId, parseInt(roomId)), eq(housingAssignmentsTable.status, "active")));
+    if (activeCount >= room.capacity) {
+      res.status(409).json({ error: "Cette chambre est complète" }); return;
+    }
+
     const [a] = await db.insert(housingAssignmentsTable).values({
       studentId: parseInt(studentId),
       roomId: parseInt(roomId),
@@ -243,8 +295,8 @@ router.post("/housing/assignments", requireAuth, async (req, res) => {
       notes,
     }).returning();
 
-    // Mark room as occupied
-    await db.update(housingRoomsTable).set({ status: "occupied" }).where(eq(housingRoomsTable.id, parseInt(roomId)));
+    // Sync room status based on new occupant count
+    await syncRoomStatus(parseInt(roomId));
 
     res.json(a);
   } catch (err) {
@@ -268,21 +320,9 @@ router.patch("/housing/assignments/:id", requireAuth, async (req, res) => {
       .where(eq(housingAssignmentsTable.id, id))
       .returning();
 
-    // If ended/cancelled, free the room
+    // Recompute room status after change
     if (status === "ended" || status === "cancelled") {
-      // Check if any other active assignment uses this room
-      const [otherActive] = await db
-        .select({ id: housingAssignmentsTable.id })
-        .from(housingAssignmentsTable)
-        .where(and(
-          eq(housingAssignmentsTable.roomId, a.roomId),
-          eq(housingAssignmentsTable.status, "active"),
-          ne(housingAssignmentsTable.id, id)
-        ))
-        .limit(1);
-      if (!otherActive) {
-        await db.update(housingRoomsTable).set({ status: "available" }).where(eq(housingRoomsTable.id, a.roomId));
-      }
+      await syncRoomStatus(a.roomId);
     }
 
     res.json(a);
