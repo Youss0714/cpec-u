@@ -616,7 +616,7 @@ export default function HousingPage() {
           <p className="text-muted-foreground text-sm mt-1">Gérez les bâtiments, chambres et affectations des étudiants.</p>
         </div>
 
-        <Tabs defaultValue="dashboard">
+        <Tabs defaultValue="dashboard" onValueChange={() => window.scrollTo({ top: 0, behavior: "instant" })}>
           <TabsList className="mb-2">
             <TabsTrigger value="dashboard" className="gap-2"><Home className="w-3.5 h-3.5" />Tableau de bord</TabsTrigger>
             <TabsTrigger value="buildings" className="gap-2"><Building2 className="w-3.5 h-3.5" />Bâtiments</TabsTrigger>
