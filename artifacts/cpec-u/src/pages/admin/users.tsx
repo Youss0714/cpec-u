@@ -17,7 +17,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Trash2, ShieldCheck, GraduationCap, BookOpen, Wallet, AlertCircle, CheckCircle2, Clock, PenLine, Pencil, X } from "lucide-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 
 const ROLE_LABELS: Record<string, string> = { admin: "Admin", teacher: "Enseignant", student: "Étudiant" };
@@ -178,11 +178,134 @@ function StudentPaymentModal({ student, onClose }: { student: StudentFeeRow; onC
   );
 }
 
+function ClassFeesSection() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const { data: classFees = [], isLoading, refetch } = useQuery({
+    queryKey: ["class-fees"],
+    queryFn: () => fetch("/api/scolarite/class-fees", { credentials: "include" }).then(r => r.json()),
+  });
+  const [editClass, setEditClass] = useState<any | null>(null);
+  const [form, setForm] = useState({ totalAmount: "", academicYear: "", notes: "" });
+  const [saving, setSaving] = useState(false);
+
+  const openEdit = (c: any) => {
+    setForm({
+      totalAmount: c.fee ? String(c.fee.totalAmount) : "",
+      academicYear: c.fee?.academicYear ?? "",
+      notes: c.fee?.notes ?? "",
+    });
+    setEditClass(c);
+  };
+
+  const handleSave = async () => {
+    if (!editClass) return;
+    const amount = parseFloat(form.totalAmount);
+    if (isNaN(amount) || amount < 0) { toast({ title: "Montant invalide", variant: "destructive" }); return; }
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/scolarite/class-fees/${editClass.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ totalAmount: amount, academicYear: form.academicYear || undefined, notes: form.notes || undefined }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      toast({ title: `Frais appliqués à ${data.appliedToStudents} étudiant(s) de ${editClass.name}` });
+      setEditClass(null);
+      refetch();
+      queryClient.invalidateQueries({ queryKey: ["scolarite"] });
+    } catch { toast({ title: "Erreur", variant: "destructive" }); }
+    finally { setSaving(false); }
+  };
+
+  const fmt = (n: number) => n.toLocaleString("fr-FR");
+
+  return (
+    <div className="space-y-4">
+      {isLoading ? (
+        <div className="text-center py-10 text-muted-foreground">Chargement...</div>
+      ) : (
+        <div className="rounded-xl border overflow-hidden">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-muted/50">
+                <TableHead>Classe</TableHead>
+                <TableHead className="text-center">Étudiants inscrits</TableHead>
+                <TableHead className="text-right">Frais configuré</TableHead>
+                <TableHead>Année académique</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {(classFees as any[]).length === 0 ? (
+                <TableRow><TableCell colSpan={5} className="text-center py-10 text-muted-foreground">Aucune classe trouvée</TableCell></TableRow>
+              ) : (classFees as any[]).map((c: any) => (
+                <TableRow key={c.id} className="hover:bg-muted/30">
+                  <TableCell className="font-semibold">{c.name}</TableCell>
+                  <TableCell className="text-center text-muted-foreground">{c.studentCount}</TableCell>
+                  <TableCell className="text-right">
+                    {c.fee ? (
+                      <span className="font-semibold text-primary">{fmt(c.fee.totalAmount)} FCFA</span>
+                    ) : (
+                      <span className="text-muted-foreground text-sm italic">Non défini</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground text-sm">{c.fee?.academicYear ?? "—"}</TableCell>
+                  <TableCell className="text-right">
+                    <Button variant="ghost" size="sm" className="gap-1.5 text-xs" onClick={() => openEdit(c)}>
+                      <Pencil className="w-3.5 h-3.5" />
+                      {c.fee ? "Modifier" : "Définir"}
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
+
+      <Dialog open={editClass !== null} onOpenChange={open => { if (!open) setEditClass(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{editClass?.fee ? "Modifier les frais" : "Définir les frais"} — {editClass?.name}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <div className="space-y-1.5">
+              <Label>Montant total (FCFA)</Label>
+              <Input type="number" min={0} value={form.totalAmount} onChange={e => setForm(f => ({ ...f, totalAmount: e.target.value }))} placeholder="Ex: 500000" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Année académique <span className="text-muted-foreground text-xs">(optionnel)</span></Label>
+              <Input value={form.academicYear} onChange={e => setForm(f => ({ ...f, academicYear: e.target.value }))} placeholder="Ex: 2024-2025" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Notes <span className="text-muted-foreground text-xs">(optionnel)</span></Label>
+              <Input value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="Remarques..." />
+            </div>
+            <p className="text-xs text-muted-foreground bg-muted/50 rounded-lg p-3">
+              Ce montant sera automatiquement appliqué aux <strong>{editClass?.studentCount ?? 0}</strong> étudiant(s) actuellement inscrit(s) dans cette classe.
+            </p>
+          </div>
+          <div className="flex justify-end gap-2 mt-4">
+            <Button variant="outline" onClick={() => setEditClass(null)}>Annuler</Button>
+            <Button onClick={handleSave} disabled={saving || !form.totalAmount}>
+              {saving ? "Application…" : "Appliquer"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
 function ScolariteTab() {
   const { data: students = [], isLoading } = useGetScolariteStudents();
   const { data: stats } = useGetScolariteStats();
   const [selectedStudent, setSelectedStudent] = useState<StudentFeeRow | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [view, setView] = useState<"students" | "classes">("students");
 
   const filtered = students.filter((s: StudentFeeRow) =>
     s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -193,6 +316,20 @@ function ScolariteTab() {
 
   return (
     <div className="space-y-6">
+      {/* View toggle */}
+      <div className="flex gap-2">
+        <Button size="sm" variant={view === "students" ? "default" : "outline"} onClick={() => setView("students")} className="gap-2">
+          <GraduationCap className="w-4 h-4" /> Par étudiant
+        </Button>
+        <Button size="sm" variant={view === "classes" ? "default" : "outline"} onClick={() => setView("classes")} className="gap-2">
+          <BookOpen className="w-4 h-4" /> Par classe
+        </Button>
+      </div>
+
+      {view === "classes" && <ClassFeesSection />}
+
+      {view === "students" && <div className="space-y-6">
+
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
@@ -296,6 +433,7 @@ function ScolariteTab() {
           {selectedStudent && <StudentPaymentModal student={selectedStudent} onClose={() => setSelectedStudent(null)} />}
         </DialogContent>
       </Dialog>
+      </div>}
     </div>
   );
 }

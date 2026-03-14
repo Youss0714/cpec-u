@@ -2,6 +2,7 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import {
   studentFeesTable,
+  classFeesTable,
   paymentsTable,
   usersTable,
   classEnrollmentsTable,
@@ -272,6 +273,91 @@ router.delete("/payments/:id", requireRole("admin"), requireScolariteOrDirecteur
       await db.delete(paymentsTable).where(eq(paymentsTable.id, id));
     }
     res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// ─── GET /api/scolarite/class-fees ───────────────────────────────────────────
+// List all classes with their configured fee (if any) and student count
+router.get("/class-fees", requireRole("admin"), requireScolariteOrDirecteur, async (req, res) => {
+  try {
+    const classes = await db.select().from(classesTable).orderBy(classesTable.orderIndex);
+    const fees = await db.select().from(classFeesTable);
+    const feeMap = new Map(fees.map(f => [f.classId, f]));
+
+    // Count students per class
+    const enrollments = await db.select({
+      classId: classEnrollmentsTable.classId,
+      count: sql<number>`COUNT(*)`,
+    }).from(classEnrollmentsTable).groupBy(classEnrollmentsTable.classId);
+    const countMap = new Map(enrollments.map(e => [e.classId, Number(e.count)]));
+
+    res.json(classes.map(c => ({
+      id: c.id,
+      name: c.name,
+      studentCount: countMap.get(c.id) ?? 0,
+      fee: feeMap.get(c.id) ?? null,
+    })));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// ─── PUT /api/scolarite/class-fees/:classId ──────────────────────────────────
+// Set/update the fee for a class and auto-apply to all enrolled students
+router.put("/class-fees/:classId", requireRole("admin"), requireScolariteOrDirecteur, async (req, res) => {
+  try {
+    const classId = parseInt(req.params.classId);
+    const { totalAmount, academicYear, notes } = req.body;
+    if (isNaN(classId) || totalAmount == null) {
+      res.status(400).json({ error: "classId et totalAmount requis" }); return;
+    }
+
+    // Upsert class fee record
+    const [classFee] = await db.insert(classFeesTable).values({
+      classId,
+      totalAmount,
+      academicYear: academicYear || null,
+      notes: notes || null,
+      updatedAt: new Date(),
+    }).onConflictDoUpdate({
+      target: [classFeesTable.classId],
+      set: {
+        totalAmount,
+        academicYear: academicYear || null,
+        notes: notes || null,
+        updatedAt: new Date(),
+      },
+    }).returning();
+
+    // Get all students enrolled in this class
+    const enrollments = await db.select({ studentId: classEnrollmentsTable.studentId })
+      .from(classEnrollmentsTable)
+      .where(eq(classEnrollmentsTable.classId, classId));
+
+    // Auto-upsert student fees for each enrolled student
+    for (const { studentId } of enrollments) {
+      await db.insert(studentFeesTable).values({
+        studentId,
+        totalAmount,
+        academicYear: academicYear || null,
+        notes: notes || null,
+        updatedAt: new Date(),
+      }).onConflictDoUpdate({
+        target: [studentFeesTable.studentId],
+        set: {
+          totalAmount,
+          academicYear: academicYear || null,
+          notes: notes || null,
+          updatedAt: new Date(),
+        },
+      });
+    }
+
+    res.json({ classFee, appliedToStudents: enrollments.length });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Internal Server Error" });

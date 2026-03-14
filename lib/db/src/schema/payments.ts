@@ -1,5 +1,6 @@
 import { pgTable, serial, integer, real, text, varchar, date, timestamp } from "drizzle-orm/pg-core";
 import { usersTable } from "./users";
+import { classesTable } from "./classes";
 
 export const studentFeesTable = pgTable("student_fees", {
   id: serial("id").primaryKey(),
@@ -23,3 +24,15 @@ export const paymentsTable = pgTable("payments", {
 
 export type StudentFee = typeof studentFeesTable.$inferSelect;
 export type Payment = typeof paymentsTable.$inferSelect;
+
+export const classFeesTable = pgTable("class_fees", {
+  id: serial("id").primaryKey(),
+  classId: integer("class_id").notNull().unique().references(() => classesTable.id, { onDelete: "cascade" }),
+  totalAmount: real("total_amount").notNull().default(0),
+  academicYear: varchar("academic_year", { length: 20 }),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export type ClassFee = typeof classFeesTable.$inferSelect;
