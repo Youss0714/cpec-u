@@ -605,6 +605,7 @@ export default function AdminUsers() {
   const canEdit = (u: any) => {
     if (isDirecteur) return true;
     if (isPlanificateur) return u.role === "teacher";
+    if (currentSubRole === "scolarite") return u.role === "student";
     return false;
   };
 
