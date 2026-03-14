@@ -121,8 +121,9 @@ export default function AdminAssignments() {
         </div>
 
         <div className="bg-card rounded-2xl shadow-sm border border-border overflow-hidden">
+          <div className="max-h-[60vh] overflow-y-auto">
           <Table>
-            <TableHeader className="bg-secondary/50">
+            <TableHeader className="bg-secondary/50 sticky top-0 z-10">
               <TableRow>
                 <TableHead>Semestre</TableHead>
                 <TableHead>Enseignant</TableHead>
@@ -153,6 +154,7 @@ export default function AdminAssignments() {
               )}
             </TableBody>
           </Table>
+          </div>
         </div>
       </div>
       <ConfirmDialog
