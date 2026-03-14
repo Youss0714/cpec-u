@@ -41,8 +41,9 @@ interface AppLayoutProps {
 export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
   const [location, setLocation] = useLocation();
   const { data: user, isLoading, isError } = useGetCurrentUser({
-    query: { retry: false } as any,
+    query: { retry: false, staleTime: 30_000 } as any,
   });
+  const [loadingTimedOut, setLoadingTimedOut] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showFarewell, setShowFarewell] = useState(false);
   const [farewellSubRole, setFarewellSubRole] = useState<string | null>(null);
@@ -72,8 +73,15 @@ export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
     }
   };
 
-  const needsLogin = !isLoading && (isError || !user);
-  const wrongRole = !isLoading && user && !allowedRoles.includes(user.role);
+  // Timeout: if the auth check hangs for more than 8s, redirect to login
+  useEffect(() => {
+    if (!isLoading) return;
+    const timer = setTimeout(() => setLoadingTimedOut(true), 8000);
+    return () => clearTimeout(timer);
+  }, [isLoading]);
+
+  const needsLogin = (!isLoading && (isError || !user)) || loadingTimedOut;
+  const wrongRole = !isLoading && !loadingTimedOut && user && !allowedRoles.includes(user.role);
   const redirectTarget = wrongRole && user ? (user.role === "admin" ? "/admin" : `/${user.role}`) : null;
 
   useEffect(() => {
@@ -84,7 +92,7 @@ export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
     if (redirectTarget) setLocation(redirectTarget);
   }, [redirectTarget]);
 
-  if (isLoading) {
+  if (isLoading && !loadingTimedOut) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
