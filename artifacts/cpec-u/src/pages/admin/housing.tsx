@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import {
   Building2, BedDouble, Users, Plus, Pencil, Trash2, Home,
   CheckCircle2, Wrench, XCircle, Search, DoorOpen, CalendarDays, ArrowRightLeft,
@@ -134,6 +135,7 @@ function BuildingsTab() {
   const [editing, setEditing] = useState<any>(null);
   const [form, setForm] = useState({ name: "", description: "", floors: "1" });
   const [saving, setSaving] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
   const { toast } = useToast();
 
   const openNew = () => { setEditing(null); setForm({ name: "", description: "", floors: "1" }); setOpen(true); };
@@ -156,13 +158,14 @@ function BuildingsTab() {
     } finally { setSaving(false); }
   };
 
-  const handleDelete = async (id: number) => {
-    if (!confirm("Supprimer ce bâtiment ? Toutes les chambres seront supprimées.")) return;
+  const doDelete = async () => {
+    if (deleteConfirm === null) return;
     try {
-      await apiFetch(`/housing/buildings/${id}`, { method: "DELETE" });
+      await apiFetch(`/housing/buildings/${deleteConfirm}`, { method: "DELETE" });
       refetch();
       toast({ title: "Bâtiment supprimé" });
     } catch (e: any) { toast({ title: "Erreur", description: e.message, variant: "destructive" }); }
+    finally { setDeleteConfirm(null); }
   };
 
   return (
@@ -185,7 +188,7 @@ function BuildingsTab() {
               </div>
               <div className="flex gap-1">
                 <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openEdit(b)}><Pencil className="w-3.5 h-3.5" /></Button>
-                <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => handleDelete(b.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => setDeleteConfirm(b.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
               </div>
             </div>
             {b.description && <p className="text-sm text-muted-foreground">{b.description}</p>}
@@ -217,6 +220,19 @@ function BuildingsTab() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={deleteConfirm !== null} onOpenChange={open => { if (!open) setDeleteConfirm(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Supprimer ce bâtiment ?</AlertDialogTitle>
+            <AlertDialogDescription>Cette action est irréversible. Toutes les chambres associées seront également supprimées.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction onClick={doDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Supprimer</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
@@ -237,6 +253,7 @@ function RoomsTab() {
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
+  const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
   const { toast } = useToast();
 
   const openNew = () => { setEditing(null); setForm({ buildingId: "", roomNumber: "", floor: "0", capacity: "1", type: "simple", pricePerMonth: "0", status: "available", description: "" }); setOpen(true); };
@@ -262,13 +279,14 @@ function RoomsTab() {
     finally { setSaving(false); }
   };
 
-  const handleDelete = async (id: number) => {
-    if (!confirm("Supprimer cette chambre ?")) return;
+  const doDelete = async () => {
+    if (deleteConfirm === null) return;
     try {
-      await apiFetch(`/housing/rooms/${id}`, { method: "DELETE" });
+      await apiFetch(`/housing/rooms/${deleteConfirm}`, { method: "DELETE" });
       refetch();
       toast({ title: "Chambre supprimée" });
     } catch (e: any) { toast({ title: "Erreur", description: e.message, variant: "destructive" }); }
+    finally { setDeleteConfirm(null); }
   };
 
   const filtered = (rooms as any[]).filter(r =>
@@ -316,7 +334,7 @@ function RoomsTab() {
                 <td className="px-4 py-3">
                   <div className="flex gap-1 justify-end">
                     <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openEdit(r)}><Pencil className="w-3.5 h-3.5" /></Button>
-                    <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => handleDelete(r.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                    <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => setDeleteConfirm(r.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
                   </div>
                 </td>
               </tr>
@@ -365,6 +383,19 @@ function RoomsTab() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={deleteConfirm !== null} onOpenChange={open => { if (!open) setDeleteConfirm(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Supprimer cette chambre ?</AlertDialogTitle>
+            <AlertDialogDescription>Cette action est irréversible. Les affectations liées à cette chambre seront également supprimées.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction onClick={doDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Supprimer</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
