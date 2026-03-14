@@ -1,7 +1,11 @@
 import express, { type Express } from "express";
 import cors from "cors";
 import session from "express-session";
+import path from "path";
+import { fileURLToPath } from "url";
 import router from "./routes/index.js";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 declare module "express-session" {
   interface SessionData {
@@ -36,6 +40,7 @@ app.use(
   })
 );
 
+app.use("/api/uploads", express.static(path.join(__dirname, "../../uploads")));
 app.use("/api", router);
 
 export default app;

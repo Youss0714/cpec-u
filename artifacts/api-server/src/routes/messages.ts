@@ -1,8 +1,41 @@
 import { Router } from "express";
+import multer from "multer";
+import path from "path";
+import { fileURLToPath } from "url";
 import { db } from "@workspace/db";
 import { messagesTable, usersTable, classesTable, classEnrollmentsTable, notificationsTable } from "@workspace/db";
 import { eq, and, or, desc, isNull, sql } from "drizzle-orm";
 import { requireAuth } from "../lib/auth.js";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const UPLOADS_DIR = path.join(__dirname, "../../uploads");
+
+const storage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, UPLOADS_DIR),
+  filename: (_req, file, cb) => {
+    const unique = `${Date.now()}-${Math.round(Math.random() * 1e6)}`;
+    cb(null, `${unique}${path.extname(file.originalname)}`);
+  },
+});
+
+const ALLOWED_MIMETYPES = [
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.ms-powerpoint",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+];
+
+const upload = multer({
+  storage,
+  limits: { fileSize: 20 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (ALLOWED_MIMETYPES.includes(file.mimetype)) cb(null, true);
+    else cb(new Error("Type de fichier non autorisé"));
+  },
+});
 
 const router = Router();
 
@@ -176,6 +209,26 @@ router.post("/messages/class/:classId", requireAuth, async (req, res) => {
   }
 });
 
+// ─── Upload file for message attachment (MUST be before /:userId) ─────────────
+router.post("/messages/upload", requireAuth, (req, res) => {
+  upload.single("file")(req, res, (err) => {
+    if (err) {
+      res.status(400).json({ error: err.message });
+      return;
+    }
+    if (!req.file) {
+      res.status(400).json({ error: "Aucun fichier reçu" });
+      return;
+    }
+    res.json({
+      fileUrl: `/api/uploads/${req.file.filename}`,
+      fileName: req.file.originalname,
+      fileType: req.file.mimetype,
+      fileSize: req.file.size,
+    });
+  });
+});
+
 // ─── Get messages with a specific user ───────────────────────────────────────
 router.get("/messages/:userId", requireAuth, async (req, res) => {
   try {
@@ -189,6 +242,10 @@ router.get("/messages/:userId", requireAuth, async (req, res) => {
         senderName: sql<string>`sender.name`,
         recipientId: messagesTable.recipientId,
         content: messagesTable.content,
+        fileUrl: messagesTable.fileUrl,
+        fileName: messagesTable.fileName,
+        fileType: messagesTable.fileType,
+        fileSize: messagesTable.fileSize,
         readAt: messagesTable.readAt,
         createdAt: messagesTable.createdAt,
       })
@@ -230,10 +287,13 @@ router.get("/messages/:userId", requireAuth, async (req, res) => {
 router.post("/messages", requireAuth, async (req, res) => {
   try {
     const senderId = req.session!.userId!;
-    const { recipientId, content } = req.body as { recipientId: number; content: string };
+    const { recipientId, content, fileUrl, fileName, fileType, fileSize } = req.body as {
+      recipientId: number; content: string;
+      fileUrl?: string; fileName?: string; fileType?: string; fileSize?: number;
+    };
 
-    if (!recipientId || !content?.trim()) {
-      res.status(400).json({ error: "recipientId et content requis" });
+    if (!recipientId || (!content?.trim() && !fileUrl)) {
+      res.status(400).json({ error: "recipientId et content ou fichier requis" });
       return;
     }
 
@@ -246,11 +306,19 @@ router.post("/messages", requireAuth, async (req, res) => {
 
     const [msg] = await db
       .insert(messagesTable)
-      .values({ senderId, recipientId, content: content.trim() })
+      .values({
+        senderId, recipientId,
+        content: content?.trim() || (fileName ? `📎 ${fileName}` : ""),
+        fileUrl: fileUrl ?? null,
+        fileName: fileName ?? null,
+        fileType: fileType ?? null,
+        fileSize: fileSize ?? null,
+      })
       .returning();
 
     // Create notification for recipient
-    const preview = content.trim().length > 80 ? content.trim().slice(0, 80) + "…" : content.trim();
+    const contentStr = content?.trim() || "";
+    const preview = (contentStr.length > 80 ? contentStr.slice(0, 80) + "…" : contentStr) || `📎 ${fileName}`;
     await db.insert(notificationsTable).values({
       userId: recipientId,
       type: "message",
