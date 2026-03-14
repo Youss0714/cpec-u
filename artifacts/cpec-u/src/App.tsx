@@ -28,6 +28,7 @@ import AttendanceSummary from "@/pages/admin/attendance-summary";
 import StudentDashboard from "@/pages/student/dashboard";
 import StudentSchedule from "@/pages/student/schedule";
 import StudentNotifications from "@/pages/student/notifications";
+import StudentAbsences from "@/pages/student/absences";
 import AdminMessages from "@/pages/admin/messages";
 import SharedMessages from "@/pages/shared/messages";
 import HousingPage from "@/pages/admin/housing";
@@ -78,6 +79,7 @@ function Router() {
 
       {/* Student Routes */}
       <Route path="/student" component={StudentDashboard} />
+      <Route path="/student/absences" component={StudentAbsences} />
       <Route path="/student/schedule" component={StudentSchedule} />
       <Route path="/student/grades" component={StudentDashboard} />
       <Route path="/student/notifications" component={StudentNotifications} />

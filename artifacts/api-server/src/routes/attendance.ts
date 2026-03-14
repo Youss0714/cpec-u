@@ -362,4 +362,65 @@ router.patch("/admin/attendance/sessions/:sessionId/student/:studentId", require
   }
 });
 
+// ─── Student: get my own attendance records ───────────────────────────────────
+router.get("/student/attendance/my", requireRole("student"), async (req, res) => {
+  try {
+    const studentId = req.session!.userId!;
+
+    const records = await db
+      .select({
+        id: attendanceTable.id,
+        sessionDate: attendanceTable.sessionDate,
+        status: attendanceTable.status,
+        note: attendanceTable.note,
+        startTime: attendanceTable.startTime,
+        endTime: attendanceTable.endTime,
+        justified: attendanceTable.justified,
+        subjectName: subjectsTable.name,
+        subjectCoefficient: subjectsTable.coefficient,
+        semesterName: semestersTable.name,
+        semesterId: semestersTable.id,
+      })
+      .from(attendanceTable)
+      .innerJoin(subjectsTable, eq(subjectsTable.id, attendanceTable.subjectId))
+      .innerJoin(semestersTable, eq(semestersTable.id, attendanceTable.semesterId))
+      .where(eq(attendanceTable.studentId, studentId))
+      .orderBy(desc(attendanceTable.sessionDate));
+
+    // Compute summary stats
+    const absences = records.filter(r => r.status === "absent");
+    const justified = absences.filter(r => r.justified);
+    const unjustified = absences.filter(r => !r.justified);
+
+    const calcHours = (r: typeof absences[number]) => {
+      if (r.startTime && r.endTime) {
+        const [sh, sm] = r.startTime.split(":").map(Number);
+        const [eh, em] = r.endTime.split(":").map(Number);
+        return Math.max(0, (eh * 60 + em - sh * 60 - sm) / 60);
+      }
+      return 1;
+    };
+
+    const totalAbsenceHours = absences.reduce((sum, r) => sum + calcHours(r), 0);
+    const justifiedHours = justified.reduce((sum, r) => sum + calcHours(r), 0);
+    const unjustifiedHours = unjustified.reduce((sum, r) => sum + calcHours(r), 0);
+
+    res.json({
+      records,
+      summary: {
+        totalSessions: records.length,
+        totalAbsences: absences.length,
+        totalPresences: records.filter(r => r.status === "present").length,
+        totalLate: records.filter(r => r.status === "late").length,
+        totalAbsenceHours: Math.round(totalAbsenceHours * 10) / 10,
+        justifiedHours: Math.round(justifiedHours * 10) / 10,
+        unjustifiedHours: Math.round(unjustifiedHours * 10) / 10,
+      },
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
 export default router;

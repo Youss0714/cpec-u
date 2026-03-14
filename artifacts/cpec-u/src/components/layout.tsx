@@ -169,6 +169,7 @@ export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
           { name: "Mon Profil", href: "/student", icon: LayoutDashboard, badge: null },
           { name: "Mon Emploi du Temps", href: "/student/schedule", icon: CalendarDays, badge: null },
           { name: "Mes Résultats", href: "/student/grades", icon: FileText, badge: null },
+          { name: "Mes Absences", href: "/student/absences", icon: CalendarOff, badge: null },
           { name: "Notifications", href: "/student/notifications", icon: Bell, badge: (unreadData?.count ?? 0) > 0 ? unreadData!.count : null },
           { name: "Messages", href: "/student/messages", icon: MessageSquare, badge: null },
         ];
