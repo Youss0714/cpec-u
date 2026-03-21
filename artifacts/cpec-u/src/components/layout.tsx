@@ -211,9 +211,9 @@ export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
   const SidebarContent = () => (
     <div className="flex flex-col h-full bg-sidebar border-r border-sidebar-border text-sidebar-foreground">
       <div className="p-6 flex items-center gap-3">
-        <img src={`${import.meta.env.BASE_URL}images/logo.jpg`} alt="CPEC-U Logo" className="w-10 h-10 object-contain rounded-lg" />
+        <img src={`${import.meta.env.BASE_URL}images/logo.jpg`} alt="CPEC-Digital Logo" className="w-10 h-10 object-contain rounded-lg" />
         <div className="flex-1 min-w-0">
-          <div className="font-serif font-bold text-xl tracking-tight">CPEC-U</div>
+          <div className="font-serif font-bold text-xl tracking-tight">CPEC-Digital</div>
           <div className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border inline-block mt-0.5 ${roleBadgeColor}`}>
             {roleLabel}
           </div>
@@ -298,8 +298,8 @@ export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
         {/* Mobile Header */}
         <header className="md:hidden flex items-center justify-between p-4 bg-card border-b border-border sticky top-0 z-30">
           <div className="flex items-center gap-2">
-            <img src={`${import.meta.env.BASE_URL}images/logo.jpg`} alt="CPEC-U Logo" className="w-8 h-8 object-contain rounded-md" />
-            <span className="font-serif font-bold text-lg">CPEC-U</span>
+            <img src={`${import.meta.env.BASE_URL}images/logo.jpg`} alt="CPEC-Digital Logo" className="w-8 h-8 object-contain rounded-md" />
+            <span className="font-serif font-bold text-lg">CPEC-Digital</span>
           </div>
           <div className="flex items-center gap-1">
             {user?.role === "student" && (

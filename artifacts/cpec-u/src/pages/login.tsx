@@ -69,7 +69,7 @@ export default function Login() {
       <div className="hidden lg:flex flex-1 relative bg-sidebar overflow-hidden">
         <img 
           src={`${import.meta.env.BASE_URL}images/login-bg.jpg`}
-          alt="Étudiants CPEC-U" 
+          alt="Étudiants CPEC-Digital" 
           className="w-full h-full object-cover object-center"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-sidebar via-sidebar/60 to-sidebar/20 z-20" />
@@ -108,7 +108,7 @@ export default function Login() {
               </div>
               <CardTitle className="text-3xl font-serif text-center">Connexion</CardTitle>
               <CardDescription className="text-center text-base">
-                Accédez à votre espace sécurisé CPEC-U
+                Accédez à votre espace sécurisé CPEC-Digital
               </CardDescription>
             </CardHeader>
             <CardContent>
