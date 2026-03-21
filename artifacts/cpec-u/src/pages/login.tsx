@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -18,10 +18,26 @@ const loginSchema = z.object({
 
 type LoginForm = z.infer<typeof loginSchema>;
 
+const SLIDES = [
+  { src: "images/login-bg.jpg", alt: "Étudiants CPEC-Digital" },
+  { src: "images/student-1.jpg", alt: "Étudiante CPEC-Digital" },
+  { src: "images/student-2.jpg", alt: "Étudiant CPEC-Digital" },
+];
+
+const SLIDE_DURATION = 4000;
+
 export default function Login() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [welcomeUser, setWelcomeUser] = useState<{ name: string; initial: string; subRole: string } | null>(null);
+  const [currentSlide, setCurrentSlide] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentSlide((prev) => (prev + 1) % SLIDES.length);
+    }, SLIDE_DURATION);
+    return () => clearInterval(interval);
+  }, []);
 
   const loginMutation = useLogin({
     mutation: {
@@ -67,13 +83,21 @@ export default function Login() {
   return (
     <div className="min-h-screen w-full flex bg-background">
       <div className="hidden lg:flex flex-1 relative bg-sidebar overflow-hidden">
-        <img 
-          src={`${import.meta.env.BASE_URL}images/login-bg.jpg`}
-          alt="Étudiants CPEC-Digital" 
-          className="w-full h-full object-cover object-center"
-        />
+        <AnimatePresence mode="sync">
+          <motion.img
+            key={currentSlide}
+            src={`${import.meta.env.BASE_URL}${SLIDES[currentSlide].src}`}
+            alt={SLIDES[currentSlide].alt}
+            className="absolute inset-0 w-full h-full object-cover object-center"
+            initial={{ opacity: 0, scale: 1.04 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.98 }}
+            transition={{ duration: 0.9, ease: "easeInOut" }}
+          />
+        </AnimatePresence>
+
         <div className="absolute inset-0 bg-gradient-to-t from-sidebar via-sidebar/60 to-sidebar/20 z-20" />
-        
+
         <motion.div
           className="absolute top-10 left-10 z-30"
           initial={{ opacity: 0, y: -10 }}
@@ -92,6 +116,18 @@ export default function Login() {
               Système de gestion académique intégré pour l'administration, les enseignants et les étudiants.
             </p>
           </motion.div>
+
+          <div className="flex gap-2 mt-6">
+            {SLIDES.map((_, i) => (
+              <button
+                key={i}
+                onClick={() => setCurrentSlide(i)}
+                className={`h-1.5 rounded-full transition-all duration-500 ${
+                  i === currentSlide ? "w-8 bg-white" : "w-3 bg-white/40 hover:bg-white/60"
+                }`}
+              />
+            ))}
+          </div>
         </div>
       </div>
 
