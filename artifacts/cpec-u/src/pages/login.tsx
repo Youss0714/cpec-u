@@ -22,6 +22,8 @@ const SLIDES = [
   { src: "images/login-bg.jpg", alt: "Étudiants CPEC-Digital" },
   { src: "images/student-1.jpg", alt: "Étudiante CPEC-Digital" },
   { src: "images/student-2.jpg", alt: "Étudiant CPEC-Digital" },
+  { src: "images/group-1.jpg", alt: "Promotion CPEC-Digital" },
+  { src: "images/group-2.jpg", alt: "Promotion CPEC-Digital" },
 ];
 
 const SLIDE_DURATION = 4000;
