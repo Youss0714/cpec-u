@@ -19,11 +19,11 @@ const loginSchema = z.object({
 type LoginForm = z.infer<typeof loginSchema>;
 
 const SLIDES = [
-  { src: "images/login-bg.jpg", alt: "Étudiants CPEC-Digital" },
-  { src: "images/student-1.jpg", alt: "Étudiante CPEC-Digital" },
-  { src: "images/student-2.jpg", alt: "Étudiant CPEC-Digital" },
-  { src: "images/group-1.jpg", alt: "Promotion CPEC-Digital" },
-  { src: "images/group-2.jpg", alt: "Promotion CPEC-Digital" },
+  { src: "images/login-bg.jpg", alt: "Étudiants CPEC-Digital", quote: "L'Excellence Académique au Quotidien." },
+  { src: "images/student-1.jpg", alt: "Étudiante CPEC-Digital", quote: "CPEC-Digital : L'expertise comptable à l'ère du futur." },
+  { src: "images/student-2.jpg", alt: "Étudiant CPEC-Digital", quote: "Plus qu'un centre, un accélérateur de compétences." },
+  { src: "images/group-1.jpg", alt: "Promotion CPEC-Digital", quote: "L'excellence comptable commence au CPEC-Digital." },
+  { src: "images/group-2.jpg", alt: "Promotion CPEC-Digital", quote: "Maîtriser les chiffres, piloter l'avenir." },
 ];
 
 const SLIDE_DURATION = 4000;
@@ -110,14 +110,21 @@ export default function Login() {
         </motion.div>
 
         <div className="absolute bottom-16 left-16 z-30 max-w-xl text-sidebar-foreground">
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-            <h1 className="text-5xl font-serif font-bold leading-tight mb-4 text-white">
-              L'Excellence Académique <br/> au Quotidien.
-            </h1>
-            <p className="text-lg text-sidebar-foreground/80">
-              Système de gestion académique intégré pour l'administration, les enseignants et les étudiants.
-            </p>
-          </motion.div>
+          <AnimatePresence mode="wait">
+            <motion.h1
+              key={currentSlide}
+              className="text-5xl font-serif font-bold leading-tight mb-4 text-white"
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -12 }}
+              transition={{ duration: 0.5, ease: "easeInOut" }}
+            >
+              {SLIDES[currentSlide].quote}
+            </motion.h1>
+          </AnimatePresence>
+          <p className="text-lg text-sidebar-foreground/80">
+            Système de gestion académique intégré pour l'administration, les enseignants et les étudiants.
+          </p>
 
           <div className="flex gap-2 mt-6">
             {SLIDES.map((_, i) => (
