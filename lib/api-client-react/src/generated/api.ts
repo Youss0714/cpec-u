@@ -25,6 +25,7 @@ import type {
   CreateScheduleEntryRequest,
   CreateSemesterRequest,
   CreateSubjectRequest,
+  CreateTeachingUnitRequest,
   CreateUserRequest,
   EnrollStudentRequest,
   ErrorResponse,
@@ -35,6 +36,7 @@ import type {
   Grade,
   HealthStatus,
   ListScheduleEntriesParams,
+  ListTeachingUnitsParams,
   ListUsersParams,
   LoginRequest,
   LoginResponse,
@@ -49,6 +51,7 @@ import type {
   Subject,
   SubmitGradeRequest,
   TeacherAssignment,
+  TeachingUnit,
   UpdateSemesterRequest,
   UpdateUserRequest,
   User,
@@ -1556,6 +1559,362 @@ export const useDeleteSubject = <
   TContext
 > => {
   return useMutation(getDeleteSubjectMutationOptions(options));
+};
+
+/**
+ * @summary List all teaching units (UE)
+ */
+export const getListTeachingUnitsUrl = (params?: ListTeachingUnitsParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/admin/teaching-units?${stringifiedParams}`
+    : `/api/admin/teaching-units`;
+};
+
+export const listTeachingUnits = async (
+  params?: ListTeachingUnitsParams,
+  options?: RequestInit,
+): Promise<TeachingUnit[]> => {
+  return customFetch<TeachingUnit[]>(getListTeachingUnitsUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListTeachingUnitsQueryKey = (
+  params?: ListTeachingUnitsParams,
+) => {
+  return [`/api/admin/teaching-units`, ...(params ? [params] : [])] as const;
+};
+
+export const getListTeachingUnitsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listTeachingUnits>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListTeachingUnitsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listTeachingUnits>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListTeachingUnitsQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listTeachingUnits>>
+  > = ({ signal }) => listTeachingUnits(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listTeachingUnits>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListTeachingUnitsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listTeachingUnits>>
+>;
+export type ListTeachingUnitsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List all teaching units (UE)
+ */
+
+export function useListTeachingUnits<
+  TData = Awaited<ReturnType<typeof listTeachingUnits>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListTeachingUnitsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listTeachingUnits>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListTeachingUnitsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create a new teaching unit (UE)
+ */
+export const getCreateTeachingUnitUrl = () => {
+  return `/api/admin/teaching-units`;
+};
+
+export const createTeachingUnit = async (
+  createTeachingUnitRequest: CreateTeachingUnitRequest,
+  options?: RequestInit,
+): Promise<TeachingUnit> => {
+  return customFetch<TeachingUnit>(getCreateTeachingUnitUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createTeachingUnitRequest),
+  });
+};
+
+export const getCreateTeachingUnitMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createTeachingUnit>>,
+    TError,
+    { data: BodyType<CreateTeachingUnitRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createTeachingUnit>>,
+  TError,
+  { data: BodyType<CreateTeachingUnitRequest> },
+  TContext
+> => {
+  const mutationKey = ["createTeachingUnit"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createTeachingUnit>>,
+    { data: BodyType<CreateTeachingUnitRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createTeachingUnit(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateTeachingUnitMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createTeachingUnit>>
+>;
+export type CreateTeachingUnitMutationBody =
+  BodyType<CreateTeachingUnitRequest>;
+export type CreateTeachingUnitMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Create a new teaching unit (UE)
+ */
+export const useCreateTeachingUnit = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createTeachingUnit>>,
+    TError,
+    { data: BodyType<CreateTeachingUnitRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createTeachingUnit>>,
+  TError,
+  { data: BodyType<CreateTeachingUnitRequest> },
+  TContext
+> => {
+  return useMutation(getCreateTeachingUnitMutationOptions(options));
+};
+
+/**
+ * @summary Update a teaching unit (UE)
+ */
+export const getUpdateTeachingUnitUrl = (id: number) => {
+  return `/api/admin/teaching-units/${id}`;
+};
+
+export const updateTeachingUnit = async (
+  id: number,
+  createTeachingUnitRequest: CreateTeachingUnitRequest,
+  options?: RequestInit,
+): Promise<TeachingUnit> => {
+  return customFetch<TeachingUnit>(getUpdateTeachingUnitUrl(id), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createTeachingUnitRequest),
+  });
+};
+
+export const getUpdateTeachingUnitMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateTeachingUnit>>,
+    TError,
+    { id: number; data: BodyType<CreateTeachingUnitRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateTeachingUnit>>,
+  TError,
+  { id: number; data: BodyType<CreateTeachingUnitRequest> },
+  TContext
+> => {
+  const mutationKey = ["updateTeachingUnit"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateTeachingUnit>>,
+    { id: number; data: BodyType<CreateTeachingUnitRequest> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateTeachingUnit(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateTeachingUnitMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateTeachingUnit>>
+>;
+export type UpdateTeachingUnitMutationBody =
+  BodyType<CreateTeachingUnitRequest>;
+export type UpdateTeachingUnitMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Update a teaching unit (UE)
+ */
+export const useUpdateTeachingUnit = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateTeachingUnit>>,
+    TError,
+    { id: number; data: BodyType<CreateTeachingUnitRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateTeachingUnit>>,
+  TError,
+  { id: number; data: BodyType<CreateTeachingUnitRequest> },
+  TContext
+> => {
+  return useMutation(getUpdateTeachingUnitMutationOptions(options));
+};
+
+/**
+ * @summary Delete a teaching unit (UE)
+ */
+export const getDeleteTeachingUnitUrl = (id: number) => {
+  return `/api/admin/teaching-units/${id}`;
+};
+
+export const deleteTeachingUnit = async (
+  id: number,
+  options?: RequestInit,
+): Promise<MessageResponse> => {
+  return customFetch<MessageResponse>(getDeleteTeachingUnitUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteTeachingUnitMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteTeachingUnit>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteTeachingUnit>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["deleteTeachingUnit"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteTeachingUnit>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteTeachingUnit(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteTeachingUnitMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteTeachingUnit>>
+>;
+
+export type DeleteTeachingUnitMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Delete a teaching unit (UE)
+ */
+export const useDeleteTeachingUnit = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteTeachingUnit>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteTeachingUnit>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getDeleteTeachingUnitMutationOptions(options));
 };
 
 /**

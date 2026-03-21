@@ -29,6 +29,8 @@ tags:
     description: Room management (Planificateur)
   - name: schedules
     description: Schedule/timetable management (Planificateur)
+  - name: teaching-units
+    description: Teaching unit (UE) management — LMD system
 
 paths:
   /healthz:
@@ -365,6 +367,90 @@ paths:
       responses:
         "200":
           description: Subject deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  # ─── Admin: Teaching Units (UE) ──────────────────────────────────────
+  /admin/teaching-units:
+    get:
+      operationId: listTeachingUnits
+      tags: [teaching-units]
+      summary: List all teaching units (UE)
+      parameters:
+        - name: classId
+          in: query
+          schema:
+            type: integer
+        - name: semesterId
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Teaching units list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TeachingUnit"
+    post:
+      operationId: createTeachingUnit
+      tags: [teaching-units]
+      summary: Create a new teaching unit (UE)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTeachingUnitRequest"
+      responses:
+        "201":
+          description: Teaching unit created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TeachingUnit"
+
+  /admin/teaching-units/{id}:
+    put:
+      operationId: updateTeachingUnit
+      tags: [teaching-units]
+      summary: Update a teaching unit (UE)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTeachingUnitRequest"
+      responses:
+        "200":
+          description: Teaching unit updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TeachingUnit"
+    delete:
+      operationId: deleteTeachingUnit
+      tags: [teaching-units]
+      summary: Delete a teaching unit (UE)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Teaching unit deleted
           content:
             application/json:
               schema:
@@ -1037,13 +1123,32 @@ components:
         coefficient:
           type: number
           format: float
+        credits:
+          type: number
+          format: float
+          nullable: true
         description:
+          type: string
+          nullable: true
+        ueId:
+          type: integer
+          nullable: true
+        ueName:
+          type: string
+          nullable: true
+        ueCode:
           type: string
           nullable: true
         classId:
           type: integer
           nullable: true
         className:
+          type: string
+          nullable: true
+        semesterId:
+          type: integer
+          nullable: true
+        semesterName:
           type: string
           nullable: true
         teacherId:
@@ -1065,13 +1170,74 @@ components:
         coefficient:
           type: number
           format: float
+        credits:
+          type: number
+          format: float
+          nullable: true
         description:
           type: string
+          nullable: true
+        ueId:
+          type: integer
           nullable: true
         classId:
           type: integer
           nullable: true
+        semesterId:
+          type: integer
+          nullable: true
       required: [name, coefficient]
+
+    TeachingUnit:
+      type: object
+      properties:
+        id:
+          type: integer
+        code:
+          type: string
+        name:
+          type: string
+        credits:
+          type: integer
+        coefficient:
+          type: number
+          format: float
+        classId:
+          type: integer
+          nullable: true
+        className:
+          type: string
+          nullable: true
+        semesterId:
+          type: integer
+          nullable: true
+        semesterName:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, code, name, credits, coefficient, createdAt]
+
+    CreateTeachingUnitRequest:
+      type: object
+      properties:
+        code:
+          type: string
+        name:
+          type: string
+        credits:
+          type: integer
+        coefficient:
+          type: number
+          format: float
+        classId:
+          type: integer
+          nullable: true
+        semesterId:
+          type: integer
+          nullable: true
+      required: [code, name, credits, coefficient]
 
     Semester:
       type: object

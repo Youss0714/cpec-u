@@ -154,9 +154,15 @@ export interface Subject {
   id: number;
   name: string;
   coefficient: number;
+  credits?: number | null;
   description?: string | null;
+  ueId?: number | null;
+  ueName?: string | null;
+  ueCode?: string | null;
   classId?: number | null;
   className?: string | null;
+  semesterId?: number | null;
+  semesterName?: string | null;
   teacherId?: number | null;
   teacherName?: string | null;
   createdAt: string;
@@ -165,8 +171,33 @@ export interface Subject {
 export interface CreateSubjectRequest {
   name: string;
   coefficient: number;
+  credits?: number | null;
   description?: string | null;
+  ueId?: number | null;
   classId?: number | null;
+  semesterId?: number | null;
+}
+
+export interface TeachingUnit {
+  id: number;
+  code: string;
+  name: string;
+  credits: number;
+  coefficient: number;
+  classId?: number | null;
+  className?: string | null;
+  semesterId?: number | null;
+  semesterName?: string | null;
+  createdAt: string;
+}
+
+export interface CreateTeachingUnitRequest {
+  code: string;
+  name: string;
+  credits: number;
+  coefficient: number;
+  classId?: number | null;
+  semesterId?: number | null;
 }
 
 export interface Semester {
@@ -375,6 +406,11 @@ export const ListUsersRole = {
   teacher: "teacher",
   student: "student",
 } as const;
+
+export type ListTeachingUnitsParams = {
+  classId?: number;
+  semesterId?: number;
+};
 
 export type GetSemesterResultsParams = {
   classId?: number;

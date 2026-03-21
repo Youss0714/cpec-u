@@ -1,15 +1,10 @@
 import { useState, useMemo } from "react";
 import { AppLayout } from "@/components/layout";
 import {
-  useListSubjects,
-  useCreateSubject,
-  useUpdateSubject,
-  useDeleteSubject,
-  useListClasses,
-  useListSemesters,
-  useGetCurrentUser,
+  useListSubjects, useCreateSubject, useUpdateSubject, useDeleteSubject,
+  useListTeachingUnits, useCreateTeachingUnit, useUpdateTeachingUnit, useDeleteTeachingUnit,
+  useListClasses, useListSemesters, useGetCurrentUser,
 } from "@workspace/api-client-react";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ConfirmDialog } from "@/components/confirm-dialog";
@@ -17,214 +12,342 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Trash2, Pencil, BookOpen } from "lucide-react";
+import { Plus, Trash2, Pencil, BookOpen, Layers, ChevronDown, ChevronRight, Award } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
-
-type SubjectFormData = { name: string; coefficient: string; classId: string; semesterId: string };
-
-const emptyForm: SubjectFormData = { name: "", coefficient: "1", classId: "none", semesterId: "none" };
+import { Badge } from "@/components/ui/badge";
+import { motion, AnimatePresence } from "framer-motion";
 
 function resolveId(val: string): number | undefined {
   return val && val !== "none" ? parseInt(val) : undefined;
 }
 
+type UEFormData = { code: string; name: string; credits: string; coefficient: string; classId: string; semesterId: string };
+type ECFormData = { name: string; coefficient: string; credits: string; ueId: string; classId: string; semesterId: string };
+
+const emptyUE: UEFormData = { code: "", name: "", credits: "3", coefficient: "1", classId: "none", semesterId: "none" };
+const emptyEC: ECFormData = { name: "", coefficient: "1", credits: "1", ueId: "none", classId: "none", semesterId: "none" };
+
 export default function AdminSubjects() {
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [editingSubject, setEditingSubject] = useState<any>(null);
-  const [form, setForm] = useState<SubjectFormData>(emptyForm);
-  const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
   const [filterClass, setFilterClass] = useState("all");
   const [filterSemester, setFilterSemester] = useState("all");
+  const [expandedUEs, setExpandedUEs] = useState<Set<number>>(new Set());
 
-  const { data: subjects, isLoading } = useListSubjects();
-  const { data: classes } = useListClasses();
-  const { data: semesters } = useListSemesters();
+  const [isCreateUEOpen, setIsCreateUEOpen] = useState(false);
+  const [editingUE, setEditingUE] = useState<any>(null);
+  const [pendingDeleteUEId, setPendingDeleteUEId] = useState<number | null>(null);
+  const [ueForm, setUeForm] = useState<UEFormData>(emptyUE);
+
+  const [isCreateECOpen, setIsCreateECOpen] = useState(false);
+  const [editingEC, setEditingEC] = useState<any>(null);
+  const [pendingDeleteECId, setPendingDeleteECId] = useState<number | null>(null);
+  const [ecForm, setEcForm] = useState<ECFormData>(emptyEC);
+  const [defaultUeId, setDefaultUeId] = useState<string>("none");
+
+  const { data: subjects = [], isLoading: subjectsLoading } = useListSubjects();
+  const { data: teachingUnits = [], isLoading: uesLoading } = useListTeachingUnits({});
+  const { data: classes = [] } = useListClasses();
+  const { data: semesters = [] } = useListSemesters();
   const { data: currentUser } = useGetCurrentUser();
   const isScolarite = (currentUser as any)?.adminSubRole === "scolarite";
 
-  const createSubject = useCreateSubject();
-  const updateSubject = useUpdateSubject();
-  const deleteSubject = useDeleteSubject();
+  const createUE = useCreateTeachingUnit();
+  const updateUE = useUpdateTeachingUnit();
+  const deleteUE = useDeleteTeachingUnit();
+  const createEC = useCreateSubject();
+  const updateEC = useUpdateSubject();
+  const deleteEC = useDeleteSubject();
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: ["/api/admin/subjects"] });
+  const invalidateAll = () => {
+    queryClient.invalidateQueries({ queryKey: ["/api/admin/subjects"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/admin/teaching-units"] });
+  };
+
+  const filteredUEs = useMemo(() => {
+    if (!teachingUnits) return [];
+    return (teachingUnits as any[]).filter((u: any) => {
+      const matchClass = filterClass === "all" || String(u.classId ?? "none") === filterClass;
+      const matchSem = filterSemester === "all" || String(u.semesterId ?? "none") === filterSemester;
+      return matchClass && matchSem;
+    });
+  }, [teachingUnits, filterClass, filterSemester]);
 
   const filteredSubjects = useMemo(() => {
     if (!subjects) return [];
-    return subjects.filter((s: any) => {
-      const matchClass = filterClass === "all" || String((s as any).classId ?? "none") === filterClass;
-      const matchSem = filterSemester === "all" || String((s as any).semesterId ?? "none") === filterSemester;
+    return (subjects as any[]).filter((s: any) => {
+      const matchClass = filterClass === "all" || String(s.classId ?? "none") === filterClass;
+      const matchSem = filterSemester === "all" || String(s.semesterId ?? "none") === filterSemester;
       return matchClass && matchSem;
     });
   }, [subjects, filterClass, filterSemester]);
 
-  const handleCreate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      await createSubject.mutateAsync({
-        data: {
-          name: form.name,
-          coefficient: parseFloat(form.coefficient),
-          classId: resolveId(form.classId),
-          semesterId: resolveId(form.semesterId),
-        } as any,
-      });
-      toast({ title: "Matière créée" });
-      invalidate();
-      setIsCreateOpen(false);
-      setForm(emptyForm);
-    } catch {
-      toast({ title: "Erreur lors de la création", variant: "destructive" });
+  const subjectsByUE = useMemo(() => {
+    const map = new Map<number | null, any[]>();
+    for (const s of filteredSubjects) {
+      const key = s.ueId ?? null;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(s);
     }
-  };
+    return map;
+  }, [filteredSubjects]);
 
-  const handleUpdate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingSubject) return;
-    try {
-      await updateSubject.mutateAsync({
-        id: editingSubject.id,
-        data: {
-          name: form.name,
-          coefficient: parseFloat(form.coefficient),
-          classId: resolveId(form.classId),
-          semesterId: resolveId(form.semesterId),
-        } as any,
-      });
-      toast({ title: "Matière modifiée" });
-      invalidate();
-      setEditingSubject(null);
-      setForm(emptyForm);
-    } catch {
-      toast({ title: "Erreur lors de la modification", variant: "destructive" });
-    }
-  };
-
-  const openEdit = (sub: any) => {
-    setEditingSubject(sub);
-    setForm({
-      name: sub.name,
-      coefficient: String(sub.coefficient),
-      classId: sub.classId ? String(sub.classId) : "none",
-      semesterId: sub.semesterId ? String(sub.semesterId) : "none",
+  const toggleUE = (id: number) => {
+    setExpandedUEs(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
     });
   };
 
-  const handleDelete = async (id: number) => {
+  const handleCreateUE = async (e: React.FormEvent) => {
+    e.preventDefault();
     try {
-      await deleteSubject.mutateAsync({ id });
-      toast({ title: "Matière supprimée" });
-      invalidate();
-    } catch {
-      toast({ title: "Erreur", variant: "destructive" });
-    }
+      await createUE.mutateAsync({ data: {
+        code: ueForm.code,
+        name: ueForm.name,
+        credits: parseInt(ueForm.credits),
+        coefficient: parseFloat(ueForm.coefficient),
+        classId: resolveId(ueForm.classId) ?? null,
+        semesterId: resolveId(ueForm.semesterId) ?? null,
+      } as any });
+      toast({ title: "UE créée" });
+      invalidateAll();
+      setIsCreateUEOpen(false);
+      setUeForm(emptyUE);
+    } catch { toast({ title: "Erreur lors de la création", variant: "destructive" }); }
   };
 
-  const SubjectFormFields = ({
-    onSubmit,
-    isPending,
-  }: {
-    onSubmit: (e: React.FormEvent) => void;
-    isPending: boolean;
-  }) => (
+  const handleUpdateUE = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingUE) return;
+    try {
+      await updateUE.mutateAsync({ id: editingUE.id, data: {
+        code: ueForm.code, name: ueForm.name,
+        credits: parseInt(ueForm.credits), coefficient: parseFloat(ueForm.coefficient),
+        classId: resolveId(ueForm.classId) ?? null, semesterId: resolveId(ueForm.semesterId) ?? null,
+      } as any });
+      toast({ title: "UE modifiée" });
+      invalidateAll();
+      setEditingUE(null);
+      setUeForm(emptyUE);
+    } catch { toast({ title: "Erreur", variant: "destructive" }); }
+  };
+
+  const handleDeleteUE = async (id: number) => {
+    try {
+      await deleteUE.mutateAsync({ id });
+      toast({ title: "UE supprimée" });
+      invalidateAll();
+    } catch { toast({ title: "Erreur", variant: "destructive" }); }
+  };
+
+  const handleCreateEC = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await createEC.mutateAsync({ data: {
+        name: ecForm.name,
+        coefficient: parseFloat(ecForm.coefficient),
+        credits: parseFloat(ecForm.credits),
+        ueId: resolveId(ecForm.ueId) ?? null,
+        classId: resolveId(ecForm.classId) ?? null,
+        semesterId: resolveId(ecForm.semesterId) ?? null,
+      } as any });
+      toast({ title: "EC créé" });
+      invalidateAll();
+      setIsCreateECOpen(false);
+      setEcForm(emptyEC);
+    } catch { toast({ title: "Erreur", variant: "destructive" }); }
+  };
+
+  const handleUpdateEC = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingEC) return;
+    try {
+      await updateEC.mutateAsync({ id: editingEC.id, data: {
+        name: ecForm.name,
+        coefficient: parseFloat(ecForm.coefficient),
+        credits: parseFloat(ecForm.credits),
+        ueId: resolveId(ecForm.ueId) ?? null,
+        classId: resolveId(ecForm.classId) ?? null,
+        semesterId: resolveId(ecForm.semesterId) ?? null,
+      } as any });
+      toast({ title: "EC modifié" });
+      invalidateAll();
+      setEditingEC(null);
+      setEcForm(emptyEC);
+    } catch { toast({ title: "Erreur", variant: "destructive" }); }
+  };
+
+  const handleDeleteEC = async (id: number) => {
+    try {
+      await deleteEC.mutateAsync({ id });
+      toast({ title: "EC supprimé" });
+      invalidateAll();
+    } catch { toast({ title: "Erreur", variant: "destructive" }); }
+  };
+
+  const openEditUE = (ue: any) => {
+    setEditingUE(ue);
+    setUeForm({
+      code: ue.code, name: ue.name,
+      credits: String(ue.credits), coefficient: String(ue.coefficient),
+      classId: ue.classId ? String(ue.classId) : "none",
+      semesterId: ue.semesterId ? String(ue.semesterId) : "none",
+    });
+  };
+
+  const openEditEC = (ec: any) => {
+    setEditingEC(ec);
+    setEcForm({
+      name: ec.name,
+      coefficient: String(ec.coefficient),
+      credits: String(ec.credits ?? 1),
+      ueId: ec.ueId ? String(ec.ueId) : "none",
+      classId: ec.classId ? String(ec.classId) : "none",
+      semesterId: ec.semesterId ? String(ec.semesterId) : "none",
+    });
+  };
+
+  const openAddEC = (ueId?: number) => {
+    setEcForm({
+      ...emptyEC,
+      ueId: ueId ? String(ueId) : "none",
+      classId: filterClass !== "all" ? filterClass : "none",
+      semesterId: filterSemester !== "all" ? filterSemester : "none",
+    });
+    setIsCreateECOpen(true);
+  };
+
+  const UEFormFields = ({ onSubmit, isPending }: { onSubmit: (e: React.FormEvent) => void; isPending: boolean }) => (
     <form onSubmit={onSubmit} className="space-y-4 mt-4">
-      <div className="space-y-2">
-        <Label>Nom de la matière</Label>
-        <Input
-          value={form.name}
-          onChange={(e) => setForm({ ...form, name: e.target.value })}
-          placeholder="ex: Mathématiques"
-          required
-        />
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label>Code UE</Label>
+          <Input value={ueForm.code} onChange={e => setUeForm({ ...ueForm, code: e.target.value })} placeholder="ex: UE1" required />
+        </div>
+        <div className="space-y-2">
+          <Label>Crédits ECTS</Label>
+          <Input type="number" min="1" max="30" value={ueForm.credits} onChange={e => setUeForm({ ...ueForm, credits: e.target.value })} required />
+        </div>
       </div>
       <div className="space-y-2">
-        <Label>Coefficient (1 – 10)</Label>
-        <Input
-          type="number"
-          step="0.5"
-          min="1"
-          max="10"
-          value={form.coefficient}
-          onChange={(e) => setForm({ ...form, coefficient: e.target.value })}
-          required
-        />
+        <Label>Intitulé de l'UE</Label>
+        <Input value={ueForm.name} onChange={e => setUeForm({ ...ueForm, name: e.target.value })} placeholder="ex: Fondamentaux Comptables" required />
       </div>
       <div className="space-y-2">
-        <Label>
-          Classe <span className="text-muted-foreground text-xs">(optionnel)</span>
-        </Label>
-        <Select value={form.classId} onValueChange={(v) => setForm({ ...form, classId: v })}>
-          <SelectTrigger>
-            <SelectValue placeholder="Toutes les classes" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="none">Toutes les classes</SelectItem>
-            {classes?.map((c) => (
-              <SelectItem key={c.id} value={c.id.toString()}>
-                {c.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <Label>Coefficient de l'UE</Label>
+        <Input type="number" step="0.5" min="0.5" max="10" value={ueForm.coefficient} onChange={e => setUeForm({ ...ueForm, coefficient: e.target.value })} required />
       </div>
-      <div className="space-y-2">
-        <Label>
-          Semestre <span className="text-muted-foreground text-xs">(optionnel)</span>
-        </Label>
-        <Select value={form.semesterId} onValueChange={(v) => setForm({ ...form, semesterId: v })}>
-          <SelectTrigger>
-            <SelectValue placeholder="Tous les semestres" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="none">Tous les semestres</SelectItem>
-            {semesters?.map((s) => (
-              <SelectItem key={s.id} value={s.id.toString()}>
-                {s.name} {s.academicYear ? `(${s.academicYear})` : ""}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label>Classe</Label>
+          <Select value={ueForm.classId} onValueChange={v => setUeForm({ ...ueForm, classId: v })}>
+            <SelectTrigger><SelectValue placeholder="Toutes les classes" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">— Aucune —</SelectItem>
+              {classes?.map((c: any) => <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <Label>Semestre</Label>
+          <Select value={ueForm.semesterId} onValueChange={v => setUeForm({ ...ueForm, semesterId: v })}>
+            <SelectTrigger><SelectValue placeholder="Tous les semestres" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">— Aucun —</SelectItem>
+              {semesters?.map((s: any) => <SelectItem key={s.id} value={s.id.toString()}>{s.name} {s.academicYear ? `(${s.academicYear})` : ""}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
-      <Button type="submit" className="w-full" disabled={isPending}>
-        {isPending ? "Enregistrement..." : "Enregistrer"}
-      </Button>
+      <Button type="submit" className="w-full" disabled={isPending}>{isPending ? "Enregistrement..." : "Enregistrer"}</Button>
     </form>
   );
+
+  const ECFormFields = ({ onSubmit, isPending }: { onSubmit: (e: React.FormEvent) => void; isPending: boolean }) => (
+    <form onSubmit={onSubmit} className="space-y-4 mt-4">
+      <div className="space-y-2">
+        <Label>Nom de l'EC (matière)</Label>
+        <Input value={ecForm.name} onChange={e => setEcForm({ ...ecForm, name: e.target.value })} placeholder="ex: Comptabilité Générale" required />
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label>Coefficient</Label>
+          <Input type="number" step="0.5" min="0.5" max="10" value={ecForm.coefficient} onChange={e => setEcForm({ ...ecForm, coefficient: e.target.value })} required />
+        </div>
+        <div className="space-y-2">
+          <Label>Crédits ECTS</Label>
+          <Input type="number" min="1" max="10" value={ecForm.credits} onChange={e => setEcForm({ ...ecForm, credits: e.target.value })} />
+        </div>
+      </div>
+      <div className="space-y-2">
+        <Label>UE de rattachement <span className="text-muted-foreground text-xs">(optionnel)</span></Label>
+        <Select value={ecForm.ueId} onValueChange={v => setEcForm({ ...ecForm, ueId: v })}>
+          <SelectTrigger><SelectValue placeholder="Sans UE" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">— Sans UE —</SelectItem>
+            {(teachingUnits as any[]).map((u: any) => (
+              <SelectItem key={u.id} value={u.id.toString()}>{u.code} – {u.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label>Classe</Label>
+          <Select value={ecForm.classId} onValueChange={v => setEcForm({ ...ecForm, classId: v })}>
+            <SelectTrigger><SelectValue placeholder="Toutes" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">— Aucune —</SelectItem>
+              {classes?.map((c: any) => <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <Label>Semestre</Label>
+          <Select value={ecForm.semesterId} onValueChange={v => setEcForm({ ...ecForm, semesterId: v })}>
+            <SelectTrigger><SelectValue placeholder="Tous" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">— Aucun —</SelectItem>
+              {semesters?.map((s: any) => <SelectItem key={s.id} value={s.id.toString()}>{s.name} {s.academicYear ? `(${s.academicYear})` : ""}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+      <Button type="submit" className="w-full" disabled={isPending}>{isPending ? "Enregistrement..." : "Enregistrer"}</Button>
+    </form>
+  );
+
+  const isLoading = subjectsLoading || uesLoading;
+  const unassignedECs = subjectsByUE.get(null) ?? [];
 
   return (
     <AppLayout allowedRoles={["admin"]}>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex justify-between items-center">
+        <div className="flex justify-between items-start flex-wrap gap-4">
           <div>
-            <h1 className="text-3xl font-serif font-bold text-foreground">Matières</h1>
-            <p className="text-muted-foreground">
-              Unités d'enseignement par classe et semestre.
-            </p>
+            <h1 className="text-3xl font-serif font-bold text-foreground">Matières — Système LMD</h1>
+            <p className="text-muted-foreground">Organisation par UE (Unités d'Enseignement) et EC (Éléments Constitutifs).</p>
           </div>
-
           {!isScolarite && (
-            <Dialog
-              open={isCreateOpen}
-              onOpenChange={(o) => {
-                setIsCreateOpen(o);
-                if (!o) setForm(emptyForm);
-              }}
-            >
-              <DialogTrigger asChild>
-                <Button className="shadow-md">
-                  <Plus className="w-4 h-4 mr-2" />
-                  Nouvelle Matière
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Créer une matière</DialogTitle>
-                </DialogHeader>
-                <SubjectFormFields onSubmit={handleCreate} isPending={createSubject.isPending} />
-              </DialogContent>
-            </Dialog>
+            <div className="flex gap-2">
+              <Dialog open={isCreateUEOpen} onOpenChange={o => { setIsCreateUEOpen(o); if (!o) setUeForm(emptyUE); }}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" className="shadow-sm">
+                    <Layers className="w-4 h-4 mr-2" /> Nouvelle UE
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader><DialogTitle>Créer une Unité d'Enseignement</DialogTitle></DialogHeader>
+                  <UEFormFields onSubmit={handleCreateUE} isPending={createUE.isPending} />
+                </DialogContent>
+              </Dialog>
+              <Button className="shadow-md" onClick={() => openAddEC()}>
+                <Plus className="w-4 h-4 mr-2" /> Nouvel EC
+              </Button>
+            </div>
           )}
         </div>
 
@@ -236,145 +359,218 @@ export default function AdminSubjects() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Toutes les classes</SelectItem>
-              <SelectItem value="none">Sans classe</SelectItem>
-              {classes?.map((c) => (
-                <SelectItem key={c.id} value={c.id.toString()}>
-                  {c.name}
-                </SelectItem>
-              ))}
+              {classes?.map((c: any) => <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>)}
             </SelectContent>
           </Select>
-
           <Select value={filterSemester} onValueChange={setFilterSemester}>
             <SelectTrigger className="w-52 bg-card border-border">
               <SelectValue placeholder="Tous les semestres" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Tous les semestres</SelectItem>
-              <SelectItem value="none">Sans semestre</SelectItem>
-              {semesters?.map((s) => (
-                <SelectItem key={s.id} value={s.id.toString()}>
-                  {s.name} {s.academicYear ? `(${s.academicYear})` : ""}
-                </SelectItem>
+              {semesters?.map((s: any) => (
+                <SelectItem key={s.id} value={s.id.toString()}>{s.name} {s.academicYear ? `(${s.academicYear})` : ""}</SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
 
-        {/* Table */}
-        <div className="bg-card rounded-2xl shadow-sm border border-border overflow-hidden">
-          <div className="overflow-y-auto max-h-[calc(100vh-300px)]">
-            <Table>
-              <TableHeader className="bg-secondary/50 sticky top-0 z-10">
-                <TableRow>
-                  <TableHead>Matière</TableHead>
-                  <TableHead>Coefficient</TableHead>
-                  <TableHead>Classe</TableHead>
-                  <TableHead>Semestre</TableHead>
-                  {!isScolarite && <TableHead className="text-right">Actions</TableHead>}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {isLoading ? (
-                  <TableRow>
-                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                      Chargement...
-                    </TableCell>
-                  </TableRow>
-                ) : filteredSubjects.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={5} className="text-center py-12 text-muted-foreground">
-                      <div className="flex flex-col items-center gap-2">
-                        <BookOpen className="w-8 h-8 opacity-30" />
-                        <span>Aucune matière trouvée.</span>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  filteredSubjects.map((sub: any) => (
-                    <TableRow key={sub.id}>
-                      <TableCell className="font-semibold text-foreground">{sub.name}</TableCell>
-                      <TableCell>
-                        <span className="bg-primary/10 text-primary font-bold px-2 py-1 rounded-md text-sm">
-                          Coef. {sub.coefficient}
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-muted-foreground text-sm">
-                        {sub.className ?? (
-                          <span className="text-muted-foreground/50 italic">Générale</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground text-sm">
-                        {sub.semesterName ? (
-                          <span className="inline-flex items-center gap-1 bg-secondary px-2 py-0.5 rounded-full text-xs font-medium">
-                            {sub.semesterName}
-                          </span>
-                        ) : (
-                          <span className="text-muted-foreground/50 italic">—</span>
-                        )}
-                      </TableCell>
-                      {!isScolarite && (
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-1">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => openEdit(sub)}
-                              className="text-muted-foreground hover:text-foreground"
-                            >
-                              <Pencil className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => setPendingDeleteId(sub.id)}
-                              className="text-destructive hover:bg-destructive/10"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
+        {/* Content */}
+        {isLoading ? (
+          <div className="py-24 flex justify-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div></div>
+        ) : (
+          <div className="space-y-4">
+            {/* UE blocks */}
+            {filteredUEs.length === 0 && filteredSubjects.length === 0 ? (
+              <div className="bg-card rounded-2xl border border-dashed border-border flex flex-col items-center justify-center py-20 text-muted-foreground">
+                <BookOpen className="w-12 h-12 opacity-20 mb-4" />
+                <p className="font-medium text-lg">Aucune UE ni matière</p>
+                <p className="text-sm">Créez d'abord des UE, puis ajoutez des EC.</p>
+              </div>
+            ) : (
+              <>
+                {filteredUEs.map((ue: any) => {
+                  const ecs = subjectsByUE.get(ue.id) ?? [];
+                  const isOpen = expandedUEs.has(ue.id);
+                  return (
+                    <div key={ue.id} className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
+                      <div
+                        className="flex items-center justify-between px-5 py-4 cursor-pointer hover:bg-secondary/30 transition-colors"
+                        onClick={() => toggleUE(ue.id)}
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+                            <span className="text-primary font-bold text-sm">{ue.code}</span>
                           </div>
-                        </TableCell>
-                      )}
-                    </TableRow>
-                  ))
+                          <div className="min-w-0">
+                            <p className="font-bold text-foreground truncate">{ue.name}</p>
+                            <p className="text-xs text-muted-foreground">{ecs.length} EC{ecs.length > 1 ? "s" : ""}</p>
+                          </div>
+                          <Badge className="bg-primary/10 text-primary border-0 font-bold">{ue.credits} crédits ECTS</Badge>
+                          {ue.className && <Badge variant="secondary" className="text-xs">{ue.className}</Badge>}
+                          {ue.semesterName && <Badge variant="outline" className="text-xs">{ue.semesterName}</Badge>}
+                        </div>
+                        <div className="flex items-center gap-1 flex-shrink-0 ml-2">
+                          {!isScolarite && (
+                            <>
+                              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={e => { e.stopPropagation(); openAddEC(ue.id); }}>
+                                <Plus className="w-4 h-4" />
+                              </Button>
+                              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground" onClick={e => { e.stopPropagation(); openEditUE(ue); }}>
+                                <Pencil className="w-4 h-4" />
+                              </Button>
+                              <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={e => { e.stopPropagation(); setPendingDeleteUEId(ue.id); }}>
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </>
+                          )}
+                          {isOpen ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
+                        </div>
+                      </div>
+                      <AnimatePresence initial={false}>
+                        {isOpen && (
+                          <motion.div
+                            key="content"
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: "auto", opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{ duration: 0.2 }}
+                            className="overflow-hidden"
+                          >
+                            <div className="border-t border-border">
+                              {ecs.length === 0 ? (
+                                <p className="px-6 py-4 text-sm text-muted-foreground italic">Aucun EC dans cette UE.</p>
+                              ) : (
+                                <table className="w-full text-sm">
+                                  <thead>
+                                    <tr className="bg-secondary/20 text-muted-foreground text-xs uppercase tracking-wide">
+                                      <th className="text-left px-6 py-2 pl-14">Élément Constitutif</th>
+                                      <th className="text-center px-4 py-2">Coefficient</th>
+                                      <th className="text-center px-4 py-2">Crédits</th>
+                                      <th className="text-left px-4 py-2">Enseignant</th>
+                                      {!isScolarite && <th className="w-16 py-2"></th>}
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {ecs.map((ec: any) => (
+                                      <tr key={ec.id} className="border-t border-border/50 hover:bg-secondary/10">
+                                        <td className="px-6 py-3 pl-14 font-semibold text-foreground">{ec.name}</td>
+                                        <td className="px-4 py-3 text-center">
+                                          <span className="bg-primary/10 text-primary font-bold px-2 py-0.5 rounded-md text-xs">Coef. {ec.coefficient}</span>
+                                        </td>
+                                        <td className="px-4 py-3 text-center text-muted-foreground">{ec.credits ?? "—"} cr.</td>
+                                        <td className="px-4 py-3 text-muted-foreground">{ec.teacherName ?? <span className="italic opacity-50">Non assigné</span>}</td>
+                                        {!isScolarite && (
+                                          <td className="px-4 py-3">
+                                            <div className="flex gap-1 justify-end">
+                                              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEditEC(ec)}>
+                                                <Pencil className="w-3 h-3" />
+                                              </Button>
+                                              <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => setPendingDeleteECId(ec.id)}>
+                                                <Trash2 className="w-3 h-3" />
+                                              </Button>
+                                            </div>
+                                          </td>
+                                        )}
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              )}
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  );
+                })}
+
+                {/* Unassigned ECs */}
+                {unassignedECs.length > 0 && (
+                  <div className="bg-card border border-dashed border-border rounded-2xl overflow-hidden">
+                    <div className="px-5 py-4 border-b border-border/50 bg-secondary/10">
+                      <p className="font-semibold text-muted-foreground text-sm">EC sans UE ({unassignedECs.length})</p>
+                    </div>
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="text-muted-foreground text-xs uppercase tracking-wide bg-secondary/10">
+                          <th className="text-left px-6 py-2">Matière</th>
+                          <th className="text-center px-4 py-2">Coefficient</th>
+                          <th className="text-left px-4 py-2">Classe</th>
+                          <th className="text-left px-4 py-2">Semestre</th>
+                          {!isScolarite && <th className="w-20 py-2"></th>}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {unassignedECs.map((ec: any) => (
+                          <tr key={ec.id} className="border-t border-border/50 hover:bg-secondary/10">
+                            <td className="px-6 py-3 font-semibold text-foreground">{ec.name}</td>
+                            <td className="px-4 py-3 text-center">
+                              <span className="bg-secondary text-foreground font-bold px-2 py-0.5 rounded-md text-xs">Coef. {ec.coefficient}</span>
+                            </td>
+                            <td className="px-4 py-3 text-muted-foreground">{ec.className ?? "—"}</td>
+                            <td className="px-4 py-3 text-muted-foreground">{ec.semesterName ?? "—"}</td>
+                            {!isScolarite && (
+                              <td className="px-4 py-3">
+                                <div className="flex gap-1 justify-end">
+                                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEditEC(ec)}>
+                                    <Pencil className="w-3 h-3" />
+                                  </Button>
+                                  <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => setPendingDeleteECId(ec.id)}>
+                                    <Trash2 className="w-3 h-3" />
+                                  </Button>
+                                </div>
+                              </td>
+                            )}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 )}
-              </TableBody>
-            </Table>
+              </>
+            )}
           </div>
-          {filteredSubjects.length > 0 && (
-            <div className="px-4 py-2 border-t border-border text-xs text-muted-foreground">
-              {filteredSubjects.length} matière{filteredSubjects.length > 1 ? "s" : ""}
-            </div>
-          )}
-        </div>
+        )}
       </div>
 
-      {/* Dialog d'édition */}
-      <Dialog
-        open={!!editingSubject}
-        onOpenChange={(o) => {
-          if (!o) {
-            setEditingSubject(null);
-            setForm(emptyForm);
-          }
-        }}
-      >
+      {/* Edit UE Dialog */}
+      <Dialog open={!!editingUE} onOpenChange={o => { if (!o) { setEditingUE(null); setUeForm(emptyUE); } }}>
         <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Modifier la matière</DialogTitle>
-          </DialogHeader>
-          <SubjectFormFields onSubmit={handleUpdate} isPending={updateSubject.isPending} />
+          <DialogHeader><DialogTitle>Modifier l'UE</DialogTitle></DialogHeader>
+          <UEFormFields onSubmit={handleUpdateUE} isPending={updateUE.isPending} />
+        </DialogContent>
+      </Dialog>
+
+      {/* Create EC Dialog */}
+      <Dialog open={isCreateECOpen} onOpenChange={o => { setIsCreateECOpen(o); if (!o) setEcForm(emptyEC); }}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Créer un Élément Constitutif (EC)</DialogTitle></DialogHeader>
+          <ECFormFields onSubmit={handleCreateEC} isPending={createEC.isPending} />
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit EC Dialog */}
+      <Dialog open={!!editingEC} onOpenChange={o => { if (!o) { setEditingEC(null); setEcForm(emptyEC); } }}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Modifier l'EC</DialogTitle></DialogHeader>
+          <ECFormFields onSubmit={handleUpdateEC} isPending={updateEC.isPending} />
         </DialogContent>
       </Dialog>
 
       <ConfirmDialog
-        open={pendingDeleteId !== null}
-        onOpenChange={(open) => {
-          if (!open) setPendingDeleteId(null);
-        }}
-        onConfirm={() => handleDelete(pendingDeleteId!)}
-        title="Supprimer la matière"
-        description="Cette action est irréversible. La matière et ses données associées seront supprimées."
+        open={pendingDeleteUEId !== null}
+        onOpenChange={open => { if (!open) setPendingDeleteUEId(null); }}
+        onConfirm={() => handleDeleteUE(pendingDeleteUEId!)}
+        title="Supprimer l'UE"
+        description="Cette action supprimera l'UE. Les EC rattachés ne seront pas supprimés mais perdront leur rattachement."
+      />
+      <ConfirmDialog
+        open={pendingDeleteECId !== null}
+        onOpenChange={open => { if (!open) setPendingDeleteECId(null); }}
+        onConfirm={() => handleDeleteEC(pendingDeleteECId!)}
+        title="Supprimer l'EC"
+        description="Cette action est irréversible. L'EC et ses données associées seront supprimées."
       />
     </AppLayout>
   );

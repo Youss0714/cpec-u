@@ -219,9 +219,15 @@ export const ListSubjectsResponseItem = zod.object({
   id: zod.number(),
   name: zod.string(),
   coefficient: zod.number(),
+  credits: zod.number().nullish(),
   description: zod.string().nullish(),
+  ueId: zod.number().nullish(),
+  ueName: zod.string().nullish(),
+  ueCode: zod.string().nullish(),
   classId: zod.number().nullish(),
   className: zod.string().nullish(),
+  semesterId: zod.number().nullish(),
+  semesterName: zod.string().nullish(),
   teacherId: zod.number().nullish(),
   teacherName: zod.string().nullish(),
   createdAt: zod.date(),
@@ -234,8 +240,11 @@ export const ListSubjectsResponse = zod.array(ListSubjectsResponseItem);
 export const CreateSubjectBody = zod.object({
   name: zod.string(),
   coefficient: zod.number(),
+  credits: zod.number().nullish(),
   description: zod.string().nullish(),
+  ueId: zod.number().nullish(),
   classId: zod.number().nullish(),
+  semesterId: zod.number().nullish(),
 });
 
 /**
@@ -248,17 +257,26 @@ export const UpdateSubjectParams = zod.object({
 export const UpdateSubjectBody = zod.object({
   name: zod.string(),
   coefficient: zod.number(),
+  credits: zod.number().nullish(),
   description: zod.string().nullish(),
+  ueId: zod.number().nullish(),
   classId: zod.number().nullish(),
+  semesterId: zod.number().nullish(),
 });
 
 export const UpdateSubjectResponse = zod.object({
   id: zod.number(),
   name: zod.string(),
   coefficient: zod.number(),
+  credits: zod.number().nullish(),
   description: zod.string().nullish(),
+  ueId: zod.number().nullish(),
+  ueName: zod.string().nullish(),
+  ueCode: zod.string().nullish(),
   classId: zod.number().nullish(),
   className: zod.string().nullish(),
+  semesterId: zod.number().nullish(),
+  semesterName: zod.string().nullish(),
   teacherId: zod.number().nullish(),
   teacherName: zod.string().nullish(),
   createdAt: zod.date(),
@@ -272,6 +290,82 @@ export const DeleteSubjectParams = zod.object({
 });
 
 export const DeleteSubjectResponse = zod.object({
+  message: zod.string(),
+});
+
+/**
+ * @summary List all teaching units (UE)
+ */
+export const ListTeachingUnitsQueryParams = zod.object({
+  classId: zod.coerce.number().optional(),
+  semesterId: zod.coerce.number().optional(),
+});
+
+export const ListTeachingUnitsResponseItem = zod.object({
+  id: zod.number(),
+  code: zod.string(),
+  name: zod.string(),
+  credits: zod.number(),
+  coefficient: zod.number(),
+  classId: zod.number().nullish(),
+  className: zod.string().nullish(),
+  semesterId: zod.number().nullish(),
+  semesterName: zod.string().nullish(),
+  createdAt: zod.date(),
+});
+export const ListTeachingUnitsResponse = zod.array(
+  ListTeachingUnitsResponseItem,
+);
+
+/**
+ * @summary Create a new teaching unit (UE)
+ */
+export const CreateTeachingUnitBody = zod.object({
+  code: zod.string(),
+  name: zod.string(),
+  credits: zod.number(),
+  coefficient: zod.number(),
+  classId: zod.number().nullish(),
+  semesterId: zod.number().nullish(),
+});
+
+/**
+ * @summary Update a teaching unit (UE)
+ */
+export const UpdateTeachingUnitParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdateTeachingUnitBody = zod.object({
+  code: zod.string(),
+  name: zod.string(),
+  credits: zod.number(),
+  coefficient: zod.number(),
+  classId: zod.number().nullish(),
+  semesterId: zod.number().nullish(),
+});
+
+export const UpdateTeachingUnitResponse = zod.object({
+  id: zod.number(),
+  code: zod.string(),
+  name: zod.string(),
+  credits: zod.number(),
+  coefficient: zod.number(),
+  classId: zod.number().nullish(),
+  className: zod.string().nullish(),
+  semesterId: zod.number().nullish(),
+  semesterName: zod.string().nullish(),
+  createdAt: zod.date(),
+});
+
+/**
+ * @summary Delete a teaching unit (UE)
+ */
+export const DeleteTeachingUnitParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const DeleteTeachingUnitResponse = zod.object({
   message: zod.string(),
 });
 

@@ -6,20 +6,15 @@
  * OpenAPI spec version: 1.0.0
  */
 
-export interface Subject {
+export interface TeachingUnit {
   id: number;
+  code: string;
   name: string;
+  credits: number;
   coefficient: number;
-  credits?: number | null;
-  description?: string | null;
-  ueId?: number | null;
-  ueName?: string | null;
-  ueCode?: string | null;
   classId?: number | null;
   className?: string | null;
   semesterId?: number | null;
   semesterName?: string | null;
-  teacherId?: number | null;
-  teacherName?: string | null;
   createdAt: Date;
 }

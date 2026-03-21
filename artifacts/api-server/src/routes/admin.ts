@@ -13,6 +13,7 @@ import {
   subjectApprovalsTable,
   activityLogTable,
   attendanceTable,
+  teachingUnitsTable,
 } from "@workspace/db";
 import { eq, and, sql, count, inArray, desc, ne, isNotNull } from "drizzle-orm";
 import { requireRole } from "../lib/auth.js";
@@ -299,31 +300,37 @@ router.get("/classes/:id/students", requireRole("admin", "teacher"), async (req,
 });
 
 // ─── Subjects ─────────────────────────────────────────────────────────────────
-router.get("/subjects", requireRole("admin", "teacher"), async (req, res) => {
-  try {
-    const subjects = await db.select().from(subjectsTable);
-    const classes = await db.select().from(classesTable);
-    const semesters = await db.select().from(semestersTable);
-    const classMap = new Map(classes.map((c) => [c.id, c.name]));
-    const semesterMap = new Map(semesters.map((s) => [s.id, s.name]));
-
-    const assignments = await db.select({
-      subjectId: teacherAssignmentsTable.subjectId,
-      teacherId: teacherAssignmentsTable.teacherId,
-      teacherName: usersTable.name,
-    })
-      .from(teacherAssignmentsTable)
-      .innerJoin(usersTable, eq(usersTable.id, teacherAssignmentsTable.teacherId));
-
-    const assignMap = new Map(assignments.map((a) => [a.subjectId, { teacherId: a.teacherId, teacherName: a.teacherName }]));
-
-    res.json(subjects.map((s) => ({
+async function enrichSubjects(subjects: any[]) {
+  const classes = await db.select().from(classesTable);
+  const semesters = await db.select().from(semestersTable);
+  const ues = await db.select().from(teachingUnitsTable);
+  const classMap = new Map(classes.map((c) => [c.id, c.name]));
+  const semesterMap = new Map(semesters.map((s) => [s.id, s.name]));
+  const ueMap = new Map(ues.map((u) => [u.id, u]));
+  const assignments = await db.select({
+    subjectId: teacherAssignmentsTable.subjectId,
+    teacherId: teacherAssignmentsTable.teacherId,
+    teacherName: usersTable.name,
+  }).from(teacherAssignmentsTable).innerJoin(usersTable, eq(usersTable.id, teacherAssignmentsTable.teacherId));
+  const assignMap = new Map(assignments.map((a) => [a.subjectId, { teacherId: a.teacherId, teacherName: a.teacherName }]));
+  return subjects.map((s) => {
+    const ue = s.ueId ? ueMap.get(s.ueId) : null;
+    return {
       ...s,
       className: s.classId ? (classMap.get(s.classId) ?? null) : null,
       semesterName: s.semesterId ? (semesterMap.get(s.semesterId) ?? null) : null,
+      ueCode: ue?.code ?? null,
+      ueName: ue?.name ?? null,
       teacherId: assignMap.get(s.id)?.teacherId ?? null,
       teacherName: assignMap.get(s.id)?.teacherName ?? null,
-    })));
+    };
+  });
+}
+
+router.get("/subjects", requireRole("admin", "teacher"), async (req, res) => {
+  try {
+    const subjects = await db.select().from(subjectsTable);
+    res.json(await enrichSubjects(subjects));
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Internal Server Error" });
@@ -337,12 +344,11 @@ router.post("/subjects", requireRole("admin"), async (req, res) => {
       res.status(403).json({ error: "Forbidden", message: "L'Assistant(e) de Direction ne peut pas créer de matière." });
       return;
     }
-    const { name, coefficient, description, classId, semesterId } = req.body;
+    const { name, coefficient, credits, description, ueId, classId, semesterId } = req.body;
     if (!name || coefficient === undefined) { res.status(400).json({ error: "Bad Request", message: "Name and coefficient are required" }); return; }
-    const [subj] = await db.insert(subjectsTable).values({ name, coefficient, description, classId: classId ?? null, semesterId: semesterId ?? null }).returning();
-    const cls = classId ? await db.select({ name: classesTable.name }).from(classesTable).where(eq(classesTable.id, classId)).limit(1) : [];
-    const sem = semesterId ? await db.select({ name: semestersTable.name }).from(semestersTable).where(eq(semestersTable.id, semesterId)).limit(1) : [];
-    res.status(201).json({ ...subj, className: cls[0]?.name ?? null, semesterName: sem[0]?.name ?? null, teacherId: null, teacherName: null });
+    const [subj] = await db.insert(subjectsTable).values({ name, coefficient, credits: credits ?? null, description, ueId: ueId ?? null, classId: classId ?? null, semesterId: semesterId ?? null }).returning();
+    const [enriched] = await enrichSubjects([subj]);
+    res.status(201).json(enriched);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Internal Server Error" });
@@ -352,12 +358,11 @@ router.post("/subjects", requireRole("admin"), async (req, res) => {
 router.put("/subjects/:id", requireRole("admin"), async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    const { name, coefficient, description, classId, semesterId } = req.body;
-    const [subj] = await db.update(subjectsTable).set({ name, coefficient, description, classId: classId ?? null, semesterId: semesterId ?? null }).where(eq(subjectsTable.id, id)).returning();
+    const { name, coefficient, credits, description, ueId, classId, semesterId } = req.body;
+    const [subj] = await db.update(subjectsTable).set({ name, coefficient, credits: credits ?? null, description, ueId: ueId ?? null, classId: classId ?? null, semesterId: semesterId ?? null }).where(eq(subjectsTable.id, id)).returning();
     if (!subj) { res.status(404).json({ error: "Not Found" }); return; }
-    const cls = subj.classId ? await db.select({ name: classesTable.name }).from(classesTable).where(eq(classesTable.id, subj.classId)).limit(1) : [];
-    const sem = subj.semesterId ? await db.select({ name: semestersTable.name }).from(semestersTable).where(eq(semestersTable.id, subj.semesterId)).limit(1) : [];
-    res.json({ ...subj, className: cls[0]?.name ?? null, semesterName: sem[0]?.name ?? null, teacherId: null, teacherName: null });
+    const [enriched] = await enrichSubjects([subj]);
+    res.json(enriched);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Internal Server Error" });
@@ -369,6 +374,74 @@ router.delete("/subjects/:id", requireRole("admin"), async (req, res) => {
     const id = parseInt(req.params.id);
     await db.delete(subjectsTable).where(eq(subjectsTable.id, id));
     res.json({ message: "Subject deleted" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// ─── Teaching Units (UE) ──────────────────────────────────────────────────────
+router.get("/teaching-units", requireRole("admin", "teacher"), async (req, res) => {
+  try {
+    const { classId, semesterId } = req.query;
+    let ues = await db.select().from(teachingUnitsTable);
+    if (classId) ues = ues.filter(u => u.classId === parseInt(classId as string));
+    if (semesterId) ues = ues.filter(u => u.semesterId === parseInt(semesterId as string));
+    const classes = await db.select().from(classesTable);
+    const semesters = await db.select().from(semestersTable);
+    const classMap = new Map(classes.map((c) => [c.id, c.name]));
+    const semesterMap = new Map(semesters.map((s) => [s.id, s.name]));
+    res.json(ues.map(u => ({
+      ...u,
+      className: u.classId ? (classMap.get(u.classId) ?? null) : null,
+      semesterName: u.semesterId ? (semesterMap.get(u.semesterId) ?? null) : null,
+    })));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+router.post("/teaching-units", requireRole("admin"), async (req, res) => {
+  try {
+    const cu = req.session?.user as any;
+    if (cu?.adminSubRole === "scolarite") {
+      res.status(403).json({ error: "Forbidden" }); return;
+    }
+    const { code, name, credits, coefficient, classId, semesterId } = req.body;
+    if (!code || !name || credits === undefined || coefficient === undefined) {
+      res.status(400).json({ error: "Bad Request", message: "code, name, credits and coefficient are required" }); return;
+    }
+    const [ue] = await db.insert(teachingUnitsTable).values({ code, name, credits, coefficient, classId: classId ?? null, semesterId: semesterId ?? null }).returning();
+    const cls = classId ? await db.select({ name: classesTable.name }).from(classesTable).where(eq(classesTable.id, classId)).limit(1) : [];
+    const sem = semesterId ? await db.select({ name: semestersTable.name }).from(semestersTable).where(eq(semestersTable.id, semesterId)).limit(1) : [];
+    res.status(201).json({ ...ue, className: cls[0]?.name ?? null, semesterName: sem[0]?.name ?? null });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+router.put("/teaching-units/:id", requireRole("admin"), async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const { code, name, credits, coefficient, classId, semesterId } = req.body;
+    const [ue] = await db.update(teachingUnitsTable).set({ code, name, credits, coefficient, classId: classId ?? null, semesterId: semesterId ?? null }).where(eq(teachingUnitsTable.id, id)).returning();
+    if (!ue) { res.status(404).json({ error: "Not Found" }); return; }
+    const cls = ue.classId ? await db.select({ name: classesTable.name }).from(classesTable).where(eq(classesTable.id, ue.classId)).limit(1) : [];
+    const sem = ue.semesterId ? await db.select({ name: semestersTable.name }).from(semestersTable).where(eq(semestersTable.id, ue.semesterId)).limit(1) : [];
+    res.json({ ...ue, className: cls[0]?.name ?? null, semesterName: sem[0]?.name ?? null });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+router.delete("/teaching-units/:id", requireRole("admin"), async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    await db.delete(teachingUnitsTable).where(eq(teachingUnitsTable.id, id));
+    res.json({ message: "Teaching unit deleted" });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Internal Server Error" });
@@ -537,6 +610,16 @@ async function computeStudentResult(studentId: number, semesterId: number) {
       )
     : [];
 
+  // Fetch teaching units for this class/semester
+  const ues = classId
+    ? await db.select().from(teachingUnitsTable).where(
+        and(
+          eq(teachingUnitsTable.classId, classId),
+          eq(teachingUnitsTable.semesterId, semesterId)
+        )
+      )
+    : [];
+
   const studentGrades = await db
     .select()
     .from(gradesTable)
@@ -559,19 +642,62 @@ async function computeStudentResult(studentId: number, semesterId: number) {
     subjectId: s.id,
     subjectName: s.name,
     coefficient: s.coefficient,
+    credits: s.credits,
+    ueId: s.ueId,
     value: gradeMap.get(s.id)?.value ?? null,
     evaluations: gradeMap.get(s.id)?.evaluations ?? [],
   }));
 
+  // ── LMD: Group subjects by UE and compute UE averages ───────────────────────
+  const ueResults = ues.map((ue) => {
+    const ueSubjects = grades.filter(g => g.ueId === ue.id);
+    const gradedUeSubjects = ueSubjects.filter(g => g.value !== null);
+    let ueAverage: number | null = null;
+    if (gradedUeSubjects.length > 0) {
+      const totalCoeff = gradedUeSubjects.reduce((s, g) => s + g.coefficient, 0);
+      const totalPoints = gradedUeSubjects.reduce((s, g) => s + g.value! * g.coefficient, 0);
+      ueAverage = totalCoeff > 0 ? Math.round((totalPoints / totalCoeff) * 100) / 100 : null;
+    }
+    const acquis = ueAverage !== null && ueAverage >= 10;
+    return {
+      ueId: ue.id,
+      ueCode: ue.code,
+      ueName: ue.name,
+      credits: ue.credits,
+      coefficient: ue.coefficient,
+      average: ueAverage,
+      acquis,
+      subjects: ueSubjects,
+    };
+  });
+
+  // Subjects not assigned to any UE
+  const unassignedGrades = grades.filter(g => !g.ueId || !ues.find(u => u.id === g.ueId));
+
   let average: number | null = null;
   let decision: "Admis" | "Ajourné" | "En attente" = "En attente";
 
+  // Compute semester average from UE averages (weighted by UE credits) + unassigned subjects
   const gradedSubjects = grades.filter((g) => g.value !== null);
-  if (gradedSubjects.length > 0) {
+  if (ues.length > 0) {
+    const gradedUes = ueResults.filter(u => u.average !== null);
+    const unassignedGraded = unassignedGrades.filter(g => g.value !== null);
+    const totalCredits = gradedUes.reduce((s, u) => s + u.credits, 0);
+    const totalPoints = gradedUes.reduce((s, u) => s + u.average! * u.credits, 0);
+    const unassignedCoeff = unassignedGraded.reduce((s, g) => s + g.coefficient, 0);
+    const unassignedPoints = unassignedGraded.reduce((s, g) => s + g.value! * g.coefficient, 0);
+    const totalWeight = totalCredits + unassignedCoeff;
+    const total = totalPoints + unassignedPoints;
+    average = totalWeight > 0 ? Math.round((total / totalWeight) * 100) / 100 : null;
+  } else if (gradedSubjects.length > 0) {
     const totalCoeff = gradedSubjects.reduce((sum, g) => sum + g.coefficient, 0);
     const totalPoints = gradedSubjects.reduce((sum, g) => sum + (g.value! * g.coefficient), 0);
     average = totalCoeff > 0 ? Math.round((totalPoints / totalCoeff) * 100) / 100 : null;
   }
+
+  // Credits validated = sum of UE credits where UE average >= 10
+  const creditsValidated = ueResults.filter(u => u.acquis).reduce((s, u) => s + u.credits, 0);
+  const totalCredits = ueResults.reduce((s, u) => s + u.credits, 0);
 
   // ── Absence deduction: -0.1 per complete hour of absence ────────────────────
   let absenceDeductionHours = 0;
@@ -614,6 +740,7 @@ async function computeStudentResult(studentId: number, semesterId: number) {
     classId, className,
     semesterId, semesterName: semester.name,
     average, decision, grades,
+    ueResults, creditsValidated, totalCredits,
     absenceDeductionHours, absenceDeduction,
     rank: null, totalStudents: null,
   };

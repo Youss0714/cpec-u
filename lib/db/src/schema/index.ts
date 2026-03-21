@@ -1,5 +1,6 @@
 export * from "./users";
 export * from "./classes";
+export * from "./teaching_units";
 export * from "./subjects";
 export * from "./semesters";
 export * from "./grades";

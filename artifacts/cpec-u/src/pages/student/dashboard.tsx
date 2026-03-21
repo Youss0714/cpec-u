@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { GraduationCap, Award, Book, AlertCircle, Building2, BedDouble, CalendarDays } from "lucide-react";
+import { GraduationCap, Award, Book, AlertCircle, Building2, BedDouble, CalendarDays, CheckCircle2, XCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useQuery } from "@tanstack/react-query";
@@ -30,12 +30,10 @@ export default function StudentDashboard() {
   const { data: semesters } = useListSemesters();
   const { data: housing } = useMyHousing();
   
-  // Find latest published semester as default
   const latestPublished = semesters?.filter(s => s.published).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
   
   const [selectedSemester, setSelectedSemester] = useState<string>("");
 
-  // Set default once semesters load
   if (!selectedSemester && latestPublished) {
     setSelectedSemester(latestPublished.id.toString());
   }
@@ -44,6 +42,11 @@ export default function StudentDashboard() {
     { semesterId: parseInt(selectedSemester) },
     { query: { enabled: !!selectedSemester, retry: false } as any }
   );
+
+  const ueResults: any[] = (results as any)?.ueResults ?? [];
+  const creditsValidated: number = (results as any)?.creditsValidated ?? 0;
+  const totalCredits: number = (results as any)?.totalCredits ?? 0;
+  const hasUEs = ueResults.length > 0;
 
   return (
     <AppLayout allowedRoles={["student"]}>
@@ -129,13 +132,26 @@ export default function StudentDashboard() {
                     )}
                   </CardContent>
                 </Card>
-                <Card className="bg-card shadow-sm border-border">
-                  <CardContent className="p-6 text-center">
-                    <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-2">Rang</p>
-                    <p className="text-5xl font-bold font-mono text-foreground">{results.rank || "-"}</p>
-                    <p className="text-sm text-muted-foreground mt-1">sur {results.totalStudents}</p>
-                  </CardContent>
-                </Card>
+                {hasUEs ? (
+                  <Card className="bg-card shadow-sm border-border">
+                    <CardContent className="p-6 text-center">
+                      <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-2">Crédits ECTS</p>
+                      <p className="text-5xl font-bold font-mono text-foreground">
+                        <span className="text-emerald-600">{creditsValidated}</span>
+                        <span className="text-2xl text-muted-foreground">/{totalCredits}</span>
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">crédits validés</p>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <Card className="bg-card shadow-sm border-border">
+                    <CardContent className="p-6 text-center">
+                      <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-2">Rang</p>
+                      <p className="text-5xl font-bold font-mono text-foreground">{results.rank || "-"}</p>
+                      <p className="text-sm text-muted-foreground mt-1">sur {results.totalStudents}</p>
+                    </CardContent>
+                  </Card>
+                )}
                 <Card className={`shadow-sm border-none flex flex-col justify-center items-center p-6 ${
                   results.decision === 'Admis' ? 'bg-emerald-500 text-white' : 
                   results.decision === 'Ajourné' ? 'bg-destructive text-white' : 'bg-secondary text-foreground'
@@ -148,35 +164,128 @@ export default function StudentDashboard() {
                 </Card>
               </div>
 
-              {/* Grades Table */}
-              <Card className="overflow-hidden border-border shadow-sm">
-                <Table>
-                  <TableHeader className="bg-secondary/30">
-                    <TableRow>
-                      <TableHead className="w-1/2">Matière</TableHead>
-                      <TableHead className="text-center">Coefficient</TableHead>
-                      <TableHead className="text-right">Note / 20</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {results.grades?.map((g, i) => (
-                      <TableRow key={i} className="hover:bg-muted/30">
-                        <TableCell className="font-bold text-foreground py-4">{g.subjectName}</TableCell>
-                        <TableCell className="text-center text-muted-foreground font-semibold">{g.coefficient}</TableCell>
-                        <TableCell className="text-right font-mono font-bold text-lg">
-                          {g.value !== null && g.value !== undefined ? (
-                            <span className={g.value < 12 ? 'text-destructive' : 'text-emerald-600'}>
-                              {g.value.toFixed(2)}
-                            </span>
-                          ) : (
-                            <span className="text-muted-foreground">-</span>
-                          )}
-                        </TableCell>
+              {/* LMD: UE-grouped grades */}
+              {hasUEs ? (
+                <div className="space-y-4">
+                  {ueResults.map((ue: any) => (
+                    <div key={ue.ueId} className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
+                      {/* UE Header */}
+                      <div className="flex items-center justify-between px-5 py-4 bg-secondary/20 border-b border-border/50">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+                            <span className="text-primary font-bold text-sm">{ue.ueCode}</span>
+                          </div>
+                          <div>
+                            <p className="font-bold text-foreground">{ue.ueName}</p>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <Badge className="bg-primary/10 text-primary border-0 text-xs font-semibold">{ue.credits} crédits ECTS</Badge>
+                              {ue.acquis ? (
+                                <span className="flex items-center gap-1 text-xs font-semibold text-emerald-600">
+                                  <CheckCircle2 className="w-3 h-3" /> Acquis
+                                </span>
+                              ) : ue.average !== null ? (
+                                <span className="flex items-center gap-1 text-xs font-semibold text-destructive">
+                                  <XCircle className="w-3 h-3" /> Non acquis
+                                </span>
+                              ) : null}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-xs text-muted-foreground uppercase tracking-wider mb-0.5">Moyenne UE</p>
+                          <p className={`text-2xl font-bold font-mono ${
+                            ue.average === null ? "text-muted-foreground" :
+                            ue.average >= 10 ? "text-emerald-600" : "text-destructive"
+                          }`}>
+                            {ue.average !== null ? ue.average.toFixed(2) : "—"}
+                          </p>
+                        </div>
+                      </div>
+                      {/* EC table */}
+                      {ue.subjects && ue.subjects.length > 0 && (
+                        <Table>
+                          <TableHeader className="bg-secondary/10">
+                            <TableRow>
+                              <TableHead className="pl-16">Élément Constitutif</TableHead>
+                              <TableHead className="text-center">Coef.</TableHead>
+                              <TableHead className="text-right pr-6">Note / 20</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {ue.subjects.map((g: any, i: number) => (
+                              <TableRow key={i} className="hover:bg-muted/30">
+                                <TableCell className="font-medium text-foreground pl-16 py-3">{g.subjectName}</TableCell>
+                                <TableCell className="text-center text-muted-foreground text-sm">{g.coefficient}</TableCell>
+                                <TableCell className="text-right pr-6 font-mono font-bold">
+                                  {g.value !== null && g.value !== undefined ? (
+                                    <span className={g.value < 10 ? 'text-destructive' : 'text-emerald-600'}>{g.value.toFixed(2)}</span>
+                                  ) : (
+                                    <span className="text-muted-foreground">-</span>
+                                  )}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      )}
+                    </div>
+                  ))}
+
+                  {/* Unassigned subjects (without UE) */}
+                  {((results.grades ?? []) as any[]).filter((g: any) => !g.ueId || !ueResults.find((u: any) => u.ueId === g.ueId)).length > 0 && (
+                    <div className="bg-card border border-dashed border-border rounded-2xl overflow-hidden shadow-sm">
+                      <div className="px-5 py-3 border-b border-border/50 bg-secondary/10">
+                        <p className="text-sm font-semibold text-muted-foreground">Autres matières</p>
+                      </div>
+                      <Table>
+                        <TableBody>
+                          {results.grades?.filter((g: any) => !g.ueId || !ueResults.find((u: any) => u.ueId === g.ueId)).map((g: any, i: number) => (
+                            <TableRow key={i} className="hover:bg-muted/30">
+                              <TableCell className="font-bold text-foreground py-4">{g.subjectName}</TableCell>
+                              <TableCell className="text-center text-muted-foreground font-semibold">{g.coefficient}</TableCell>
+                              <TableCell className="text-right font-mono font-bold text-lg">
+                                {g.value !== null && g.value !== undefined ? (
+                                  <span className={g.value < 10 ? 'text-destructive' : 'text-emerald-600'}>{g.value.toFixed(2)}</span>
+                                ) : (
+                                  <span className="text-muted-foreground">-</span>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                /* Fallback: flat grades table when no UEs */
+                <Card className="overflow-hidden border-border shadow-sm">
+                  <Table>
+                    <TableHeader className="bg-secondary/30">
+                      <TableRow>
+                        <TableHead className="w-1/2">Matière</TableHead>
+                        <TableHead className="text-center">Coefficient</TableHead>
+                        <TableHead className="text-right">Note / 20</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </Card>
+                    </TableHeader>
+                    <TableBody>
+                      {results.grades?.map((g: any, i: number) => (
+                        <TableRow key={i} className="hover:bg-muted/30">
+                          <TableCell className="font-bold text-foreground py-4">{g.subjectName}</TableCell>
+                          <TableCell className="text-center text-muted-foreground font-semibold">{g.coefficient}</TableCell>
+                          <TableCell className="text-right font-mono font-bold text-lg">
+                            {g.value !== null && g.value !== undefined ? (
+                              <span className={g.value < 12 ? 'text-destructive' : 'text-emerald-600'}>{g.value.toFixed(2)}</span>
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </Card>
+              )}
 
             </motion.div>
           )}

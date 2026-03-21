@@ -6,12 +6,11 @@
  * OpenAPI spec version: 1.0.0
  */
 
-export interface CreateSubjectRequest {
+export interface CreateTeachingUnitRequest {
+  code: string;
   name: string;
+  credits: number;
   coefficient: number;
-  credits?: number | null;
-  description?: string | null;
-  ueId?: number | null;
   classId?: number | null;
   semesterId?: number | null;
 }

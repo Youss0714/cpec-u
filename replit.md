@@ -36,7 +36,8 @@ artifacts-monorepo/
 - `users` — admins, teachers, students (enum role + admin_sub_role enum)
 - `classes` — class groups
 - `class_enrollments` — student → class (many-to-one)
-- `subjects` — subjects with coefficients, linked to class
+- `teaching_units` — UE (Unités d'Enseignement) LMD: code, name, credits ECTS, coefficient, class, semester
+- `subjects` — EC (Éléments Constitutifs) with coefficient, credits, optionally linked to a UE
 - `semesters` — academic semesters with published flag
 - `grades` — student grade per subject per semester (unique constraint)
 - `teacher_assignments` — teacher → subject → class → semester
