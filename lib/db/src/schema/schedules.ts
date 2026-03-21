@@ -18,6 +18,7 @@ export const scheduleEntriesTable = pgTable("schedule_entries", {
   startTime: varchar("start_time", { length: 5 }).notNull(), // "08:00"
   endTime: varchar("end_time", { length: 5 }).notNull(),     // "10:00"
   notes: text("notes"),
+  teamsLink: text("teams_link"),
   published: boolean("published").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

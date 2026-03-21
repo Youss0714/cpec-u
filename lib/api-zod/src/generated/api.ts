@@ -678,6 +678,10 @@ export const ListScheduleEntriesResponseItem = zod.object({
     .describe("1=Lundi, 2=Mardi, 3=Mercredi, 4=Jeudi, 5=Vendredi, 6=Samedi"),
   startTime: zod.string().describe("HH:MM format"),
   endTime: zod.string().describe("HH:MM format"),
+  teamsLink: zod
+    .string()
+    .nullish()
+    .describe("Lien Microsoft Teams pour rejoindre le cours en ligne"),
   createdAt: zod.date(),
 });
 export const ListScheduleEntriesResponse = zod.array(
@@ -698,6 +702,10 @@ export const CreateScheduleEntryBody = zod.object({
   dayOfWeek: zod.number().min(1).max(createScheduleEntryBodyDayOfWeekMax),
   startTime: zod.string(),
   endTime: zod.string(),
+  teamsLink: zod
+    .string()
+    .nullish()
+    .describe("Lien Microsoft Teams (optionnel)"),
 });
 
 /**

@@ -44,6 +44,7 @@ async function getEnrichedEntries(filters?: { semesterId?: number; classId?: num
       startTime: scheduleEntriesTable.startTime,
       endTime: scheduleEntriesTable.endTime,
       notes: scheduleEntriesTable.notes,
+      teamsLink: scheduleEntriesTable.teamsLink,
       published: scheduleEntriesTable.published,
       createdAt: scheduleEntriesTable.createdAt,
     })
@@ -227,13 +228,13 @@ router.post("/publish-period", requirePlanificateur, async (req, res) => {
 
 router.post("/", requirePlanificateur, async (req, res) => {
   try {
-    const { teacherId, subjectId, classId, roomId, semesterId, sessionDate, startTime, endTime, notes } = req.body;
+    const { teacherId, subjectId, classId, roomId, semesterId, sessionDate, startTime, endTime, notes, teamsLink } = req.body;
     if (!teacherId || !subjectId || !classId || !roomId || !semesterId || !sessionDate || !startTime || !endTime) {
       return res.status(400).json({ error: "Tous les champs sont requis" });
     }
     const [entry] = await db
       .insert(scheduleEntriesTable)
-      .values({ teacherId, subjectId, classId, roomId, semesterId, sessionDate, startTime, endTime, notes: notes ?? null, published: false })
+      .values({ teacherId, subjectId, classId, roomId, semesterId, sessionDate, startTime, endTime, notes: notes ?? null, teamsLink: teamsLink ?? null, published: false })
       .returning();
     const enriched = await getEnrichedEntries();
     res.status(201).json(enriched.find((e) => e.id === entry.id));
@@ -246,10 +247,10 @@ router.post("/", requirePlanificateur, async (req, res) => {
 router.put("/:entryId", requirePlanificateur, async (req, res) => {
   try {
     const entryId = parseInt(req.params.entryId);
-    const { teacherId, subjectId, classId, roomId, sessionDate, startTime, endTime, notes } = req.body;
+    const { teacherId, subjectId, classId, roomId, sessionDate, startTime, endTime, notes, teamsLink } = req.body;
     const [entry] = await db
       .update(scheduleEntriesTable)
-      .set({ teacherId, subjectId, classId, roomId, sessionDate, startTime, endTime, notes: notes ?? null })
+      .set({ teacherId, subjectId, classId, roomId, sessionDate, startTime, endTime, notes: notes ?? null, teamsLink: teamsLink ?? null })
       .where(eq(scheduleEntriesTable.id, entryId))
       .returning();
     if (!entry) return res.status(404).json({ error: "Not Found" });

@@ -336,12 +336,14 @@ export interface ScheduleEntry {
   roomName: string;
   semesterId: number;
   semesterName: string;
-  /** Date précise au format YYYY-MM-DD — chaque créneau est indépendant */
-  sessionDate: string;
+  /** 1=Lundi, 2=Mardi, 3=Mercredi, 4=Jeudi, 5=Vendredi, 6=Samedi */
+  dayOfWeek: number;
   /** HH:MM format */
   startTime: string;
   /** HH:MM format */
   endTime: string;
+  /** Lien Microsoft Teams pour rejoindre le cours en ligne */
+  teamsLink?: string | null;
   createdAt: string;
 }
 
@@ -351,10 +353,15 @@ export interface CreateScheduleEntryRequest {
   classId: number;
   roomId: number;
   semesterId: number;
-  /** Date précise au format YYYY-MM-DD */
-  sessionDate: string;
+  /**
+   * @minimum 1
+   * @maximum 6
+   */
+  dayOfWeek: number;
   startTime: string;
   endTime: string;
+  /** Lien Microsoft Teams (optionnel) */
+  teamsLink?: string | null;
 }
 
 export type ListUsersParams = {

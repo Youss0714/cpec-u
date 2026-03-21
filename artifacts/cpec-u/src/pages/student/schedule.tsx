@@ -11,7 +11,7 @@ import {
   useGetStudentMe,
   useListSchedulePublications,
 } from "@workspace/api-client-react";
-import { CalendarDays, Clock, MapPin, ChevronLeft, ChevronRight, BookOpen, Eye, EyeOff } from "lucide-react";
+import { CalendarDays, Clock, MapPin, ChevronLeft, ChevronRight, BookOpen, Eye, EyeOff, Video } from "lucide-react";
 
 const DAYS = ["", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
 const DAY_COLORS = [
@@ -150,6 +150,17 @@ export default function StudentSchedule() {
                 </div>
                 {entry.notes && (
                   <p className="text-xs text-muted-foreground mt-1 italic">{entry.notes}</p>
+                )}
+                {entry.teamsLink && (
+                  <a
+                    href={entry.teamsLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-2 flex items-center gap-1.5 w-full justify-center rounded-lg bg-[#4B53BC] hover:bg-[#3d44a3] text-white text-xs font-semibold py-1.5 px-2 transition-colors"
+                  >
+                    <Video className="w-3.5 h-3.5" />
+                    Rejoindre le cours sur Teams
+                  </a>
                 )}
               </div>
             ))

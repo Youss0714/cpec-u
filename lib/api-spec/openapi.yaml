@@ -1394,6 +1394,10 @@ components:
         endTime:
           type: string
           description: "HH:MM format"
+        teamsLink:
+          type: string
+          nullable: true
+          description: "Lien Microsoft Teams pour rejoindre le cours en ligne"
         createdAt:
           type: string
           format: date-time
@@ -1420,4 +1424,8 @@ components:
           type: string
         endTime:
           type: string
+        teamsLink:
+          type: string
+          nullable: true
+          description: "Lien Microsoft Teams (optionnel)"
       required: [teacherId, subjectId, classId, roomId, semesterId, dayOfWeek, startTime, endTime]

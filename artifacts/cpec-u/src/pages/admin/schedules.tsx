@@ -49,7 +49,7 @@ function todayISO(): string {
 
 const emptyForm = {
   teacherId: "", subjectId: "", classId: "", roomId: "", semesterId: "",
-  sessionDate: todayISO(), startTime: "08:00", endTime: "10:00", notes: "",
+  sessionDate: todayISO(), startTime: "08:00", endTime: "10:00", notes: "", teamsLink: "",
 };
 
 function timesToMinutes(t: string) {
@@ -199,6 +199,7 @@ export default function AdminSchedules() {
           sessionDate: form.sessionDate,
           startTime: form.startTime,
           endTime: form.endTime,
+          teamsLink: form.teamsLink || null,
         },
       });
       toast({ title: "Créneau créé" });
@@ -225,6 +226,7 @@ export default function AdminSchedules() {
           startTime: form.startTime,
           endTime: form.endTime,
           notes: form.notes || null,
+          teamsLink: form.teamsLink || null,
         },
       });
       toast({ title: "Créneau mis à jour" });
@@ -248,6 +250,7 @@ export default function AdminSchedules() {
       startTime: entry.startTime,
       endTime: entry.endTime,
       notes: entry.notes ?? "",
+      teamsLink: entry.teamsLink ?? "",
     });
   };
 
@@ -375,8 +378,30 @@ export default function AdminSchedules() {
         <Label>Notes <span className="text-muted-foreground text-xs">(optionnel)</span></Label>
         <Input value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Remarques..." />
       </div>
-      <Button type="submit" className="w-full" disabled={isPending}>
-        {isPending ? "Enregistrement..." : "Enregistrer"}
+      <div className="space-y-1">
+        <Label className="flex items-center gap-1.5">
+          <span className="inline-flex items-center justify-center w-4 h-4 rounded bg-[#4B53BC] shrink-0">
+            <svg viewBox="0 0 24 24" className="w-2.5 h-2.5 fill-white"><path d="M20.625 3H3.375A.375.375 0 0 0 3 3.375v17.25c0 .207.168.375.375.375h17.25A.375.375 0 0 0 21 20.625V3.375A.375.375 0 0 0 20.625 3zm-7.97 11.914a.375.375 0 0 1-.375.375H9.72a.375.375 0 0 1-.375-.375V8.086c0-.207.168-.375.375-.375h2.56c.207 0 .375.168.375.375v6.828z"/></svg>
+          </span>
+          Lien réunion Teams
+          <span className="text-muted-foreground text-xs font-normal">(optionnel)</span>
+        </Label>
+        <Input
+          value={form.teamsLink}
+          onChange={(e) => setForm({ ...form, teamsLink: e.target.value })}
+          placeholder="https://teams.microsoft.com/l/meetup-join/..."
+          type="url"
+        />
+        {form.teamsLink && !form.teamsLink.startsWith("https://teams.microsoft.com/") && (
+          <p className="text-xs text-destructive mt-0.5">Le lien doit commencer par https://teams.microsoft.com/</p>
+        )}
+      </div>
+      <Button
+        type="submit"
+        className="w-full"
+        disabled={isPending || (!!form.teamsLink && !form.teamsLink.startsWith("https://teams.microsoft.com/"))}
+      >
+          {isPending ? "Enregistrement..." : "Enregistrer"}
       </Button>
     </form>
   );

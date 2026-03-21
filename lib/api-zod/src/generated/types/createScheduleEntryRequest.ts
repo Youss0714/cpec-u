@@ -19,4 +19,6 @@ export interface CreateScheduleEntryRequest {
   dayOfWeek: number;
   startTime: string;
   endTime: string;
+  /** Lien Microsoft Teams (optionnel) */
+  teamsLink?: string | null;
 }

@@ -24,5 +24,7 @@ export interface ScheduleEntry {
   startTime: string;
   /** HH:MM format */
   endTime: string;
+  /** Lien Microsoft Teams pour rejoindre le cours en ligne */
+  teamsLink?: string | null;
   createdAt: Date;
 }
