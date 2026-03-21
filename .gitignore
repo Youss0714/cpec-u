@@ -46,6 +46,14 @@ Thumbs.db
 
 # Replit
 .cache/
+.env
+# Fichiers sensibles
+.env
+
+# Dossiers Replit et locaux
+.config/
 .local/
-# Ignorer les règles semgrep de Replit
-.config/replit/.semgrep/semgrep_rules.json
+
+# Node.js
+node_modules/
+npm-debug.log
