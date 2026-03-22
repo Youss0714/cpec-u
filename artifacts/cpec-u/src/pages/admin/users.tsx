@@ -694,6 +694,7 @@ export default function AdminUsers() {
   const [viewProfile, setViewProfile] = useState<any | null>(null);
   const [viewProfileLoading, setViewProfileLoading] = useState(false);
   const [filterClass, setFilterClass] = useState<string>("all");
+  const [searchStudent, setSearchStudent] = useState("");
   const { data: currentUser } = useGetCurrentUser();
   const currentSubRole = (currentUser as any)?.adminSubRole as string | null;
   const isDirecteur = currentSubRole === "directeur";
@@ -897,11 +898,14 @@ export default function AdminUsers() {
 
   const listToShow = useMemo(() => {
     const base = activeTab === "teachers" ? teachers : activeTab === "responsables" ? admins : students;
-    if (activeTab === "students" && filterClass !== "all") {
-      return base.filter((u: any) => u.className === filterClass);
-    }
-    return base;
-  }, [activeTab, teachers, admins, students, filterClass]);
+    if (activeTab !== "students") return base;
+    return base.filter((u: any) => {
+      const matchesClass = filterClass === "all" || u.className === filterClass;
+      const q = searchStudent.toLowerCase();
+      const matchesSearch = !q || u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q);
+      return matchesClass && matchesSearch;
+    });
+  }, [activeTab, teachers, admins, students, filterClass, searchStudent]);
 
   return (
     <AppLayout allowedRoles={["admin"]}>
@@ -1101,10 +1105,16 @@ export default function AdminUsers() {
         {(activeTab === "teachers" || activeTab === "students" || activeTab === "responsables") && (
           <div className="space-y-3">
           {activeTab === "students" && (
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <Input
+                placeholder="Rechercher un étudiant..."
+                value={searchStudent}
+                onChange={e => setSearchStudent(e.target.value)}
+                className="w-56"
+              />
               <Select value={filterClass} onValueChange={setFilterClass}>
-                <SelectTrigger className="w-56">
-                  <SelectValue placeholder="Filtrer par classe" />
+                <SelectTrigger className="w-52">
+                  <SelectValue placeholder="Toutes les classes" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Toutes les classes</SelectItem>
@@ -1113,8 +1123,11 @@ export default function AdminUsers() {
                   ))}
                 </SelectContent>
               </Select>
-              {filterClass !== "all" && (
-                <button onClick={() => setFilterClass("all")} className="text-xs text-muted-foreground hover:text-foreground underline">
+              {(filterClass !== "all" || searchStudent) && (
+                <button
+                  onClick={() => { setFilterClass("all"); setSearchStudent(""); }}
+                  className="text-xs text-muted-foreground hover:text-foreground underline"
+                >
                   Réinitialiser
                 </button>
               )}
