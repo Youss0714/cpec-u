@@ -399,8 +399,9 @@ function ScolariteTab() {
         <div className="text-center py-10 text-muted-foreground">Chargement...</div>
       ) : (
         <div className="rounded-xl border overflow-hidden">
+          <div className="overflow-auto max-h-[520px]">
           <Table>
-            <TableHeader>
+            <TableHeader className="sticky top-0 z-10 bg-background">
               <TableRow className="bg-muted/50">
                 <TableHead>Étudiant</TableHead>
                 <TableHead>Classe</TableHead>
@@ -437,6 +438,7 @@ function ScolariteTab() {
               ))}
             </TableBody>
           </Table>
+          </div>
         </div>
       )}
 
