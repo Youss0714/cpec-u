@@ -70,8 +70,8 @@ export default function AdminDashboard() {
   const scolariteStats = [
     { title: "Étudiants Inscrits", value: (users as any[])?.filter(u => u.role === "student").length || 0, icon: Users, color: "text-blue-500", bg: "bg-blue-500/10" },
     { title: "Enseignants Actifs", value: (users as any[])?.filter(u => u.role === "teacher").length || 0, icon: GraduationCap, color: "text-amber-500", bg: "bg-amber-500/10" },
-    { title: "Taux de Recouvrement", value: `${recoveryRate}%`, icon: TrendingUp, color: recoveryColor, bg: recoveryBg, isRate: true, rate: recoveryRate },
     { title: "Matières Dispensées", value: (subjects as any[])?.length || 0, icon: BookOpen, color: "text-purple-500", bg: "bg-purple-500/10" },
+    { title: "Taux de Recouvrement", value: `${recoveryRate}%`, icon: TrendingUp, color: recoveryColor, bg: recoveryBg, isRate: true, rate: recoveryRate },
   ];
 
   const planificateurStats = [
