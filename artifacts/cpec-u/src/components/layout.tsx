@@ -239,7 +239,8 @@ export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
 
       <nav className="flex-1 px-4 space-y-1 mt-4 overflow-y-auto">
         {navItems.map((item) => {
-          const isActive = location === item.href || location.startsWith(item.href + "?") || (item.href !== "/admin" && location.startsWith(item.href));
+          const isRootPath = item.href === "/admin" || item.href === "/student" || item.href === "/teacher";
+          const isActive = location === item.href || location.startsWith(item.href + "?") || (!isRootPath && location.startsWith(item.href));
           return (
             <Link
               key={item.name}
