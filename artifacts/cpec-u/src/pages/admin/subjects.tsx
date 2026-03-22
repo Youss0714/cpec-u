@@ -236,25 +236,25 @@ export default function AdminSubjects() {
     setIsCreateECOpen(true);
   };
 
-  const UEFormFields = ({ onSubmit, isPending }: { onSubmit: (e: React.FormEvent) => void; isPending: boolean }) => (
+  const ueFormJSX = (onSubmit: (e: React.FormEvent) => void, isPending: boolean) => (
     <form onSubmit={onSubmit} className="space-y-4 mt-4">
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label>Code UE</Label>
-          <Input value={ueForm.code} onChange={e => setUeForm({ ...ueForm, code: e.target.value })} placeholder="ex: UE1" required />
+          <Input value={ueForm.code} onChange={e => setUeForm(f => ({ ...f, code: e.target.value }))} placeholder="ex: UE1" required />
         </div>
         <div className="space-y-2">
           <Label>Crédits ECTS</Label>
-          <Input type="number" min="1" max="30" value={ueForm.credits} onChange={e => setUeForm({ ...ueForm, credits: e.target.value })} required />
+          <Input type="number" min="1" max="30" value={ueForm.credits} onChange={e => setUeForm(f => ({ ...f, credits: e.target.value }))} required />
         </div>
       </div>
       <div className="space-y-2">
         <Label>Intitulé de l'UE</Label>
-        <Input value={ueForm.name} onChange={e => setUeForm({ ...ueForm, name: e.target.value })} placeholder="ex: Fondamentaux Comptables" required />
+        <Input value={ueForm.name} onChange={e => setUeForm(f => ({ ...f, name: e.target.value }))} placeholder="ex: Fondamentaux Comptables" required />
       </div>
       <div className="space-y-2">
         <Label>Catégorie</Label>
-        <Select value={ueForm.category} onValueChange={v => setUeForm({ ...ueForm, category: v })}>
+        <Select value={ueForm.category} onValueChange={v => setUeForm(f => ({ ...f, category: v }))}>
           <SelectTrigger><SelectValue placeholder="Choisir une catégorie..." /></SelectTrigger>
           <SelectContent>
             <SelectItem value="none">— Sans catégorie —</SelectItem>
@@ -266,12 +266,12 @@ export default function AdminSubjects() {
       </div>
       <div className="space-y-2">
         <Label>Coefficient de l'UE</Label>
-        <Input type="number" step="0.5" min="0.5" max="10" value={ueForm.coefficient} onChange={e => setUeForm({ ...ueForm, coefficient: e.target.value })} required />
+        <Input type="number" step="0.5" min="0.5" max="10" value={ueForm.coefficient} onChange={e => setUeForm(f => ({ ...f, coefficient: e.target.value }))} required />
       </div>
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label>Classe</Label>
-          <Select value={ueForm.classId} onValueChange={v => setUeForm({ ...ueForm, classId: v })}>
+          <Select value={ueForm.classId} onValueChange={v => setUeForm(f => ({ ...f, classId: v }))}>
             <SelectTrigger><SelectValue placeholder="Toutes les classes" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="none">— Aucune —</SelectItem>
@@ -281,7 +281,7 @@ export default function AdminSubjects() {
         </div>
         <div className="space-y-2">
           <Label>Semestre</Label>
-          <Select value={ueForm.semesterId} onValueChange={v => setUeForm({ ...ueForm, semesterId: v })}>
+          <Select value={ueForm.semesterId} onValueChange={v => setUeForm(f => ({ ...f, semesterId: v }))}>
             <SelectTrigger><SelectValue placeholder="Tous les semestres" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="none">— Aucun —</SelectItem>
@@ -294,25 +294,25 @@ export default function AdminSubjects() {
     </form>
   );
 
-  const ECFormFields = ({ onSubmit, isPending }: { onSubmit: (e: React.FormEvent) => void; isPending: boolean }) => (
+  const ecFormJSX = (onSubmit: (e: React.FormEvent) => void, isPending: boolean) => (
     <form onSubmit={onSubmit} className="space-y-4 mt-4">
       <div className="space-y-2">
         <Label>Nom de l'EC (matière)</Label>
-        <Input value={ecForm.name} onChange={e => setEcForm({ ...ecForm, name: e.target.value })} placeholder="ex: Comptabilité Générale" required />
+        <Input value={ecForm.name} onChange={e => setEcForm(f => ({ ...f, name: e.target.value }))} placeholder="ex: Comptabilité Générale" required />
       </div>
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label>Coefficient</Label>
-          <Input type="number" step="0.5" min="0.5" max="10" value={ecForm.coefficient} onChange={e => setEcForm({ ...ecForm, coefficient: e.target.value })} required />
+          <Input type="number" step="0.5" min="0.5" max="10" value={ecForm.coefficient} onChange={e => setEcForm(f => ({ ...f, coefficient: e.target.value }))} required />
         </div>
         <div className="space-y-2">
           <Label>Crédits ECTS</Label>
-          <Input type="number" min="1" max="10" value={ecForm.credits} onChange={e => setEcForm({ ...ecForm, credits: e.target.value })} />
+          <Input type="number" min="1" max="10" value={ecForm.credits} onChange={e => setEcForm(f => ({ ...f, credits: e.target.value }))} />
         </div>
       </div>
       <div className="space-y-2">
         <Label>UE de rattachement <span className="text-muted-foreground text-xs">(optionnel)</span></Label>
-        <Select value={ecForm.ueId} onValueChange={v => setEcForm({ ...ecForm, ueId: v })}>
+        <Select value={ecForm.ueId} onValueChange={v => setEcForm(f => ({ ...f, ueId: v }))}>
           <SelectTrigger><SelectValue placeholder="Sans UE" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="none">— Sans UE —</SelectItem>
@@ -325,7 +325,7 @@ export default function AdminSubjects() {
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label>Classe</Label>
-          <Select value={ecForm.classId} onValueChange={v => setEcForm({ ...ecForm, classId: v })}>
+          <Select value={ecForm.classId} onValueChange={v => setEcForm(f => ({ ...f, classId: v }))}>
             <SelectTrigger><SelectValue placeholder="Toutes" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="none">— Aucune —</SelectItem>
@@ -335,7 +335,7 @@ export default function AdminSubjects() {
         </div>
         <div className="space-y-2">
           <Label>Semestre</Label>
-          <Select value={ecForm.semesterId} onValueChange={v => setEcForm({ ...ecForm, semesterId: v })}>
+          <Select value={ecForm.semesterId} onValueChange={v => setEcForm(f => ({ ...f, semesterId: v }))}>
             <SelectTrigger><SelectValue placeholder="Tous" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="none">— Aucun —</SelectItem>
@@ -370,7 +370,7 @@ export default function AdminSubjects() {
                 </DialogTrigger>
                 <DialogContent>
                   <DialogHeader><DialogTitle>Créer une Unité d'Enseignement</DialogTitle></DialogHeader>
-                  <UEFormFields onSubmit={handleCreateUE} isPending={createUE.isPending} />
+                  {ueFormJSX(handleCreateUE, createUE.isPending)}
                 </DialogContent>
               </Dialog>
               <Button className="shadow-md" onClick={() => openAddEC()}>
@@ -589,7 +589,7 @@ export default function AdminSubjects() {
       <Dialog open={!!editingUE} onOpenChange={o => { if (!o) { setEditingUE(null); setUeForm(emptyUE); } }}>
         <DialogContent>
           <DialogHeader><DialogTitle>Modifier l'UE</DialogTitle></DialogHeader>
-          <UEFormFields onSubmit={handleUpdateUE} isPending={updateUE.isPending} />
+          {ueFormJSX(handleUpdateUE, updateUE.isPending)}
         </DialogContent>
       </Dialog>
 
@@ -597,7 +597,7 @@ export default function AdminSubjects() {
       <Dialog open={isCreateECOpen} onOpenChange={o => { setIsCreateECOpen(o); if (!o) setEcForm(emptyEC); }}>
         <DialogContent>
           <DialogHeader><DialogTitle>Créer un Élément Constitutif (EC)</DialogTitle></DialogHeader>
-          <ECFormFields onSubmit={handleCreateEC} isPending={createEC.isPending} />
+          {ecFormJSX(handleCreateEC, createEC.isPending)}
         </DialogContent>
       </Dialog>
 
@@ -605,7 +605,7 @@ export default function AdminSubjects() {
       <Dialog open={!!editingEC} onOpenChange={o => { if (!o) { setEditingEC(null); setEcForm(emptyEC); } }}>
         <DialogContent>
           <DialogHeader><DialogTitle>Modifier l'EC</DialogTitle></DialogHeader>
-          <ECFormFields onSubmit={handleUpdateEC} isPending={updateEC.isPending} />
+          {ecFormJSX(handleUpdateEC, updateEC.isPending)}
         </DialogContent>
       </Dialog>
 
