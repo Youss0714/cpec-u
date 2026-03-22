@@ -733,7 +733,7 @@ export default function AdminUsers() {
       toast({ title: "Utilisateur créé avec succès" });
       setTeacherAssignmentRows([]);
       setIsDialogOpen(false);
-      queryClient.invalidateQueries({ queryKey: ["users"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
     } catch (e: any) {
       toast({ title: e?.message ?? "Erreur lors de la création", variant: "destructive" });
     }
@@ -755,7 +755,7 @@ export default function AdminUsers() {
     try {
       await deleteUser.mutateAsync({ id });
       toast({ title: "Utilisateur supprimé" });
-      queryClient.invalidateQueries({ queryKey: ["users"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
     } catch { toast({ title: "Erreur lors de la suppression", variant: "destructive" }); }
     setPendingDeleteId(null);
   };
@@ -828,7 +828,7 @@ export default function AdminUsers() {
         });
       }
 
-      queryClient.invalidateQueries({ queryKey: ["users"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
       toast({ title: "Utilisateur modifié avec succès" });
       setEditUser(null);
     } catch {
