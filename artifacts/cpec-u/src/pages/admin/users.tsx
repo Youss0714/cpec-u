@@ -17,7 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Trash2, ShieldCheck, GraduationCap, BookOpen, Wallet, AlertCircle, CheckCircle2, Clock, PenLine, Pencil, X, Phone, MapPin, Users } from "lucide-react";
+import { Plus, Trash2, ShieldCheck, GraduationCap, BookOpen, Wallet, AlertCircle, CheckCircle2, Clock, PenLine, Pencil, X, Phone, MapPin, Users, Eye, Mail, School } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
@@ -679,6 +679,9 @@ export default function AdminUsers() {
   const [teacherAssignmentRows, setTeacherAssignmentRows] = useState<{ subjectId: string; classId: string; semesterId: string }[]>([]);
   const [createProfileForm, setCreateProfileForm] = useState({ phone: "", address: "", parentName: "", parentPhone: "", parentEmail: "", parentAddress: "" });
   const emptyCreateProfile = { phone: "", address: "", parentName: "", parentPhone: "", parentEmail: "", parentAddress: "" };
+  const [viewUser, setViewUser] = useState<any | null>(null);
+  const [viewProfile, setViewProfile] = useState<any | null>(null);
+  const [viewProfileLoading, setViewProfileLoading] = useState(false);
   const { data: currentUser } = useGetCurrentUser();
   const currentSubRole = (currentUser as any)?.adminSubRole as string | null;
   const isDirecteur = currentSubRole === "directeur";
@@ -857,6 +860,20 @@ export default function AdminUsers() {
   };
 
   const isScolarite = currentSubRole === "scolarite";
+
+  const openView = async (u: any) => {
+    setViewUser(u);
+    setViewProfile(null);
+    if (u.role === "student") {
+      setViewProfileLoading(true);
+      try {
+        const res = await fetch(`/api/admin/students/${u.id}/profile`, { credentials: "include" });
+        if (res.ok) setViewProfile(await res.json());
+      } finally {
+        setViewProfileLoading(false);
+      }
+    }
+  };
 
   const tabs: { key: Tab; label: string; icon: any; count?: number }[] = [
     { key: "teachers", label: "Enseignants", icon: BookOpen, count: teachers.length },
@@ -1105,6 +1122,11 @@ export default function AdminUsers() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1">
+                        {(u.role === "student" || u.role === "teacher") && (
+                          <Button variant="ghost" size="icon" className="text-blue-400 hover:text-blue-600" title="Voir les infos" onClick={() => openView(u)}>
+                            <Eye className="w-4 h-4" />
+                          </Button>
+                        )}
                         {canEdit(u) && (
                           <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground" onClick={() => openEdit(u)}>
                             <Pencil className="w-4 h-4" />
@@ -1217,6 +1239,133 @@ export default function AdminUsers() {
                 {editSaving ? "Enregistrement…" : "Enregistrer"}
               </Button>
             </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* View user info dialog */}
+        <Dialog open={viewUser !== null} onOpenChange={(open) => { if (!open) { setViewUser(null); setViewProfile(null); } }}>
+          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                {viewUser?.role === "student" ? <GraduationCap className="w-5 h-5 text-purple-500" /> : <BookOpen className="w-5 h-5 text-green-500" />}
+                Informations — {viewUser?.name}
+              </DialogTitle>
+            </DialogHeader>
+            {viewUser && (
+              <div className="space-y-5 pt-2">
+                {/* Photo (students only) */}
+                {viewUser.role === "student" && viewProfile?.photoUrl && (
+                  <div className="flex justify-center">
+                    <img src={viewProfile.photoUrl} alt="Photo" className="w-24 h-24 rounded-full object-cover border-2 border-muted shadow" />
+                  </div>
+                )}
+
+                {/* Identity section */}
+                <div className="rounded-lg border p-4 space-y-3">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Identité</p>
+                  <div className="grid grid-cols-1 gap-2">
+                    <div className="flex items-center gap-2 text-sm">
+                      <Users className="w-4 h-4 text-muted-foreground shrink-0" />
+                      <span className="font-medium">Nom :</span>
+                      <span>{viewUser.name}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm">
+                      <Mail className="w-4 h-4 text-muted-foreground shrink-0" />
+                      <span className="font-medium">Email :</span>
+                      <span className="break-all">{viewUser.email}</span>
+                    </div>
+                    {viewUser.className && (
+                      <div className="flex items-center gap-2 text-sm">
+                        <School className="w-4 h-4 text-muted-foreground shrink-0" />
+                        <span className="font-medium">Classe :</span>
+                        <span>{viewUser.className}</span>
+                      </div>
+                    )}
+                    {/* Teacher phone from users table */}
+                    {viewUser.role === "teacher" && viewUser.phone && (
+                      <div className="flex items-center gap-2 text-sm">
+                        <Phone className="w-4 h-4 text-muted-foreground shrink-0" />
+                        <span className="font-medium">Téléphone :</span>
+                        <span>{viewUser.phone}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Student profile */}
+                {viewUser.role === "student" && (
+                  viewProfileLoading ? (
+                    <p className="text-sm text-muted-foreground text-center py-4">Chargement du profil…</p>
+                  ) : (
+                    <>
+                      {/* Contact section */}
+                      {(viewProfile?.phone || viewProfile?.address) && (
+                        <div className="rounded-lg border p-4 space-y-3">
+                          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Contact</p>
+                          <div className="space-y-2">
+                            {viewProfile.phone && (
+                              <div className="flex items-center gap-2 text-sm">
+                                <Phone className="w-4 h-4 text-muted-foreground shrink-0" />
+                                <span className="font-medium">Téléphone :</span>
+                                <span>{viewProfile.phone}</span>
+                              </div>
+                            )}
+                            {viewProfile.address && (
+                              <div className="flex items-start gap-2 text-sm">
+                                <MapPin className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
+                                <span className="font-medium">Adresse :</span>
+                                <span>{viewProfile.address}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Parent section */}
+                      {(viewProfile?.parentName || viewProfile?.parentPhone || viewProfile?.parentEmail || viewProfile?.parentAddress) && (
+                        <div className="rounded-lg border p-4 space-y-3">
+                          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Parents / Tuteur</p>
+                          <div className="space-y-2">
+                            {viewProfile.parentName && (
+                              <div className="flex items-center gap-2 text-sm">
+                                <Users className="w-4 h-4 text-muted-foreground shrink-0" />
+                                <span className="font-medium">Nom :</span>
+                                <span>{viewProfile.parentName}</span>
+                              </div>
+                            )}
+                            {viewProfile.parentPhone && (
+                              <div className="flex items-center gap-2 text-sm">
+                                <Phone className="w-4 h-4 text-muted-foreground shrink-0" />
+                                <span className="font-medium">Téléphone :</span>
+                                <span>{viewProfile.parentPhone}</span>
+                              </div>
+                            )}
+                            {viewProfile.parentEmail && (
+                              <div className="flex items-center gap-2 text-sm">
+                                <Mail className="w-4 h-4 text-muted-foreground shrink-0" />
+                                <span className="font-medium">Email :</span>
+                                <span className="break-all">{viewProfile.parentEmail}</span>
+                              </div>
+                            )}
+                            {viewProfile.parentAddress && (
+                              <div className="flex items-start gap-2 text-sm">
+                                <MapPin className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
+                                <span className="font-medium">Adresse :</span>
+                                <span>{viewProfile.parentAddress}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {!viewProfile?.phone && !viewProfile?.address && !viewProfile?.parentName && !viewProfile?.parentPhone && !viewProfile?.parentEmail && !viewProfile?.parentAddress && (
+                        <p className="text-sm text-muted-foreground text-center py-2">Aucune information complémentaire renseignée.</p>
+                      )}
+                    </>
+                  )
+                )}
+              </div>
+            )}
           </DialogContent>
         </Dialog>
 

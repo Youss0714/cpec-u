@@ -73,6 +73,7 @@ router.get("/users", requireRole("admin"), async (req, res) => {
         adminSubRole: u.adminSubRole ?? null,
         classId: enroll?.classId ?? null,
         className: enroll?.className ?? null,
+        phone: u.phone ?? null,
         createdAt: u.createdAt,
       };
     });
