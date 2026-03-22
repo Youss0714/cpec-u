@@ -1167,7 +1167,7 @@ export default function AdminUsers() {
           title="Supprimer l'utilisateur"
           description="Cette action est irréversible. Toutes les données liées seront supprimées."
           onConfirm={() => pendingDeleteId !== null && handleDelete(pendingDeleteId)}
-          onCancel={() => setPendingDeleteId(null)}
+          onOpenChange={(open) => { if (!open) setPendingDeleteId(null); }}
         />
       </div>
     </AppLayout>
