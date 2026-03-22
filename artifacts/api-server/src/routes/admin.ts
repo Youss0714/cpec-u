@@ -16,6 +16,7 @@ import {
   teachingUnitsTable,
   classFeesTable,
   studentFeesTable,
+  studentProfilesTable,
 } from "@workspace/db";
 import { eq, and, sql, count, inArray, desc, ne, isNotNull } from "drizzle-orm";
 import { requireRole } from "../lib/auth.js";
@@ -201,6 +202,37 @@ router.delete("/users/:id", requireRole("admin"), async (req, res) => {
 
     await db.delete(usersTable).where(eq(usersTable.id, id));
     res.json({ message: "User deleted" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// ─── Student Extended Profile (contact + parents) ────────────────────────────
+router.get("/students/:id/profile", requireRole("admin"), async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const [profile] = await db.select().from(studentProfilesTable).where(eq(studentProfilesTable.studentId, id)).limit(1);
+    res.json(profile ?? { studentId: id, phone: null, address: null, parentName: null, parentPhone: null, parentEmail: null, parentAddress: null, photoUrl: null });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+router.put("/students/:id/profile", requireRole("admin"), async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const { phone, address, parentName, parentPhone, parentEmail, parentAddress } = req.body;
+    const [existing] = await db.select().from(studentProfilesTable).where(eq(studentProfilesTable.studentId, id)).limit(1);
+    const data: any = { phone: phone ?? null, address: address ?? null, parentName: parentName ?? null, parentPhone: parentPhone ?? null, parentEmail: parentEmail ?? null, parentAddress: parentAddress ?? null, updatedAt: new Date() };
+    let profile;
+    if (existing) {
+      [profile] = await db.update(studentProfilesTable).set(data).where(eq(studentProfilesTable.studentId, id)).returning();
+    } else {
+      [profile] = await db.insert(studentProfilesTable).values({ studentId: id, ...data }).returning();
+    }
+    res.json(profile);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Internal Server Error" });

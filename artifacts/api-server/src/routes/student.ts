@@ -7,6 +7,7 @@ import {
   semestersTable,
   classEnrollmentsTable,
   classesTable,
+  studentProfilesTable,
 } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { requireRole } from "../lib/auth.js";
@@ -26,10 +27,38 @@ router.get("/me", requireRole("student", "admin"), async (req, res) => {
       .where(eq(classEnrollmentsTable.studentId, studentId))
       .limit(1);
 
+    const [profile] = await db.select().from(studentProfilesTable).where(eq(studentProfilesTable.studentId, studentId)).limit(1);
+
     res.json({
       id: user.id, name: user.name, email: user.email,
       classId: enroll?.classId ?? null, className: enroll?.className ?? null,
+      photoUrl: profile?.photoUrl ?? null,
     });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+router.put("/photo", requireRole("student"), async (req, res) => {
+  try {
+    const studentId = req.session!.userId!;
+    const { photoUrl } = req.body;
+    if (!photoUrl || typeof photoUrl !== "string") {
+      res.status(400).json({ error: "Bad Request", message: "photoUrl is required" });
+      return;
+    }
+    if (photoUrl.length > 5 * 1024 * 1024) {
+      res.status(400).json({ error: "Bad Request", message: "Image trop grande (max 5MB)" });
+      return;
+    }
+    const [existing] = await db.select().from(studentProfilesTable).where(eq(studentProfilesTable.studentId, studentId)).limit(1);
+    if (existing) {
+      await db.update(studentProfilesTable).set({ photoUrl, updatedAt: new Date() }).where(eq(studentProfilesTable.studentId, studentId));
+    } else {
+      await db.insert(studentProfilesTable).values({ studentId, photoUrl, updatedAt: new Date() });
+    }
+    res.json({ photoUrl });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Internal Server Error" });

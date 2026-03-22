@@ -1,4 +1,4 @@
-import { pgTable, serial, text, varchar, timestamp, boolean, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, varchar, timestamp, boolean, pgEnum, integer } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -17,6 +17,21 @@ export const usersTable = pgTable("users", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+export const studentProfilesTable = pgTable("student_profiles", {
+  id: serial("id").primaryKey(),
+  studentId: integer("student_id").notNull().unique().references(() => usersTable.id, { onDelete: "cascade" }),
+  phone: varchar("phone", { length: 50 }),
+  address: text("address"),
+  parentName: varchar("parent_name", { length: 255 }),
+  parentPhone: varchar("parent_phone", { length: 50 }),
+  parentEmail: varchar("parent_email", { length: 255 }),
+  parentAddress: text("parent_address"),
+  photoUrl: text("photo_url"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 export const insertUserSchema = createInsertSchema(usersTable).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof usersTable.$inferSelect;
+export type StudentProfile = typeof studentProfilesTable.$inferSelect;

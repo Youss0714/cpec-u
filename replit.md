@@ -34,6 +34,7 @@ artifacts-monorepo/
 ## Database Schema
 
 - `users` — admins, teachers, students (enum role + admin_sub_role enum)
+- `student_profiles` — extended student info: phone, address, parent contact, photoUrl (base64 data URL)
 - `classes` — class groups
 - `class_enrollments` — student → class (many-to-one)
 - `teaching_units` — UE (Unités d'Enseignement) LMD: code, name, credits ECTS, coefficient, class, semester

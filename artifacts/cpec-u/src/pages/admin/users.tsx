@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AppLayout } from "@/components/layout";
 import {
   useListUsers, useCreateUser, useDeleteUser, useListClasses, useGetCurrentUser,
@@ -17,7 +17,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Trash2, ShieldCheck, GraduationCap, BookOpen, Wallet, AlertCircle, CheckCircle2, Clock, PenLine, Pencil, X } from "lucide-react";
+import { Plus, Trash2, ShieldCheck, GraduationCap, BookOpen, Wallet, AlertCircle, CheckCircle2, Clock, PenLine, Pencil, X, Phone, MapPin, Users } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 
@@ -672,6 +673,8 @@ export default function AdminUsers() {
   const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
   const [editUser, setEditUser] = useState<any | null>(null);
   const [editForm, setEditForm] = useState({ name: "", email: "", password: "" });
+  const [editProfileForm, setEditProfileForm] = useState({ phone: "", address: "", parentName: "", parentPhone: "", parentEmail: "", parentAddress: "" });
+  const [editProfileLoading, setEditProfileLoading] = useState(false);
   const [editSaving, setEditSaving] = useState(false);
   const [teacherAssignmentRows, setTeacherAssignmentRows] = useState<{ subjectId: string; classId: string; semesterId: string }[]>([]);
   const { data: currentUser } = useGetCurrentUser();
@@ -771,9 +774,28 @@ export default function AdminUsers() {
     return false;
   };
 
-  const openEdit = (u: any) => {
+  const openEdit = async (u: any) => {
     setEditForm({ name: u.name, email: u.email, password: "" });
+    setEditProfileForm({ phone: "", address: "", parentName: "", parentPhone: "", parentEmail: "", parentAddress: "" });
     setEditUser(u);
+    if (u.role === "student") {
+      setEditProfileLoading(true);
+      try {
+        const res = await fetch(`/api/admin/students/${u.id}/profile`, { credentials: "include" });
+        if (res.ok) {
+          const p = await res.json();
+          setEditProfileForm({
+            phone: p.phone ?? "",
+            address: p.address ?? "",
+            parentName: p.parentName ?? "",
+            parentPhone: p.parentPhone ?? "",
+            parentEmail: p.parentEmail ?? "",
+            parentAddress: p.parentAddress ?? "",
+          });
+        }
+      } catch { /* silently ignore */ }
+      finally { setEditProfileLoading(false); }
+    }
   };
 
   const handleEditSave = async () => {
@@ -789,6 +811,23 @@ export default function AdminUsers() {
         body: JSON.stringify(body),
       });
       if (!res.ok) throw new Error(await res.text());
+
+      if (editUser.role === "student") {
+        await fetch(`/api/admin/students/${editUser.id}/profile`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({
+            phone: editProfileForm.phone.trim() || null,
+            address: editProfileForm.address.trim() || null,
+            parentName: editProfileForm.parentName.trim() || null,
+            parentPhone: editProfileForm.parentPhone.trim() || null,
+            parentEmail: editProfileForm.parentEmail.trim() || null,
+            parentAddress: editProfileForm.parentAddress.trim() || null,
+          }),
+        });
+      }
+
       queryClient.invalidateQueries({ queryKey: ["users"] });
       toast({ title: "Utilisateur modifié avec succès" });
       setEditUser(null);
@@ -1021,24 +1060,91 @@ export default function AdminUsers() {
 
         {/* Edit User Dialog */}
         <Dialog open={editUser !== null} onOpenChange={open => { if (!open) setEditUser(null); }}>
-          <DialogContent className="max-w-md">
+          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Modifier l'utilisateur</DialogTitle>
+              <DialogTitle>Modifier {editUser?.role === "student" ? "l'étudiant" : "l'utilisateur"}</DialogTitle>
             </DialogHeader>
-            <div className="space-y-4 pt-2">
-              <div className="space-y-1">
-                <Label>Nom complet</Label>
-                <Input value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} />
+            {editUser?.role === "student" ? (
+              <Tabs defaultValue="identity" className="w-full">
+                <TabsList className="grid w-full grid-cols-3 mb-4">
+                  <TabsTrigger value="identity" className="gap-1.5"><GraduationCap className="w-3.5 h-3.5" /> Identité</TabsTrigger>
+                  <TabsTrigger value="contact" className="gap-1.5"><Phone className="w-3.5 h-3.5" /> Coordonnées</TabsTrigger>
+                  <TabsTrigger value="parents" className="gap-1.5"><Users className="w-3.5 h-3.5" /> Parents</TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="identity" className="space-y-4 mt-0">
+                  <div className="space-y-1">
+                    <Label>Nom complet</Label>
+                    <Input value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Email</Label>
+                    <Input type="email" value={editForm.email} onChange={e => setEditForm(f => ({ ...f, email: e.target.value }))} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Nouveau mot de passe <span className="text-muted-foreground text-xs">(laisser vide pour ne pas changer)</span></Label>
+                    <Input type="password" value={editForm.password} onChange={e => setEditForm(f => ({ ...f, password: e.target.value }))} placeholder="••••••" />
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="contact" className="space-y-4 mt-0">
+                  {editProfileLoading ? (
+                    <div className="py-8 flex justify-center"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div></div>
+                  ) : (
+                    <>
+                      <div className="space-y-1">
+                        <Label className="flex items-center gap-1.5"><Phone className="w-3.5 h-3.5 text-muted-foreground" /> Téléphone</Label>
+                        <Input value={editProfileForm.phone} onChange={e => setEditProfileForm(f => ({ ...f, phone: e.target.value }))} placeholder="+225 07 00 00 00 00" />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-muted-foreground" /> Adresse</Label>
+                        <Input value={editProfileForm.address} onChange={e => setEditProfileForm(f => ({ ...f, address: e.target.value }))} placeholder="Quartier, Ville" />
+                      </div>
+                    </>
+                  )}
+                </TabsContent>
+
+                <TabsContent value="parents" className="space-y-4 mt-0">
+                  {editProfileLoading ? (
+                    <div className="py-8 flex justify-center"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div></div>
+                  ) : (
+                    <>
+                      <div className="space-y-1">
+                        <Label>Nom du parent / tuteur</Label>
+                        <Input value={editProfileForm.parentName} onChange={e => setEditProfileForm(f => ({ ...f, parentName: e.target.value }))} placeholder="Prénom Nom" />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="flex items-center gap-1.5"><Phone className="w-3.5 h-3.5 text-muted-foreground" /> Téléphone du parent</Label>
+                        <Input value={editProfileForm.parentPhone} onChange={e => setEditProfileForm(f => ({ ...f, parentPhone: e.target.value }))} placeholder="+225 07 00 00 00 00" />
+                      </div>
+                      <div className="space-y-1">
+                        <Label>Email du parent</Label>
+                        <Input type="email" value={editProfileForm.parentEmail} onChange={e => setEditProfileForm(f => ({ ...f, parentEmail: e.target.value }))} placeholder="parent@email.com" />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-muted-foreground" /> Adresse du parent</Label>
+                        <Input value={editProfileForm.parentAddress} onChange={e => setEditProfileForm(f => ({ ...f, parentAddress: e.target.value }))} placeholder="Quartier, Ville" />
+                      </div>
+                    </>
+                  )}
+                </TabsContent>
+              </Tabs>
+            ) : (
+              <div className="space-y-4 pt-2">
+                <div className="space-y-1">
+                  <Label>Nom complet</Label>
+                  <Input value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} />
+                </div>
+                <div className="space-y-1">
+                  <Label>Email</Label>
+                  <Input type="email" value={editForm.email} onChange={e => setEditForm(f => ({ ...f, email: e.target.value }))} />
+                </div>
+                <div className="space-y-1">
+                  <Label>Nouveau mot de passe <span className="text-muted-foreground text-xs">(laisser vide pour ne pas changer)</span></Label>
+                  <Input type="password" value={editForm.password} onChange={e => setEditForm(f => ({ ...f, password: e.target.value }))} placeholder="••••••" />
+                </div>
               </div>
-              <div className="space-y-1">
-                <Label>Email</Label>
-                <Input type="email" value={editForm.email} onChange={e => setEditForm(f => ({ ...f, email: e.target.value }))} />
-              </div>
-              <div className="space-y-1">
-                <Label>Nouveau mot de passe <span className="text-muted-foreground text-xs">(laisser vide pour ne pas changer)</span></Label>
-                <Input type="password" value={editForm.password} onChange={e => setEditForm(f => ({ ...f, password: e.target.value }))} placeholder="••••••" />
-              </div>
-            </div>
+            )}
             <div className="flex justify-end gap-2 mt-4">
               <Button variant="outline" onClick={() => setEditUser(null)}>Annuler</Button>
               <Button onClick={handleEditSave} disabled={editSaving || !editForm.name.trim() || !editForm.email.trim()}>

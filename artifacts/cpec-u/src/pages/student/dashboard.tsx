@@ -2,12 +2,15 @@ import { AppLayout } from "@/components/layout";
 import { useGetStudentProfile, useListSemesters, useGetStudentResults } from "@workspace/api-client-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { motion } from "framer-motion";
-import { GraduationCap, Award, Book, AlertCircle, Building2, BedDouble, CalendarDays, CheckCircle2, XCircle } from "lucide-react";
+import { GraduationCap, Award, Book, AlertCircle, Building2, CalendarDays, Camera, Upload, CheckCircle2, XCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
 
 function useMyHousing() {
   return useQuery({
@@ -29,10 +32,57 @@ export default function StudentDashboard() {
   const { data: profile } = useGetStudentProfile();
   const { data: semesters } = useListSemesters();
   const { data: housing } = useMyHousing();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [photoDialogOpen, setPhotoDialogOpen] = useState(false);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [photoUploading, setPhotoUploading] = useState(false);
   
   const latestPublished = semesters?.filter(s => s.published).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
   
   const [selectedSemester, setSelectedSemester] = useState<string>("");
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast({ title: "Fichier invalide. Veuillez choisir une image.", variant: "destructive" });
+      return;
+    }
+    if (file.size > 4 * 1024 * 1024) {
+      toast({ title: "Image trop grande. Maximum 4 Mo.", variant: "destructive" });
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      setPhotoPreview(ev.target?.result as string);
+      setPhotoDialogOpen(true);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handlePhotoSave = async () => {
+    if (!photoPreview) return;
+    setPhotoUploading(true);
+    try {
+      const res = await fetch("/api/student/photo", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ photoUrl: photoPreview }),
+      });
+      if (!res.ok) throw new Error();
+      queryClient.invalidateQueries({ queryKey: ["/api/student/me"] });
+      toast({ title: "Photo de profil mise à jour" });
+      setPhotoDialogOpen(false);
+      setPhotoPreview(null);
+    } catch {
+      toast({ title: "Erreur lors de l'envoi de la photo", variant: "destructive" });
+    } finally {
+      setPhotoUploading(false);
+    }
+  };
 
   if (!selectedSemester && latestPublished) {
     setSelectedSemester(latestPublished.id.toString());
@@ -52,17 +102,63 @@ export default function StudentDashboard() {
     <AppLayout allowedRoles={["student"]}>
       <div className="space-y-8 max-w-5xl mx-auto">
         
+        {/* Photo Upload Dialog */}
+        <Dialog open={photoDialogOpen} onOpenChange={open => { setPhotoDialogOpen(open); if (!open) setPhotoPreview(null); }}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader><DialogTitle>Confirmer la photo de profil</DialogTitle></DialogHeader>
+            {photoPreview && (
+              <div className="flex flex-col items-center gap-4">
+                <img src={photoPreview} alt="Aperçu" className="w-40 h-40 rounded-full object-cover border-4 border-primary/20 shadow-lg" />
+                <p className="text-sm text-muted-foreground text-center">Cette photo sera visible par l'administration.</p>
+                <div className="flex gap-2 w-full">
+                  <Button variant="outline" className="flex-1" onClick={() => { setPhotoDialogOpen(false); setPhotoPreview(null); }}>Annuler</Button>
+                  <Button className="flex-1 gap-2" onClick={handlePhotoSave} disabled={photoUploading}>
+                    {photoUploading ? "Envoi…" : <><Upload className="w-4 h-4" /> Valider</>}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+        <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileSelect} />
+
         {/* Profile Hero */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="relative bg-primary rounded-3xl p-8 text-primary-foreground overflow-hidden shadow-2xl shadow-primary/20">
           <div className="absolute top-0 right-0 -mr-16 -mt-16 opacity-10">
             <GraduationCap className="w-64 h-64" />
           </div>
-          <div className="relative z-10">
-            <h1 className="text-4xl font-serif font-bold mb-2">Bonjour, {profile?.name}</h1>
-            <p className="text-primary-foreground/80 text-lg flex items-center gap-2">
-              <Book className="w-5 h-5" />
-              {profile?.className || "Classe non assignée"}
-            </p>
+          <div className="relative z-10 flex items-center gap-6">
+            {/* Avatar with upload button */}
+            <div className="relative flex-shrink-0 group">
+              <div className="w-24 h-24 rounded-full border-4 border-white/20 overflow-hidden bg-white/10 flex items-center justify-center shadow-xl">
+                {(profile as any)?.photoUrl ? (
+                  <img src={(profile as any).photoUrl} alt="Photo de profil" className="w-full h-full object-cover" />
+                ) : (
+                  <GraduationCap className="w-12 h-12 text-white/60" />
+                )}
+              </div>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="absolute inset-0 rounded-full bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer"
+                title="Modifier la photo"
+              >
+                <Camera className="w-6 h-6 text-white" />
+              </button>
+            </div>
+            <div>
+              <h1 className="text-4xl font-serif font-bold mb-2">Bonjour, {profile?.name}</h1>
+              <p className="text-primary-foreground/80 text-lg flex items-center gap-2">
+                <Book className="w-5 h-5" />
+                {profile?.className || "Classe non assignée"}
+              </p>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="mt-3 text-xs text-white/60 hover:text-white/90 underline underline-offset-2 transition-colors flex items-center gap-1"
+              >
+                <Camera className="w-3 h-3" />
+                {(profile as any)?.photoUrl ? "Modifier ma photo" : "Ajouter une photo de profil"}
+              </button>
+            </div>
           </div>
         </motion.div>
 
