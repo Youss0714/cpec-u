@@ -763,7 +763,7 @@ export default function AdminUsers() {
   };
 
   const canDelete = (u: any) => {
-    if (isDirecteur) return true;
+    if (isDirecteur) return false;
     if (currentSubRole === "scolarite") return u.role === "student";
     if (isPlanificateur) return u.role === "teacher";
     return false;
