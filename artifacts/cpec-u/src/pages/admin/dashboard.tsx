@@ -3,14 +3,14 @@ import { Link, useLocation } from "wouter";
 import { AppLayout } from "@/components/layout";
 import {
   useGetCurrentUser, useListUsers, useListClasses, useListSubjects,
-  useListSemesters, useListRooms, useListScheduleEntries,
+  useListSemesters, useListRooms, useListScheduleEntries, useGetScolariteStats,
 } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
-  Users, School, BookOpen, Calendar, DoorOpen, CalendarDays,
+  Users, BookOpen, Calendar, DoorOpen, CalendarDays,
   GraduationCap, CheckCircle, AlertTriangle, BarChart, CalendarOff,
-  ArrowRight,
+  ArrowRight, TrendingUp,
 } from "lucide-react";
 import { motion } from "framer-motion";
 
@@ -55,18 +55,22 @@ export default function AdminDashboard() {
   }, [adminSubRole]);
 
   const { data: users } = useListUsers();
-  const { data: classes } = useListClasses();
   const { data: subjects } = useListSubjects();
   const { data: semesters } = useListSemesters();
   const { data: rooms } = useListRooms();
   const { data: scheduleEntries = [] } = useListScheduleEntries({});
+  const { data: scolariteStatsData } = useGetScolariteStats();
 
   const conflictCount = useMemo(() => countConflicts(scheduleEntries as any[]), [scheduleEntries]);
+
+  const recoveryRate: number = (scolariteStatsData as any)?.recoveryRate ?? 0;
+  const recoveryColor = recoveryRate >= 75 ? "text-emerald-600" : recoveryRate >= 40 ? "text-amber-500" : "text-red-500";
+  const recoveryBg = recoveryRate >= 75 ? "bg-emerald-500/10" : recoveryRate >= 40 ? "bg-amber-500/10" : "bg-red-500/10";
 
   const scolariteStats = [
     { title: "Étudiants Inscrits", value: (users as any[])?.filter(u => u.role === "student").length || 0, icon: Users, color: "text-blue-500", bg: "bg-blue-500/10" },
     { title: "Enseignants Actifs", value: (users as any[])?.filter(u => u.role === "teacher").length || 0, icon: GraduationCap, color: "text-amber-500", bg: "bg-amber-500/10" },
-    { title: "Classes Déclarées", value: (classes as any[])?.length || 0, icon: School, color: "text-emerald-500", bg: "bg-emerald-500/10" },
+    { title: "Taux de Recouvrement", value: `${recoveryRate}%`, icon: TrendingUp, color: recoveryColor, bg: recoveryBg, isRate: true, rate: recoveryRate },
     { title: "Matières Dispensées", value: (subjects as any[])?.length || 0, icon: BookOpen, color: "text-purple-500", bg: "bg-purple-500/10" },
   ];
 
@@ -122,12 +126,22 @@ export default function AdminDashboard() {
             <motion.div key={i} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }}>
               <Card className="border-none shadow-lg hover:shadow-xl transition-all duration-300">
                 <CardContent className="p-6 flex items-center gap-4">
-                  <div className={`p-4 rounded-2xl ${stat.bg}`}>
+                  <div className={`p-4 rounded-2xl ${stat.bg} shrink-0`}>
                     <stat.icon className={`w-8 h-8 ${stat.color}`} />
                   </div>
-                  <div>
+                  <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-muted-foreground">{stat.title}</p>
-                    <h3 className="text-3xl font-bold text-foreground mt-1">{stat.value}</h3>
+                    <h3 className={`text-3xl font-bold mt-1 ${(stat as any).isRate ? stat.color : "text-foreground"}`}>{stat.value}</h3>
+                    {(stat as any).isRate && (
+                      <div className="mt-2 h-1.5 w-full bg-muted rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all duration-700 ${
+                            (stat as any).rate >= 75 ? "bg-emerald-500" : (stat as any).rate >= 40 ? "bg-amber-500" : "bg-red-500"
+                          }`}
+                          style={{ width: `${(stat as any).rate}%` }}
+                        />
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
