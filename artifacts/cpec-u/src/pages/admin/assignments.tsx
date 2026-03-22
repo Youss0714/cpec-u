@@ -11,8 +11,12 @@ import { useToast } from "@/hooks/use-toast";
 import { Plus, Trash2 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 
+type FormState = { teacherId: string; subjectId: string; classId: string; semesterId: string };
+const emptyForm: FormState = { teacherId: "", subjectId: "", classId: "", semesterId: "" };
+
 export default function AdminAssignments() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [form, setForm] = useState<FormState>(emptyForm);
   const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
   const { data: assignments, isLoading } = useListAssignments();
   const { data: users } = useListUsers({ role: 'teacher' });
@@ -25,21 +29,35 @@ export default function AdminAssignments() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
+  const handleSubjectChange = (subjectId: string) => {
+    const subject = (subjects as any[])?.find((s: any) => String(s.id) === subjectId);
+    setForm(f => ({
+      ...f,
+      subjectId,
+      classId: subject?.classId ? String(subject.classId) : f.classId,
+      semesterId: subject?.semesterId ? String(subject.semesterId) : f.semesterId,
+    }));
+  };
+
   const handleCreate = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const formData = new FormData(e.currentTarget);
+    if (!form.teacherId || !form.subjectId || !form.classId || !form.semesterId) {
+      toast({ title: "Veuillez remplir tous les champs", variant: "destructive" });
+      return;
+    }
     try {
       await createAssignment.mutateAsync({
         data: {
-          teacherId: parseInt(formData.get("teacherId") as string),
-          subjectId: parseInt(formData.get("subjectId") as string),
-          classId: parseInt(formData.get("classId") as string),
-          semesterId: parseInt(formData.get("semesterId") as string),
+          teacherId: parseInt(form.teacherId),
+          subjectId: parseInt(form.subjectId),
+          classId: parseInt(form.classId),
+          semesterId: parseInt(form.semesterId),
         }
       });
       toast({ title: "Affectation créée" });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/assignments"] });
       setIsDialogOpen(false);
+      setForm(emptyForm);
     } catch {
       toast({ title: "Erreur", variant: "destructive" });
     }
@@ -64,7 +82,7 @@ export default function AdminAssignments() {
             <p className="text-muted-foreground">Assignez les enseignants aux matières et classes.</p>
           </div>
           
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <Dialog open={isDialogOpen} onOpenChange={o => { setIsDialogOpen(o); if (!o) setForm(emptyForm); }}>
             <DialogTrigger asChild>
               <Button className="shadow-md">
                 <Plus className="w-4 h-4 mr-2" />
@@ -78,7 +96,7 @@ export default function AdminAssignments() {
               <form onSubmit={handleCreate} className="space-y-4 mt-4">
                 <div className="space-y-2">
                   <Label>Enseignant</Label>
-                  <Select name="teacherId" required>
+                  <Select value={form.teacherId} onValueChange={v => setForm(f => ({ ...f, teacherId: v }))} required>
                     <SelectTrigger><SelectValue placeholder="Sélectionner..." /></SelectTrigger>
                     <SelectContent>
                       {users?.map(u => <SelectItem key={u.id} value={u.id.toString()}>{u.name}</SelectItem>)}
@@ -87,16 +105,19 @@ export default function AdminAssignments() {
                 </div>
                 <div className="space-y-2">
                   <Label>Matière</Label>
-                  <Select name="subjectId" required>
+                  <Select value={form.subjectId} onValueChange={handleSubjectChange} required>
                     <SelectTrigger><SelectValue placeholder="Sélectionner..." /></SelectTrigger>
                     <SelectContent>
-                      {subjects?.map(s => <SelectItem key={s.id} value={s.id.toString()}>{s.name}</SelectItem>)}
+                      {(subjects as any[])?.map((s: any) => <SelectItem key={s.id} value={s.id.toString()}>{s.name}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Classe</Label>
-                  <Select name="classId" required>
+                  <Label className="flex items-center gap-2">
+                    Classe
+                    {form.classId && <span className="text-xs text-primary font-normal">(auto-rempli)</span>}
+                  </Label>
+                  <Select value={form.classId} onValueChange={v => setForm(f => ({ ...f, classId: v }))} required>
                     <SelectTrigger><SelectValue placeholder="Sélectionner..." /></SelectTrigger>
                     <SelectContent>
                       {classes?.map(c => <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>)}
@@ -104,8 +125,11 @@ export default function AdminAssignments() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Semestre</Label>
-                  <Select name="semesterId" required>
+                  <Label className="flex items-center gap-2">
+                    Semestre
+                    {form.semesterId && <span className="text-xs text-primary font-normal">(auto-rempli)</span>}
+                  </Label>
+                  <Select value={form.semesterId} onValueChange={v => setForm(f => ({ ...f, semesterId: v }))} required>
                     <SelectTrigger><SelectValue placeholder="Sélectionner..." /></SelectTrigger>
                     <SelectContent>
                       {semesters?.map(s => <SelectItem key={s.id} value={s.id.toString()}>{s.name} ({s.academicYear})</SelectItem>)}
