@@ -14,6 +14,8 @@ import {
   activityLogTable,
   attendanceTable,
   teachingUnitsTable,
+  classFeesTable,
+  studentFeesTable,
 } from "@workspace/db";
 import { eq, and, sql, count, inArray, desc, ne, isNotNull } from "drizzle-orm";
 import { requireRole } from "../lib/auth.js";
@@ -22,6 +24,26 @@ const router = Router();
 
 function hashPassword(password: string): string {
   return crypto.createHash("sha256").update(password + "cpec-u-salt").digest("hex");
+}
+
+async function applyClassFeeToStudent(studentId: number, classId: number) {
+  const [classFee] = await db.select().from(classFeesTable).where(eq(classFeesTable.classId, classId)).limit(1);
+  if (!classFee) return;
+  await db.insert(studentFeesTable).values({
+    studentId,
+    totalAmount: classFee.totalAmount,
+    academicYear: classFee.academicYear,
+    notes: classFee.notes,
+    updatedAt: new Date(),
+  }).onConflictDoUpdate({
+    target: [studentFeesTable.studentId],
+    set: {
+      totalAmount: classFee.totalAmount,
+      academicYear: classFee.academicYear,
+      notes: classFee.notes,
+      updatedAt: new Date(),
+    },
+  });
 }
 
 // ─── Users ───────────────────────────────────────────────────────────────────
@@ -86,6 +108,7 @@ router.post("/users", requireRole("admin"), async (req, res) => {
 
     if (classId && role === "student") {
       await db.insert(classEnrollmentsTable).values({ studentId: user.id, classId }).onConflictDoNothing();
+      await applyClassFeeToStudent(user.id, classId);
     }
 
     const enroll = classId ? await db.select({ className: classesTable.name }).from(classesTable).where(eq(classesTable.id, classId)).limit(1) : [];
@@ -139,6 +162,7 @@ router.put("/users/:id", requireRole("admin"), async (req, res) => {
       await db.delete(classEnrollmentsTable).where(eq(classEnrollmentsTable.studentId, id));
       if (classId !== null && user.role === "student") {
         await db.insert(classEnrollmentsTable).values({ studentId: id, classId }).onConflictDoNothing();
+        await applyClassFeeToStudent(id, classId);
       }
     }
 
