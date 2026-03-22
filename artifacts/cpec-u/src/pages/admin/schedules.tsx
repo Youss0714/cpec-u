@@ -19,7 +19,7 @@ import {
   useListScheduleEntries, useCreateScheduleEntry, useDeleteScheduleEntry,
   useListRooms, useListClasses, useListSemesters, useListSubjects, useListUsers,
   usePublishSchedule, useUpdateScheduleEntry,
-  usePublishSchedulePeriod, useListSchedulePublications,
+  usePublishSchedulePeriod, useListSchedulePublications, useListAssignments,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -117,7 +117,35 @@ export default function AdminSchedules() {
   const { data: semesters = [] } = useListSemesters();
   const { data: subjects = [] } = useListSubjects();
   const { data: allUsers = [] } = useListUsers();
-  const teachers = (allUsers as any[]).filter((u) => u.role === "teacher");
+  const { data: assignments = [] } = useListAssignments();
+
+  // Only teachers who have at least one assignment
+  const assignedTeacherIds = useMemo(() =>
+    new Set((assignments as any[]).map((a) => a.teacherId)),
+    [assignments]
+  );
+  const teachers = useMemo(() =>
+    (allUsers as any[]).filter((u) => u.role === "teacher" && assignedTeacherIds.has(u.id)),
+    [allUsers, assignedTeacherIds]
+  );
+
+  const handleTeacherChange = (teacherId: string) => {
+    const tas = (assignments as any[]).filter((a) => String(a.teacherId) === teacherId);
+    if (tas.length === 0) {
+      setForm(f => ({ ...f, teacherId, subjectId: "", classId: "", semesterId: "" }));
+      return;
+    }
+    const uniqueSubjects = [...new Set(tas.map((a) => a.subjectId))];
+    const uniqueClasses = [...new Set(tas.map((a) => a.classId))];
+    const uniqueSemesters = [...new Set(tas.map((a) => a.semesterId))];
+    setForm(f => ({
+      ...f,
+      teacherId,
+      subjectId: uniqueSubjects.length === 1 ? String(uniqueSubjects[0]) : "",
+      classId: uniqueClasses.length === 1 ? String(uniqueClasses[0]) : "",
+      semesterId: uniqueSemesters.length === 1 ? String(uniqueSemesters[0]) : "",
+    }));
+  };
 
   const createEntry = useCreateScheduleEntry();
   const deleteEntry = useDeleteScheduleEntry();
@@ -140,6 +168,29 @@ export default function AdminSchedules() {
     setForm({ ...emptyForm, sessionDate: dayISO });
     setIsCreateOpen(true);
   };
+
+  const teacherAssignmentsForForm = useMemo(() =>
+    form.teacherId ? (assignments as any[]).filter((a) => String(a.teacherId) === form.teacherId) : [],
+    [assignments, form.teacherId]
+  );
+  const formSubjectIds = useMemo(() => new Set(teacherAssignmentsForForm.map((a) => String(a.subjectId))), [teacherAssignmentsForForm]);
+  const formClassIds = useMemo(() => new Set(teacherAssignmentsForForm.map((a) => String(a.classId))), [teacherAssignmentsForForm]);
+  const formSemesterIds = useMemo(() => new Set(teacherAssignmentsForForm.map((a) => String(a.semesterId))), [teacherAssignmentsForForm]);
+  const filteredFormSubjects = useMemo(() =>
+    form.teacherId ? (subjects as any[]).filter((s) => formSubjectIds.has(String(s.id))) : (subjects as any[]),
+    [subjects, form.teacherId, formSubjectIds]
+  );
+  const filteredFormClasses = useMemo(() =>
+    form.teacherId ? (classes as any[]).filter((c) => formClassIds.has(String(c.id))) : (classes as any[]),
+    [classes, form.teacherId, formClassIds]
+  );
+  const filteredFormSemesters = useMemo(() =>
+    form.teacherId ? (semesters as any[]).filter((s) => formSemesterIds.has(String(s.id))) : (semesters as any[]),
+    [semesters, form.teacherId, formSemesterIds]
+  );
+  const autoFilledSubject = teacherAssignmentsForForm.length > 0 && formSubjectIds.size === 1 && !!form.subjectId;
+  const autoFilledClass = teacherAssignmentsForForm.length > 0 && formClassIds.size === 1 && !!form.classId;
+  const autoFilledSemester = teacherAssignmentsForForm.length > 0 && formSemesterIds.size === 1 && !!form.semesterId;
 
   const pubParams = useMemo(() => ({
     classId: filterClass !== "all" ? parseInt(filterClass) : undefined,
@@ -327,23 +378,23 @@ export default function AdminSchedules() {
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1">
           <Label>Enseignant</Label>
-          <Select value={form.teacherId} onValueChange={(v) => setForm(f => ({ ...f, teacherId: v }))}>
+          <Select value={form.teacherId} onValueChange={handleTeacherChange}>
             <SelectTrigger><SelectValue placeholder="Choisir" /></SelectTrigger>
             <SelectContent>{teachers.map((t: any) => <SelectItem key={t.id} value={String(t.id)}>{t.name}</SelectItem>)}</SelectContent>
           </Select>
         </div>
         <div className="space-y-1">
-          <Label>Matière</Label>
+          <Label className="flex items-center gap-1.5">Matière {autoFilledSubject && <span className="text-xs text-green-600 font-normal">(auto-rempli)</span>}</Label>
           <Select value={form.subjectId} onValueChange={(v) => setForm(f => ({ ...f, subjectId: v }))}>
             <SelectTrigger><SelectValue placeholder="Choisir" /></SelectTrigger>
-            <SelectContent>{subjects.map((s: any) => <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>)}</SelectContent>
+            <SelectContent>{filteredFormSubjects.map((s: any) => <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>)}</SelectContent>
           </Select>
         </div>
         <div className="space-y-1">
-          <Label>Classe</Label>
+          <Label className="flex items-center gap-1.5">Classe {autoFilledClass && <span className="text-xs text-green-600 font-normal">(auto-rempli)</span>}</Label>
           <Select value={form.classId} onValueChange={(v) => setForm(f => ({ ...f, classId: v }))}>
             <SelectTrigger><SelectValue placeholder="Choisir" /></SelectTrigger>
-            <SelectContent>{classes.map((c: any) => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}</SelectContent>
+            <SelectContent>{filteredFormClasses.map((c: any) => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}</SelectContent>
           </Select>
         </div>
         <div className="space-y-1">
@@ -355,10 +406,10 @@ export default function AdminSchedules() {
         </div>
         {!hideMonth && (
           <div className="space-y-1">
-            <Label>Semestre</Label>
+            <Label className="flex items-center gap-1.5">Semestre {autoFilledSemester && <span className="text-xs text-green-600 font-normal">(auto-rempli)</span>}</Label>
             <Select value={form.semesterId} onValueChange={(v) => setForm(f => ({ ...f, semesterId: v }))}>
               <SelectTrigger><SelectValue placeholder="Choisir" /></SelectTrigger>
-              <SelectContent>{semesters.map((s: any) => <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>)}</SelectContent>
+              <SelectContent>{filteredFormSemesters.map((s: any) => <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>)}</SelectContent>
             </Select>
           </div>
         )}
