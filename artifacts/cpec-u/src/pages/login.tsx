@@ -162,7 +162,7 @@ export default function Login() {
                   <Label htmlFor="email" className="text-foreground/80 font-semibold">Adresse Email</Label>
                   <Input 
                     id="email" 
-                    placeholder="prenom.nom@cpec-u.edu" 
+                    placeholder="prenom.nom@inphb.ci" 
                     {...register("email")}
                     className="h-12 bg-background/50 border-border/50 focus:border-primary focus:ring-primary/20"
                   />

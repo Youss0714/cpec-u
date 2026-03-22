@@ -959,7 +959,7 @@ export default function AdminUsers() {
                         </div>
                         <div className="space-y-1">
                           <Label className="text-sm">Email parent</Label>
-                          <Input type="email" value={createProfileForm.parentEmail} onChange={e => setCreateProfileForm(f => ({ ...f, parentEmail: e.target.value }))} placeholder="parent@email.com" />
+                          <Input type="email" value={createProfileForm.parentEmail} onChange={e => setCreateProfileForm(f => ({ ...f, parentEmail: e.target.value }))} placeholder="prenom.nom@inphb.ci" />
                         </div>
                       </div>
                       <div className="space-y-1">
@@ -1207,7 +1207,7 @@ export default function AdminUsers() {
                       </div>
                       <div className="space-y-1">
                         <Label>Email du parent</Label>
-                        <Input type="email" value={editProfileForm.parentEmail} onChange={e => setEditProfileForm(f => ({ ...f, parentEmail: e.target.value }))} placeholder="parent@email.com" />
+                        <Input type="email" value={editProfileForm.parentEmail} onChange={e => setEditProfileForm(f => ({ ...f, parentEmail: e.target.value }))} placeholder="prenom.nom@inphb.ci" />
                       </div>
                       <div className="space-y-1">
                         <Label className="flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-muted-foreground" /> Adresse du parent</Label>
