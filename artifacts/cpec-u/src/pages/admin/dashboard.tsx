@@ -61,6 +61,10 @@ export default function AdminDashboard() {
   const { data: scheduleEntries = [] } = useListScheduleEntries({});
   const { data: scolariteStatsData } = useGetScolariteStats();
 
+  const scheduledTeacherCount = useMemo(() =>
+    new Set((scheduleEntries as any[]).map((e) => e.teacherId).filter(Boolean)).size,
+    [scheduleEntries]
+  );
   const conflictCount = useMemo(() => countConflicts(scheduleEntries as any[]), [scheduleEntries]);
 
   const recoveryRate: number = (scolariteStatsData as any)?.recoveryRate ?? 0;
@@ -83,11 +87,11 @@ export default function AdminDashboard() {
       bg: "bg-blue-500/10",
     },
     {
-      title: "Conflits Détectés",
-      value: conflictCount,
-      icon: AlertTriangle,
-      color: conflictCount > 0 ? "text-red-500" : "text-emerald-500",
-      bg: conflictCount > 0 ? "bg-red-500/10" : "bg-emerald-500/10",
+      title: "Enseignants Programmés",
+      value: scheduledTeacherCount,
+      icon: GraduationCap,
+      color: "text-emerald-500",
+      bg: "bg-emerald-500/10",
     },
     {
       title: "Salles Disponibles",
