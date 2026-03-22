@@ -6,6 +6,7 @@ import {
   useSetStudentFee, useAddPayment, useDeletePayment,
   useGetHonorairesTeachers, useGetHonorairesStats, useGetTeacherPayments,
   useSetTeacherHonorarium, useAddTeacherPayment, useDeleteTeacherPayment,
+  useListSubjects, useListSemesters, useCreateAssignment,
 } from "@workspace/api-client-react";
 import type { StudentFeeRow, StudentPayment, TeacherHonorariumRow, TeacherPayment } from "@workspace/api-client-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -672,13 +673,17 @@ export default function AdminUsers() {
   const [editUser, setEditUser] = useState<any | null>(null);
   const [editForm, setEditForm] = useState({ name: "", email: "", password: "" });
   const [editSaving, setEditSaving] = useState(false);
+  const [teacherAssignmentRows, setTeacherAssignmentRows] = useState<{ subjectId: string; classId: string; semesterId: string }[]>([]);
   const { data: currentUser } = useGetCurrentUser();
   const currentSubRole = (currentUser as any)?.adminSubRole as string | null;
   const isDirecteur = currentSubRole === "directeur";
   const isPlanificateur = currentSubRole === "planificateur";
   const { data: users, isLoading } = useListUsers();
   const { data: classes } = useListClasses();
+  const { data: subjects } = useListSubjects();
+  const { data: semesters } = useListSemesters();
   const createUser = useCreateUser();
+  const createAssignment = useCreateAssignment();
   const deleteUser = useDeleteUser();
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -694,7 +699,7 @@ export default function AdminUsers() {
     const classIdStr = formData.get("classId") as string;
     const adminSubRole = formData.get("adminSubRole") as string;
     try {
-      await createUser.mutateAsync({
+      const newUser = await createUser.mutateAsync({
         data: {
           name: formData.get("name") as string,
           email: formData.get("email") as string,
@@ -704,7 +709,26 @@ export default function AdminUsers() {
           adminSubRole: role === "admin" ? adminSubRole : undefined,
         },
       });
+
+      if (role === "teacher" && teacherAssignmentRows.length > 0) {
+        const validRows = teacherAssignmentRows.filter(r => r.subjectId && r.classId && r.semesterId);
+        await Promise.allSettled(
+          validRows.map(row =>
+            createAssignment.mutateAsync({
+              data: {
+                teacherId: (newUser as any).id,
+                subjectId: parseInt(row.subjectId),
+                classId: parseInt(row.classId),
+                semesterId: parseInt(row.semesterId),
+              },
+            })
+          )
+        );
+        queryClient.invalidateQueries({ queryKey: ["/api/admin/teacher-assignments"] });
+      }
+
       toast({ title: "Utilisateur créé avec succès" });
+      setTeacherAssignmentRows([]);
       setIsDialogOpen(false);
       queryClient.invalidateQueries({ queryKey: ["users"] });
     } catch (e: any) {
@@ -798,11 +822,11 @@ export default function AdminUsers() {
             <p className="text-muted-foreground text-sm mt-1">Gérez les accès et les profils de l'établissement.</p>
           </div>
           {(isDirecteur || isPlanificateur || isScolarite) && (
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) { setTeacherAssignmentRows([]); setSelectedRole("student"); } }}>
               <DialogTrigger asChild>
                 <Button className="gap-2 shrink-0"><Plus className="w-4 h-4" /> Nouvel Utilisateur</Button>
               </DialogTrigger>
-              <DialogContent className="max-w-md">
+              <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
                 <DialogHeader><DialogTitle>Créer un utilisateur</DialogTitle></DialogHeader>
                 <form onSubmit={handleCreate} className="space-y-4 pt-2" autoComplete="off">
                   <div className="space-y-1"><Label>Nom complet</Label><Input name="name" required autoComplete="off" /></div>
@@ -810,7 +834,7 @@ export default function AdminUsers() {
                   <div className="space-y-1"><Label>Mot de passe</Label><Input name="password" type="password" required minLength={6} autoComplete="new-password" /></div>
                   <div className="space-y-1">
                     <Label>Rôle</Label>
-                    <Select name="role" defaultValue={isPlanificateur ? "teacher" : "student"} onValueChange={setSelectedRole}>
+                    <Select name="role" defaultValue={isPlanificateur ? "teacher" : "student"} onValueChange={(v) => { setSelectedRole(v); setTeacherAssignmentRows([]); }}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
                         {!isPlanificateur && <SelectItem value="student">Étudiant</SelectItem>}
@@ -840,6 +864,61 @@ export default function AdminUsers() {
                           <SelectItem value="hebergement">Responsable Hébergement</SelectItem>
                         </SelectContent>
                       </Select>
+                    </div>
+                  )}
+                  {selectedRole === "teacher" && (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-sm font-semibold">Matières associées <span className="text-muted-foreground font-normal">(optionnel)</span></Label>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="gap-1 text-xs h-7"
+                          onClick={() => setTeacherAssignmentRows(prev => [...prev, { subjectId: "", classId: "", semesterId: "" }])}
+                        >
+                          <Plus className="w-3 h-3" /> Ajouter
+                        </Button>
+                      </div>
+                      {teacherAssignmentRows.length === 0 && (
+                        <p className="text-xs text-muted-foreground italic border border-dashed rounded-md p-3 text-center">
+                          Aucune matière — vous pourrez les assigner plus tard depuis la page Assignations.
+                        </p>
+                      )}
+                      {teacherAssignmentRows.map((row, idx) => (
+                        <div key={idx} className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 items-end p-3 bg-muted/40 rounded-lg border">
+                          <div className="space-y-1">
+                            <Label className="text-xs">Matière</Label>
+                            <Select value={row.subjectId} onValueChange={val => setTeacherAssignmentRows(prev => prev.map((r, i) => i === idx ? { ...r, subjectId: val } : r))}>
+                              <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Matière..." /></SelectTrigger>
+                              <SelectContent>
+                                {(subjects as any[])?.map((s: any) => <SelectItem key={s.id} value={s.id.toString()} className="text-xs">{s.name}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Classe</Label>
+                            <Select value={row.classId} onValueChange={val => setTeacherAssignmentRows(prev => prev.map((r, i) => i === idx ? { ...r, classId: val } : r))}>
+                              <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Classe..." /></SelectTrigger>
+                              <SelectContent>
+                                {classes?.map((c: any) => <SelectItem key={c.id} value={c.id.toString()} className="text-xs">{c.name}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Semestre</Label>
+                            <Select value={row.semesterId} onValueChange={val => setTeacherAssignmentRows(prev => prev.map((r, i) => i === idx ? { ...r, semesterId: val } : r))}>
+                              <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Semestre..." /></SelectTrigger>
+                              <SelectContent>
+                                {(semesters as any[])?.map((s: any) => <SelectItem key={s.id} value={s.id.toString()} className="text-xs">{s.name}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => setTeacherAssignmentRows(prev => prev.filter((_, i) => i !== idx))}>
+                            <X className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      ))}
                     </div>
                   )}
                   <Button type="submit" className="w-full" disabled={createUser.isPending}>
