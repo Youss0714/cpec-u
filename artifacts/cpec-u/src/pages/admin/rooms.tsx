@@ -109,20 +109,20 @@ export default function AdminRooms() {
     setForm({ name: room.name, capacity: String(room.capacity), type: room.type, description: room.description || "" });
   };
 
-  const RoomForm = ({ onSubmit, isLoading }: { onSubmit: () => void; isLoading: boolean }) => (
+  const roomFormJSX = (onSubmit: () => void, isLoading: boolean) => (
     <div className="space-y-4">
       <div>
         <Label>Nom de la salle *</Label>
-        <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="ex: Salle A101" />
+        <Input value={form.name} onChange={(e) => setForm(f => ({ ...f, name: e.target.value }))} placeholder="ex: Salle A101" />
       </div>
       <div className="grid grid-cols-2 gap-4">
         <div>
           <Label>Capacité *</Label>
-          <Input type="number" min="1" max="500" value={form.capacity} onChange={(e) => setForm({ ...form, capacity: e.target.value })} />
+          <Input type="number" min="1" max="500" value={form.capacity} onChange={(e) => setForm(f => ({ ...f, capacity: e.target.value }))} />
         </div>
         <div>
           <Label>Type *</Label>
-          <Select value={form.type} onValueChange={(v) => setForm({ ...form, type: v })}>
+          <Select value={form.type} onValueChange={(v) => setForm(f => ({ ...f, type: v }))}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
               {ROOM_TYPES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
@@ -132,7 +132,7 @@ export default function AdminRooms() {
       </div>
       <div>
         <Label>Description</Label>
-        <Input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="ex: Bâtiment A, 1er étage" />
+        <Input value={form.description} onChange={(e) => setForm(f => ({ ...f, description: e.target.value }))} placeholder="ex: Bâtiment A, 1er étage" />
       </div>
       <Button onClick={onSubmit} disabled={isLoading} className="w-full">
         {isLoading ? "Enregistrement..." : "Enregistrer"}
@@ -160,7 +160,7 @@ export default function AdminRooms() {
             </DialogTrigger>
             <DialogContent>
               <DialogHeader><DialogTitle>Créer une Salle</DialogTitle></DialogHeader>
-              <RoomForm onSubmit={handleCreate} isLoading={createRoom.isPending} />
+              {roomFormJSX(handleCreate, createRoom.isPending)}
             </DialogContent>
           </Dialog>
         </div>
@@ -240,7 +240,7 @@ export default function AdminRooms() {
                             </DialogTrigger>
                             <DialogContent>
                               <DialogHeader><DialogTitle>Modifier la Salle</DialogTitle></DialogHeader>
-                              <RoomForm onSubmit={handleUpdate} isLoading={updateRoom.isPending} />
+                              {roomFormJSX(handleUpdate, updateRoom.isPending)}
                             </DialogContent>
                           </Dialog>
                           <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => setPendingDeleteRoom({ id: room.id, name: room.name })}>

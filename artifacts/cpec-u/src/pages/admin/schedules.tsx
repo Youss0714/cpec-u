@@ -310,7 +310,7 @@ export default function AdminSchedules() {
     return weekEnd < today;
   }, [startDate, numWeeks]);
 
-  const EntryForm = ({ onSubmit, isPending, hideMonth }: { onSubmit: (e: React.FormEvent) => void; isPending: boolean; hideMonth?: boolean }) => (
+  const entryFormJSX = (onSubmit: (e: React.FormEvent) => void, isPending: boolean, hideMonth?: boolean) => (
     <form onSubmit={onSubmit} className="space-y-3 mt-4">
       {!hideMonth && isCreatingInPastWeek && (
         <div className="flex items-start gap-2 bg-destructive/10 border border-destructive/30 rounded-lg p-3 text-sm text-destructive">
@@ -321,28 +321,28 @@ export default function AdminSchedules() {
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1">
           <Label>Enseignant</Label>
-          <Select value={form.teacherId} onValueChange={(v) => setForm({ ...form, teacherId: v })}>
+          <Select value={form.teacherId} onValueChange={(v) => setForm(f => ({ ...f, teacherId: v }))}>
             <SelectTrigger><SelectValue placeholder="Choisir" /></SelectTrigger>
             <SelectContent>{teachers.map((t: any) => <SelectItem key={t.id} value={String(t.id)}>{t.name}</SelectItem>)}</SelectContent>
           </Select>
         </div>
         <div className="space-y-1">
           <Label>Matière</Label>
-          <Select value={form.subjectId} onValueChange={(v) => setForm({ ...form, subjectId: v })}>
+          <Select value={form.subjectId} onValueChange={(v) => setForm(f => ({ ...f, subjectId: v }))}>
             <SelectTrigger><SelectValue placeholder="Choisir" /></SelectTrigger>
             <SelectContent>{subjects.map((s: any) => <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>)}</SelectContent>
           </Select>
         </div>
         <div className="space-y-1">
           <Label>Classe</Label>
-          <Select value={form.classId} onValueChange={(v) => setForm({ ...form, classId: v })}>
+          <Select value={form.classId} onValueChange={(v) => setForm(f => ({ ...f, classId: v }))}>
             <SelectTrigger><SelectValue placeholder="Choisir" /></SelectTrigger>
             <SelectContent>{classes.map((c: any) => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}</SelectContent>
           </Select>
         </div>
         <div className="space-y-1">
           <Label>Salle</Label>
-          <Select value={form.roomId} onValueChange={(v) => setForm({ ...form, roomId: v })}>
+          <Select value={form.roomId} onValueChange={(v) => setForm(f => ({ ...f, roomId: v }))}>
             <SelectTrigger><SelectValue placeholder="Choisir" /></SelectTrigger>
             <SelectContent>{rooms.map((r: any) => <SelectItem key={r.id} value={String(r.id)}>{r.name} ({r.capacity}p)</SelectItem>)}</SelectContent>
           </Select>
@@ -350,7 +350,7 @@ export default function AdminSchedules() {
         {!hideMonth && (
           <div className="space-y-1">
             <Label>Semestre</Label>
-            <Select value={form.semesterId} onValueChange={(v) => setForm({ ...form, semesterId: v })}>
+            <Select value={form.semesterId} onValueChange={(v) => setForm(f => ({ ...f, semesterId: v }))}>
               <SelectTrigger><SelectValue placeholder="Choisir" /></SelectTrigger>
               <SelectContent>{semesters.map((s: any) => <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>)}</SelectContent>
             </Select>
@@ -361,22 +361,22 @@ export default function AdminSchedules() {
           <Input
             type="date"
             value={form.sessionDate}
-            onChange={(e) => setForm({ ...form, sessionDate: e.target.value })}
+            onChange={(e) => setForm(f => ({ ...f, sessionDate: e.target.value }))}
             min={todayISO()}
           />
         </div>
         <div className="space-y-1">
           <Label>Début</Label>
-          <Input type="time" value={form.startTime} onChange={(e) => setForm({ ...form, startTime: e.target.value })} />
+          <Input type="time" value={form.startTime} onChange={(e) => setForm(f => ({ ...f, startTime: e.target.value }))} />
         </div>
         <div className="space-y-1">
           <Label>Fin</Label>
-          <Input type="time" value={form.endTime} onChange={(e) => setForm({ ...form, endTime: e.target.value })} />
+          <Input type="time" value={form.endTime} onChange={(e) => setForm(f => ({ ...f, endTime: e.target.value }))} />
         </div>
       </div>
       <div className="space-y-1">
         <Label>Notes <span className="text-muted-foreground text-xs">(optionnel)</span></Label>
-        <Input value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Remarques..." />
+        <Input value={form.notes} onChange={(e) => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="Remarques..." />
       </div>
       <div className="space-y-1">
         <Label className="flex items-center gap-1.5">
@@ -388,7 +388,7 @@ export default function AdminSchedules() {
         </Label>
         <Input
           value={form.teamsLink}
-          onChange={(e) => setForm({ ...form, teamsLink: e.target.value })}
+          onChange={(e) => setForm(f => ({ ...f, teamsLink: e.target.value }))}
           placeholder="https://teams.microsoft.com/l/meetup-join/..."
           type="url"
         />
@@ -572,7 +572,7 @@ export default function AdminSchedules() {
               </DialogTrigger>
               <DialogContent className="max-w-lg">
                 <DialogHeader><DialogTitle>Créer un créneau</DialogTitle></DialogHeader>
-                <EntryForm onSubmit={handleCreate} isPending={createEntry.isPending} />
+                {entryFormJSX(handleCreate, createEntry.isPending)}
               </DialogContent>
             </Dialog>
           </div>
@@ -582,7 +582,7 @@ export default function AdminSchedules() {
         <Dialog open={!!editingEntry} onOpenChange={(o) => { if (!o) { setEditingEntry(null); setForm(emptyForm); } }}>
           <DialogContent className="max-w-lg">
             <DialogHeader><DialogTitle>Modifier le créneau</DialogTitle></DialogHeader>
-            <EntryForm onSubmit={handleUpdate} isPending={updateEntry.isPending} hideMonth />
+            {entryFormJSX(handleUpdate, updateEntry.isPending, true)}
           </DialogContent>
         </Dialog>
 
