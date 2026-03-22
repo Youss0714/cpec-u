@@ -138,7 +138,18 @@ function StudentPaymentModal({ student, onClose }: { student: StudentFeeRow; onC
 
       {/* Add payment */}
       <form onSubmit={handleAddPayment} className="space-y-2 border rounded-xl p-4 bg-muted/20">
-        <p className="text-xs font-bold uppercase text-muted-foreground tracking-wide">Enregistrer un paiement</p>
+        <div className="flex items-center justify-between">
+          <p className="text-xs font-bold uppercase text-muted-foreground tracking-wide">Enregistrer un paiement</p>
+          {remaining > 0 && (
+            <button
+              type="button"
+              onClick={() => { setPayAmount(remaining.toString()); setPayDesc("Solde"); }}
+              className="text-xs font-semibold text-primary hover:underline"
+            >
+              Solder ({remaining.toLocaleString("fr-FR")} FCFA)
+            </button>
+          )}
+        </div>
         <div className="grid grid-cols-2 gap-2">
           <Input type="number" value={payAmount} onChange={e => setPayAmount(e.target.value)} placeholder="Montant (FCFA)" required min="1" />
           <Input type="date" value={payDate} onChange={e => setPayDate(e.target.value)} required />
