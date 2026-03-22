@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { AppLayout } from "@/components/layout";
 import {
   useListUsers, useCreateUser, useDeleteUser, useListClasses, useGetCurrentUser,
@@ -693,6 +693,7 @@ export default function AdminUsers() {
   const [viewUser, setViewUser] = useState<any | null>(null);
   const [viewProfile, setViewProfile] = useState<any | null>(null);
   const [viewProfileLoading, setViewProfileLoading] = useState(false);
+  const [filterClass, setFilterClass] = useState<string>("all");
   const { data: currentUser } = useGetCurrentUser();
   const currentSubRole = (currentUser as any)?.adminSubRole as string | null;
   const isDirecteur = currentSubRole === "directeur";
@@ -894,7 +895,13 @@ export default function AdminUsers() {
     ...(!isScolarite ? [{ key: "honoraires" as Tab, label: "Honoraires", icon: Wallet }] : []),
   ];
 
-  const listToShow = activeTab === "teachers" ? teachers : activeTab === "responsables" ? admins : students;
+  const listToShow = useMemo(() => {
+    const base = activeTab === "teachers" ? teachers : activeTab === "responsables" ? admins : students;
+    if (activeTab === "students" && filterClass !== "all") {
+      return base.filter((u: any) => u.className === filterClass);
+    }
+    return base;
+  }, [activeTab, teachers, admins, students, filterClass]);
 
   return (
     <AppLayout allowedRoles={["admin"]}>
@@ -1092,6 +1099,27 @@ export default function AdminUsers() {
 
         {/* Teachers / Students / Responsables tab */}
         {(activeTab === "teachers" || activeTab === "students" || activeTab === "responsables") && (
+          <div className="space-y-3">
+          {activeTab === "students" && (
+            <div className="flex items-center gap-2">
+              <Select value={filterClass} onValueChange={setFilterClass}>
+                <SelectTrigger className="w-56">
+                  <SelectValue placeholder="Filtrer par classe" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Toutes les classes</SelectItem>
+                  {(classes as any[])?.map((c: any) => (
+                    <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {filterClass !== "all" && (
+                <button onClick={() => setFilterClass("all")} className="text-xs text-muted-foreground hover:text-foreground underline">
+                  Réinitialiser
+                </button>
+              )}
+            </div>
+          )}
           <div className="rounded-xl border overflow-hidden">
             <Table>
               <TableHeader>
@@ -1154,6 +1182,7 @@ export default function AdminUsers() {
                 ))}
               </TableBody>
             </Table>
+          </div>
           </div>
         )}
 
