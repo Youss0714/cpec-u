@@ -677,6 +677,8 @@ export default function AdminUsers() {
   const [editProfileLoading, setEditProfileLoading] = useState(false);
   const [editSaving, setEditSaving] = useState(false);
   const [teacherAssignmentRows, setTeacherAssignmentRows] = useState<{ subjectId: string; classId: string; semesterId: string }[]>([]);
+  const [createProfileForm, setCreateProfileForm] = useState({ phone: "", address: "", parentName: "", parentPhone: "", parentEmail: "", parentAddress: "" });
+  const emptyCreateProfile = { phone: "", address: "", parentName: "", parentPhone: "", parentEmail: "", parentAddress: "" };
   const { data: currentUser } = useGetCurrentUser();
   const currentSubRole = (currentUser as any)?.adminSubRole as string | null;
   const isDirecteur = currentSubRole === "directeur";
@@ -732,8 +734,22 @@ export default function AdminUsers() {
         queryClient.invalidateQueries({ queryKey: ["/api/admin/teacher-assignments"] });
       }
 
+      if (role === "student") {
+        const p = createProfileForm;
+        const hasProfile = p.phone || p.address || p.parentName || p.parentPhone || p.parentEmail || p.parentAddress;
+        if (hasProfile) {
+          await fetch(`/api/admin/students/${(newUser as any).id}/profile`, {
+            method: "PUT",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ phone: p.phone || null, address: p.address || null, parentName: p.parentName || null, parentPhone: p.parentPhone || null, parentEmail: p.parentEmail || null, parentAddress: p.parentAddress || null }),
+          });
+        }
+      }
+
       toast({ title: "Utilisateur créé avec succès" });
       setTeacherAssignmentRows([]);
+      setCreateProfileForm(emptyCreateProfile);
       setIsDialogOpen(false);
       queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
     } catch (e: any) {
@@ -863,7 +879,7 @@ export default function AdminUsers() {
             <p className="text-muted-foreground text-sm mt-1">Gérez les accès et les profils de l'établissement.</p>
           </div>
           {(isDirecteur || isPlanificateur || isScolarite) && (
-            <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) { setTeacherAssignmentRows([]); setSelectedRole("student"); } }}>
+            <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) { setTeacherAssignmentRows([]); setSelectedRole("student"); setCreateProfileForm(emptyCreateProfile); } }}>
               <DialogTrigger asChild>
                 <Button className="gap-2 shrink-0"><Plus className="w-4 h-4" /> Nouvel Utilisateur</Button>
               </DialogTrigger>
@@ -891,6 +907,48 @@ export default function AdminUsers() {
                         <SelectTrigger><SelectValue placeholder="Choisir une classe..." /></SelectTrigger>
                         <SelectContent>{classes?.map((c: any) => <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>)}</SelectContent>
                       </Select>
+                    </div>
+                  )}
+                  {selectedRole === "student" && (
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2 pt-1">
+                        <div className="h-px flex-1 bg-border" />
+                        <span className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Contact <span className="normal-case font-normal">(optionnel)</span></span>
+                        <div className="h-px flex-1 bg-border" />
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <Label className="flex items-center gap-1.5 text-sm"><Phone className="w-3.5 h-3.5 text-muted-foreground" /> Téléphone</Label>
+                          <Input value={createProfileForm.phone} onChange={e => setCreateProfileForm(f => ({ ...f, phone: e.target.value }))} placeholder="+225 07 00 00 00 00" />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="flex items-center gap-1.5 text-sm"><MapPin className="w-3.5 h-3.5 text-muted-foreground" /> Adresse</Label>
+                          <Input value={createProfileForm.address} onChange={e => setCreateProfileForm(f => ({ ...f, address: e.target.value }))} placeholder="Quartier, Ville" />
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 pt-1">
+                        <div className="h-px flex-1 bg-border" />
+                        <span className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Parents / Tuteur <span className="normal-case font-normal">(optionnel)</span></span>
+                        <div className="h-px flex-1 bg-border" />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-sm">Nom du parent / tuteur</Label>
+                        <Input value={createProfileForm.parentName} onChange={e => setCreateProfileForm(f => ({ ...f, parentName: e.target.value }))} placeholder="Prénom Nom" />
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <Label className="flex items-center gap-1.5 text-sm"><Phone className="w-3.5 h-3.5 text-muted-foreground" /> Tél. parent</Label>
+                          <Input value={createProfileForm.parentPhone} onChange={e => setCreateProfileForm(f => ({ ...f, parentPhone: e.target.value }))} placeholder="+225 07 00 00 00 00" />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-sm">Email parent</Label>
+                          <Input type="email" value={createProfileForm.parentEmail} onChange={e => setCreateProfileForm(f => ({ ...f, parentEmail: e.target.value }))} placeholder="parent@email.com" />
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="flex items-center gap-1.5 text-sm"><MapPin className="w-3.5 h-3.5 text-muted-foreground" /> Adresse parent</Label>
+                        <Input value={createProfileForm.parentAddress} onChange={e => setCreateProfileForm(f => ({ ...f, parentAddress: e.target.value }))} placeholder="Quartier, Ville" />
+                      </div>
                     </div>
                   )}
                   {selectedRole === "admin" && (
