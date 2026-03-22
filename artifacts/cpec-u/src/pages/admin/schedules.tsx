@@ -135,6 +135,12 @@ export default function AdminSchedules() {
   const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  const openCreateForDay = (dayISO: string) => {
+    setEditingEntry(null);
+    setForm({ ...emptyForm, sessionDate: dayISO });
+    setIsCreateOpen(true);
+  };
+
   const pubParams = useMemo(() => ({
     classId: filterClass !== "all" ? parseInt(filterClass) : undefined,
     semesterId: filterSemester !== "all" ? parseInt(filterSemester) : undefined,
@@ -426,11 +432,26 @@ export default function AdminSchedules() {
               {formatShortDate(dayDate)}
             </span>
           </h3>
-          <Badge variant="secondary" className="text-xs">{dayEntries.length}</Badge>
+          <div className="flex items-center gap-2">
+            <Badge variant="secondary" className="text-xs">{dayEntries.length}</Badge>
+            <button
+              onClick={() => openCreateForDay(dayISO)}
+              className="w-6 h-6 rounded-full flex items-center justify-center bg-primary/10 hover:bg-primary/20 text-primary transition-colors"
+              title="Ajouter un cours ce jour"
+            >
+              <Plus className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
         <div className="p-3 space-y-2 min-h-[80px]">
           {dayEntries.length === 0 ? (
-            <p className="text-xs text-muted-foreground text-center py-4">Aucun cours</p>
+            <button
+              onClick={() => openCreateForDay(dayISO)}
+              className="w-full text-xs text-muted-foreground text-center py-4 rounded-xl border-2 border-dashed border-transparent hover:border-primary/30 hover:text-primary hover:bg-primary/5 transition-all cursor-pointer"
+            >
+              <Plus className="w-3.5 h-3.5 mx-auto mb-1 opacity-50" />
+              Ajouter un cours
+            </button>
           ) : (
             dayEntries.map((entry: any) => {
               const hasTeacherConflict = teacherConflicts.has(entry.id);
