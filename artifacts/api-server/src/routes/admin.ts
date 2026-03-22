@@ -432,11 +432,11 @@ router.post("/teaching-units", requireRole("admin"), async (req, res) => {
     if (cu?.adminSubRole === "scolarite") {
       res.status(403).json({ error: "Forbidden" }); return;
     }
-    const { code, name, credits, coefficient, classId, semesterId } = req.body;
+    const { code, name, category, credits, coefficient, classId, semesterId } = req.body;
     if (!code || !name || credits === undefined || coefficient === undefined) {
       res.status(400).json({ error: "Bad Request", message: "code, name, credits and coefficient are required" }); return;
     }
-    const [ue] = await db.insert(teachingUnitsTable).values({ code, name, credits, coefficient, classId: classId ?? null, semesterId: semesterId ?? null }).returning();
+    const [ue] = await db.insert(teachingUnitsTable).values({ code, name, category: category ?? null, credits, coefficient, classId: classId ?? null, semesterId: semesterId ?? null }).returning();
     const cls = classId ? await db.select({ name: classesTable.name }).from(classesTable).where(eq(classesTable.id, classId)).limit(1) : [];
     const sem = semesterId ? await db.select({ name: semestersTable.name }).from(semestersTable).where(eq(semestersTable.id, semesterId)).limit(1) : [];
     res.status(201).json({ ...ue, className: cls[0]?.name ?? null, semesterName: sem[0]?.name ?? null });
@@ -449,8 +449,8 @@ router.post("/teaching-units", requireRole("admin"), async (req, res) => {
 router.put("/teaching-units/:id", requireRole("admin"), async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    const { code, name, credits, coefficient, classId, semesterId } = req.body;
-    const [ue] = await db.update(teachingUnitsTable).set({ code, name, credits, coefficient, classId: classId ?? null, semesterId: semesterId ?? null }).where(eq(teachingUnitsTable.id, id)).returning();
+    const { code, name, category, credits, coefficient, classId, semesterId } = req.body;
+    const [ue] = await db.update(teachingUnitsTable).set({ code, name, category: category ?? null, credits, coefficient, classId: classId ?? null, semesterId: semesterId ?? null }).where(eq(teachingUnitsTable.id, id)).returning();
     if (!ue) { res.status(404).json({ error: "Not Found" }); return; }
     const cls = ue.classId ? await db.select({ name: classesTable.name }).from(classesTable).where(eq(classesTable.id, ue.classId)).limit(1) : [];
     const sem = ue.semesterId ? await db.select({ name: semestersTable.name }).from(semestersTable).where(eq(semestersTable.id, ue.semesterId)).limit(1) : [];

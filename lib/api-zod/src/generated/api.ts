@@ -305,6 +305,9 @@ export const ListTeachingUnitsResponseItem = zod.object({
   id: zod.number(),
   code: zod.string(),
   name: zod.string(),
+  category: zod
+    .enum(["culture_generale", "connaissances_fondamentales", "specialite"])
+    .nullish(),
   credits: zod.number(),
   coefficient: zod.number(),
   classId: zod.number().nullish(),
@@ -323,6 +326,9 @@ export const ListTeachingUnitsResponse = zod.array(
 export const CreateTeachingUnitBody = zod.object({
   code: zod.string(),
   name: zod.string(),
+  category: zod
+    .enum(["culture_generale", "connaissances_fondamentales", "specialite"])
+    .nullish(),
   credits: zod.number(),
   coefficient: zod.number(),
   classId: zod.number().nullish(),
@@ -339,6 +345,9 @@ export const UpdateTeachingUnitParams = zod.object({
 export const UpdateTeachingUnitBody = zod.object({
   code: zod.string(),
   name: zod.string(),
+  category: zod
+    .enum(["culture_generale", "connaissances_fondamentales", "specialite"])
+    .nullish(),
   credits: zod.number(),
   coefficient: zod.number(),
   classId: zod.number().nullish(),
@@ -349,6 +358,9 @@ export const UpdateTeachingUnitResponse = zod.object({
   id: zod.number(),
   code: zod.string(),
   name: zod.string(),
+  category: zod
+    .enum(["culture_generale", "connaissances_fondamentales", "specialite"])
+    .nullish(),
   credits: zod.number(),
   coefficient: zod.number(),
   classId: zod.number().nullish(),

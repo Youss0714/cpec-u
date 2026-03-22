@@ -1197,6 +1197,10 @@ components:
           type: string
         name:
           type: string
+        category:
+          type: string
+          nullable: true
+          enum: [culture_generale, connaissances_fondamentales, specialite]
         credits:
           type: integer
         coefficient:
@@ -1226,6 +1230,10 @@ components:
           type: string
         name:
           type: string
+        category:
+          type: string
+          nullable: true
+          enum: [culture_generale, connaissances_fondamentales, specialite]
         credits:
           type: integer
         coefficient:

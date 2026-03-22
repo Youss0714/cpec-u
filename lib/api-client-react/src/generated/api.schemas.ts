@@ -178,10 +178,21 @@ export interface CreateSubjectRequest {
   semesterId?: number | null;
 }
 
+export type TeachingUnitCategory =
+  | (typeof TeachingUnitCategory)[keyof typeof TeachingUnitCategory]
+  | null;
+
+export const TeachingUnitCategory = {
+  culture_generale: "culture_generale",
+  connaissances_fondamentales: "connaissances_fondamentales",
+  specialite: "specialite",
+} as const;
+
 export interface TeachingUnit {
   id: number;
   code: string;
   name: string;
+  category?: TeachingUnitCategory;
   credits: number;
   coefficient: number;
   classId?: number | null;
@@ -191,9 +202,20 @@ export interface TeachingUnit {
   createdAt: string;
 }
 
+export type CreateTeachingUnitRequestCategory =
+  | (typeof CreateTeachingUnitRequestCategory)[keyof typeof CreateTeachingUnitRequestCategory]
+  | null;
+
+export const CreateTeachingUnitRequestCategory = {
+  culture_generale: "culture_generale",
+  connaissances_fondamentales: "connaissances_fondamentales",
+  specialite: "specialite",
+} as const;
+
 export interface CreateTeachingUnitRequest {
   code: string;
   name: string;
+  category?: CreateTeachingUnitRequestCategory;
   credits: number;
   coefficient: number;
   classId?: number | null;

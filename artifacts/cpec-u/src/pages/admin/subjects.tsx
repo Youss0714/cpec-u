@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Trash2, Pencil, BookOpen, Layers, ChevronDown, ChevronRight, Award } from "lucide-react";
+import { Plus, Trash2, Pencil, BookOpen, Layers, ChevronDown, ChevronRight, Award, FlaskConical, Globe2, Star } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { motion, AnimatePresence } from "framer-motion";
@@ -21,15 +21,28 @@ function resolveId(val: string): number | undefined {
   return val && val !== "none" ? parseInt(val) : undefined;
 }
 
-type UEFormData = { code: string; name: string; credits: string; coefficient: string; classId: string; semesterId: string };
+const UE_CATEGORIES = [
+  { value: "culture_generale", label: "UE CULTURE GÉNÉRALE", color: "bg-blue-100 text-blue-800 border-blue-200", icon: Globe2 },
+  { value: "connaissances_fondamentales", label: "UE DE CONNAISSANCES FONDAMENTALES", color: "bg-amber-100 text-amber-800 border-amber-200", icon: FlaskConical },
+  { value: "specialite", label: "UE DE SPÉCIALITÉ", color: "bg-emerald-100 text-emerald-800 border-emerald-200", icon: Star },
+] as const;
+
+type UeCategory = typeof UE_CATEGORIES[number]["value"];
+
+function getCategoryMeta(cat?: string | null) {
+  return UE_CATEGORIES.find(c => c.value === cat) ?? null;
+}
+
+type UEFormData = { code: string; name: string; category: string; credits: string; coefficient: string; classId: string; semesterId: string };
 type ECFormData = { name: string; coefficient: string; credits: string; ueId: string; classId: string; semesterId: string };
 
-const emptyUE: UEFormData = { code: "", name: "", credits: "3", coefficient: "1", classId: "none", semesterId: "none" };
+const emptyUE: UEFormData = { code: "", name: "", category: "none", credits: "3", coefficient: "1", classId: "none", semesterId: "none" };
 const emptyEC: ECFormData = { name: "", coefficient: "1", credits: "1", ueId: "none", classId: "none", semesterId: "none" };
 
 export default function AdminSubjects() {
   const [filterClass, setFilterClass] = useState("all");
   const [filterSemester, setFilterSemester] = useState("all");
+  const [filterCategory, setFilterCategory] = useState("all");
   const [expandedUEs, setExpandedUEs] = useState<Set<number>>(new Set());
 
   const [isCreateUEOpen, setIsCreateUEOpen] = useState(false);
@@ -69,9 +82,10 @@ export default function AdminSubjects() {
     return (teachingUnits as any[]).filter((u: any) => {
       const matchClass = filterClass === "all" || String(u.classId ?? "none") === filterClass;
       const matchSem = filterSemester === "all" || String(u.semesterId ?? "none") === filterSemester;
-      return matchClass && matchSem;
+      const matchCat = filterCategory === "all" || (u.category ?? "none") === filterCategory;
+      return matchClass && matchSem && matchCat;
     });
-  }, [teachingUnits, filterClass, filterSemester]);
+  }, [teachingUnits, filterClass, filterSemester, filterCategory]);
 
   const filteredSubjects = useMemo(() => {
     if (!subjects) return [];
@@ -106,6 +120,7 @@ export default function AdminSubjects() {
       await createUE.mutateAsync({ data: {
         code: ueForm.code,
         name: ueForm.name,
+        category: ueForm.category !== "none" ? ueForm.category : null,
         credits: parseInt(ueForm.credits),
         coefficient: parseFloat(ueForm.coefficient),
         classId: resolveId(ueForm.classId) ?? null,
@@ -124,6 +139,7 @@ export default function AdminSubjects() {
     try {
       await updateUE.mutateAsync({ id: editingUE.id, data: {
         code: ueForm.code, name: ueForm.name,
+        category: ueForm.category !== "none" ? ueForm.category : null,
         credits: parseInt(ueForm.credits), coefficient: parseFloat(ueForm.coefficient),
         classId: resolveId(ueForm.classId) ?? null, semesterId: resolveId(ueForm.semesterId) ?? null,
       } as any });
@@ -191,6 +207,7 @@ export default function AdminSubjects() {
     setEditingUE(ue);
     setUeForm({
       code: ue.code, name: ue.name,
+      category: ue.category ?? "none",
       credits: String(ue.credits), coefficient: String(ue.coefficient),
       classId: ue.classId ? String(ue.classId) : "none",
       semesterId: ue.semesterId ? String(ue.semesterId) : "none",
@@ -234,6 +251,18 @@ export default function AdminSubjects() {
       <div className="space-y-2">
         <Label>Intitulé de l'UE</Label>
         <Input value={ueForm.name} onChange={e => setUeForm({ ...ueForm, name: e.target.value })} placeholder="ex: Fondamentaux Comptables" required />
+      </div>
+      <div className="space-y-2">
+        <Label>Catégorie</Label>
+        <Select value={ueForm.category} onValueChange={v => setUeForm({ ...ueForm, category: v })}>
+          <SelectTrigger><SelectValue placeholder="Choisir une catégorie..." /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">— Sans catégorie —</SelectItem>
+            {UE_CATEGORIES.map(cat => (
+              <SelectItem key={cat.value} value={cat.value}>{cat.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
       <div className="space-y-2">
         <Label>Coefficient de l'UE</Label>
@@ -373,6 +402,17 @@ export default function AdminSubjects() {
               ))}
             </SelectContent>
           </Select>
+          <Select value={filterCategory} onValueChange={setFilterCategory}>
+            <SelectTrigger className="w-64 bg-card border-border">
+              <SelectValue placeholder="Toutes les catégories" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Toutes les catégories</SelectItem>
+              {UE_CATEGORIES.map(cat => (
+                <SelectItem key={cat.value} value={cat.value}>{cat.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         {/* Content */}
@@ -398,7 +438,7 @@ export default function AdminSubjects() {
                         className="flex items-center justify-between px-5 py-4 cursor-pointer hover:bg-secondary/30 transition-colors"
                         onClick={() => toggleUE(ue.id)}
                       >
-                        <div className="flex items-center gap-3 min-w-0">
+                        <div className="flex items-center gap-3 min-w-0 flex-wrap">
                           <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
                             <span className="text-primary font-bold text-sm">{ue.code}</span>
                           </div>
@@ -406,6 +446,17 @@ export default function AdminSubjects() {
                             <p className="font-bold text-foreground truncate">{ue.name}</p>
                             <p className="text-xs text-muted-foreground">{ecs.length} EC{ecs.length > 1 ? "s" : ""}</p>
                           </div>
+                          {(() => {
+                            const meta = getCategoryMeta(ue.category);
+                            if (!meta) return null;
+                            const Icon = meta.icon;
+                            return (
+                              <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full border ${meta.color}`}>
+                                <Icon className="w-3 h-3" />
+                                {meta.label}
+                              </span>
+                            );
+                          })()}
                           <Badge className="bg-primary/10 text-primary border-0 font-bold">{ue.credits} crédits ECTS</Badge>
                           {ue.className && <Badge variant="secondary" className="text-xs">{ue.className}</Badge>}
                           {ue.semesterName && <Badge variant="outline" className="text-xs">{ue.semesterName}</Badge>}
