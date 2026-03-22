@@ -701,6 +701,7 @@ export default function AdminUsers() {
     const role = formData.get("role") as "admin" | "teacher" | "student";
     const classIdStr = formData.get("classId") as string;
     const adminSubRole = formData.get("adminSubRole") as string;
+    const phone = formData.get("phone") as string;
     try {
       const newUser = await createUser.mutateAsync({
         data: {
@@ -710,7 +711,8 @@ export default function AdminUsers() {
           role,
           classId: role === "student" && classIdStr ? parseInt(classIdStr) : undefined,
           adminSubRole: role === "admin" ? adminSubRole : undefined,
-        },
+          phone: role === "teacher" && phone ? phone : undefined,
+        } as any,
       });
 
       if (role === "teacher" && teacherAssignmentRows.length > 0) {
@@ -903,6 +905,12 @@ export default function AdminUsers() {
                           <SelectItem value="hebergement">Responsable Hébergement</SelectItem>
                         </SelectContent>
                       </Select>
+                    </div>
+                  )}
+                  {selectedRole === "teacher" && (
+                    <div className="space-y-1">
+                      <Label className="flex items-center gap-1.5"><Phone className="w-3.5 h-3.5 text-muted-foreground" /> Téléphone <span className="text-muted-foreground font-normal">(optionnel)</span></Label>
+                      <Input name="phone" type="tel" placeholder="+225 07 00 00 00 00" autoComplete="off" />
                     </div>
                   )}
                   {selectedRole === "teacher" && (

@@ -87,7 +87,7 @@ router.get("/users", requireRole("admin"), async (req, res) => {
 router.post("/users", requireRole("admin"), async (req, res) => {
   try {
     const cu = req.session?.user as any;
-    const { email, name, password, role, adminSubRole, classId } = req.body;
+    const { email, name, password, role, adminSubRole, classId, phone } = req.body;
     if (!email || !name || !password || !role) {
       res.status(400).json({ error: "Bad Request", message: "Missing required fields" });
       return;
@@ -104,6 +104,7 @@ router.post("/users", requireRole("admin"), async (req, res) => {
     const [user] = await db.insert(usersTable).values({
       email, name, passwordHash, role,
       adminSubRole: role === "admin" ? (adminSubRole ?? null) : null,
+      phone: phone?.trim() || null,
       mustChangePassword: true,
     }).returning();
 
