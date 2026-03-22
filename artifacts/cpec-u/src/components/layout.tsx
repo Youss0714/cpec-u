@@ -142,8 +142,6 @@ export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
     { name: "Emplois du temps", href: "/admin/schedules", icon: CalendarDays },
     { name: "Salles", href: "/admin/rooms", icon: DoorOpen },
     { name: "Affectations", href: "/admin/assignments", icon: ClipboardList },
-    { name: "Feuilles de Présence", href: "/admin/attendance", icon: ClipboardList },
-    { name: "Bilan des Absences", href: "/admin/attendance/summary", icon: BarChart3 },
     { name: "Résultats & Bulletins", href: "/admin/results", icon: GraduationCap },
     { name: "Journal d'Activité", href: "/admin/activity-log", icon: ScrollText },
     { name: "Hébergement", href: "/admin/housing", icon: Building2 },
