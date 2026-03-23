@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { Link } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useListSemesters,
@@ -267,15 +268,21 @@ export default function AnnualPromotionPage() {
       <div className="max-w-4xl mx-auto space-y-6">
 
         {/* Header */}
-        <div className="flex items-start gap-4">
-          <div className="p-3 bg-blue-600 rounded-xl shadow-md shrink-0">
-            <GraduationCap className="w-6 h-6 text-white" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Promotion Annuelle</h1>
-            <p className="text-gray-500 text-sm mt-1">
-              Délibération et passage des étudiants admis vers la classe supérieure.
-            </p>
+        <div>
+          <Link href="/admin" className="inline-flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-700 transition-colors mb-3">
+            <ChevronRight className="w-3.5 h-3.5 rotate-180" />
+            Tableau de bord
+          </Link>
+          <div className="flex items-start gap-4">
+            <div className="p-3 bg-blue-600 rounded-xl shadow-md shrink-0">
+              <GraduationCap className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">Promotion Annuelle</h1>
+              <p className="text-gray-500 text-sm mt-1">
+                Délibération et passage des étudiants admis vers la classe supérieure.
+              </p>
+            </div>
           </div>
         </div>
 
