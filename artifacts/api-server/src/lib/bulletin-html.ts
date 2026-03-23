@@ -389,32 +389,34 @@ export function generateBulletinHTML(data: BulletinData): string {
 
     /* ── Header band ── */
     .header-band {
-      background: #1a3a6b;
-      color: white;
-      padding: 5px 8px 5px;
+      padding: 4px 2px 3px;
       display: grid;
       grid-template-columns: 1fr auto 1fr;
       align-items: center;
       gap: 4px;
-      margin-bottom: 3px;
+      margin-bottom: 2px;
+      border-bottom: 1px solid #1A1A1A;
     }
-    .header-left  { font-size: 6.5pt; line-height: 1.5; }
-    .header-center { text-align: center; }
-    .header-center .inst-name { font-size: 12.5pt; font-weight: bold; letter-spacing: 0.5px; }
-    .header-center .inst-sub  { font-size: 8pt; font-style: italic; }
-    .header-right { font-size: 6.5pt; line-height: 1.5; text-align: right; }
+    .header-left  { font-size: 6.5pt; line-height: 1.6; color: #1A1A1A; }
+    .header-center { text-align: center; color: #1A1A1A; }
+    .header-center .inst-name { font-size: 13pt; font-weight: bold; letter-spacing: 0.3px; }
+    .header-center .inst-sub  { font-size: 8.5pt; font-style: italic; letter-spacing: 0.5px; }
+    .header-right { font-size: 6.5pt; line-height: 1.6; text-align: right; color: #1A1A1A; }
 
-    /* ── Sub-header (école info) ── */
-    .sub-header {
+    /* ── Info block (école + étudiant) ── */
+    .info-block {
       display: grid;
-      grid-template-columns: 1fr auto 1fr;
-      gap: 4px;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
       margin-bottom: 3px;
-      padding: 0 1px;
-      font-size: 7pt;
-      line-height: 1.55;
+      padding: 3px 2px;
+      font-size: 7.5pt;
+      line-height: 1.65;
+      border-bottom: 1px solid #1A1A1A;
     }
-    .sub-header-logo { text-align: center; }
+    .info-school { color: #1A1A1A; }
+    .info-school .school-ref { font-size: 6pt; color: #555; margin-top: 1px; }
+    .info-student { color: #1A1A1A; }
 
     /* ── Title bar ── */
     .title-bar {
@@ -429,27 +431,6 @@ export function generateBulletinHTML(data: BulletinData): string {
     .title-bar-left  { font-weight: bold; font-size: 9pt; }
     .title-bar-right { font-weight: bold; font-size: 9pt; }
 
-    /* ── Student block ── */
-    .student-block {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 6px;
-      margin-bottom: 4px;
-    }
-    .student-left { font-size: 7.5pt; line-height: 1.65; }
-    .student-left strong { font-size: 8pt; }
-    .student-right {
-      border: 1px solid #1A1A1A;
-      padding: 5px 8px;
-      font-size: 7.5pt;
-      line-height: 1.7;
-    }
-    .student-right .sname {
-      font-weight: bold;
-      font-size: 9pt;
-      text-transform: uppercase;
-      margin-bottom: 2px;
-    }
 
     /* ── Notes table ── */
     .notes-table {
@@ -708,23 +689,23 @@ export function generateBulletinHTML(data: BulletinData): string {
       </div>
     </div>
 
-    <!-- ═══ SUB-HEADER ═══ -->
-    <div class="sub-header">
-      <div>
-        <strong>École Supérieure de Commerce<br>et d'Administration des Entreprises</strong><br>
+    <!-- ═══ INFO BLOCK (école + étudiant) ═══ -->
+    <div class="info-block">
+      <div class="info-school">
+        École Supérieure de Commerce<br>
+        et d'Administration des Entreprises<br>
         <strong>ESCAE</strong><br>
         Centre Préparatoire à l'Expertise Comptable-UEMOA<br>
         <strong>CPEC-U</strong><br>
-        <span style="font-size:6pt;color:#555;">Réf : 023/2024/INP-HB/ESCAE/CPEC-U/RE/CC</span>
+        <span class="school-ref">Réf : 023/2024/INP-HB/ESCAE/CPEC-U/RE/CC</span>
       </div>
-      <div class="sub-header-logo">
-        <!-- intentionally empty: logo already in header band -->
-      </div>
-      <div style="text-align:right;">
-        <strong style="font-size:9pt;">FILIÈRE : ${data.className.toUpperCase()}</strong><br>
-        Grade : Licence Professionnelle<br>
-        <strong>CLASSE :</strong> ${data.className.toUpperCase()}<br>
-        Année Scolaire : ${data.academicYear}
+      <div class="info-student">
+        <strong>NOM ET PRÉNOM(S) :</strong><br>
+        ${data.studentName.toUpperCase()}<br>
+        Né(e) le <span style="border-bottom:1px dotted #999;display:inline-block;min-width:36px;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
+        à <span style="border-bottom:1px dotted #999;display:inline-block;min-width:50px;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span><br>
+        <strong>REDOUBLANT(E) :</strong> NON<br>
+        <strong>N° Matricule :</strong> ${data.studentMatricule}
       </div>
     </div>
 
@@ -732,22 +713,6 @@ export function generateBulletinHTML(data: BulletinData): string {
     <div class="title-bar">
       <div class="title-bar-left">${data.className.toUpperCase()}</div>
       <div class="title-bar-right">BULLETIN ${data.semesterName.toUpperCase()}</div>
-    </div>
-
-    <!-- ═══ STUDENT BLOCK ═══ -->
-    <div class="student-block">
-      <div class="student-left">
-        <strong>NOM ET PRÉNOM(S) :</strong> ${data.studentName.toUpperCase()}<br>
-        Né(e) le : <span style="border-bottom:1px dotted #999;display:inline-block;min-width:40px;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
-        &nbsp;à : <span style="border-bottom:1px dotted #999;display:inline-block;min-width:50px;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span><br>
-        <strong>REDOUBLANT(E) :</strong> NON<br>
-        <strong>N° Matricule :</strong> ${data.studentMatricule}
-      </div>
-      <div class="student-right">
-        <div><strong>FILIÈRE :</strong> ${data.className.toUpperCase()}</div>
-        <div><strong>CLASSE :</strong> ${data.className.toUpperCase()}</div>
-        <div><strong>Année Scolaire :</strong> ${data.academicYear}</div>
-      </div>
     </div>
 
     <!-- ═══ NOTES TABLE ═══ -->
