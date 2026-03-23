@@ -1,8 +1,9 @@
 import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { SplashScreen } from "@/components/splash-screen";
 import NotFound from "@/pages/not-found";
 
 // Pages
@@ -105,9 +106,20 @@ function Router() {
 }
 
 function App() {
+  const [showSplash, setShowSplash] = useState(() => {
+    const seen = sessionStorage.getItem("cpec_splash_seen");
+    return !seen;
+  });
+
+  const handleSplashDone = () => {
+    sessionStorage.setItem("cpec_splash_seen", "1");
+    setShowSplash(false);
+  };
+
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
+        {showSplash && <SplashScreen onDone={handleSplashDone} />}
         <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
           <Router />
         </WouterRouter>
