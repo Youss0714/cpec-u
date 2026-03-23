@@ -6,7 +6,7 @@ import {
 } from "@workspace/api-client-react";
 import {
   useListSubjectApprovals, useApproveSubject, useUnapproveSubject, useDerogateGrade,
-  usePromoteAdmitted, useGetPendingGradeSubmissions,
+  useGetPendingGradeSubmissions,
 } from "@workspace/api-client-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -19,7 +19,7 @@ import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
-import { Download, Search, CheckCircle, Lock, Unlock, FileEdit, Globe, GlobeLock, TrendingUp, Users, GraduationCap, ChevronDown, ChevronUp, AlertTriangle, XCircle, Eye, Send } from "lucide-react";
+import { Download, Search, CheckCircle, Lock, Unlock, FileEdit, Globe, GlobeLock, Users, GraduationCap, ChevronDown, ChevronUp, AlertTriangle, XCircle, Eye, Send } from "lucide-react";
 
 export default function AdminResults() {
   const { toast } = useToast();
@@ -58,10 +58,6 @@ export default function AdminResults() {
   const unapproveSubject = useUnapproveSubject();
   const derogateGrade = useDerogateGrade();
   const publishMutation = usePublishSemesterResults();
-  const promoteMutation = usePromoteAdmitted();
-  const [promotionResult, setPromotionResult] = useState<{ promoted: { id: number; name: string }[]; fromClass: string } | null>(null);
-  const [showPromoteConfirm, setShowPromoteConfirm] = useState(false);
-
   const [derogationTarget, setDerogationTarget] = useState<{
     studentId: number; studentName: string; semesterId: number;
     grades: { subjectId: number; subjectName: string; value: number | null }[];
@@ -94,30 +90,6 @@ export default function AdminResults() {
   const currentSemester = (semesters as any[])?.find((s: any) => s.id === parseInt(selectedSemester));
   const isPublished = currentSemester?.published ?? false;
   const currentClass = (classes as any[])?.find((c: any) => String(c.id) === selectedClass);
-  const isTerminalClass = !!currentClass?.isTerminal;
-  const admittedCount = (results as any[]).filter((r: any) => r.classId === currentClass?.id && r.decision === "Admis").length;
-  const canPromote = isScolarite && !!selectedSemester && selectedClass !== "all" && !isTerminalClass && !!currentClass?.nextClassId && admittedCount > 0;
-
-  const handlePromote = () => {
-    if (!canPromote) return;
-    setShowPromoteConfirm(true);
-  };
-
-  const handlePromoteConfirm = async () => {
-    setShowPromoteConfirm(false);
-    try {
-      const result = await promoteMutation.mutateAsync({
-        semesterId: parseInt(selectedSemester),
-        classId: parseInt(selectedClass),
-      });
-      setPromotionResult(result);
-      qc.invalidateQueries({ queryKey: ["/api/admin/classes"] });
-      qc.invalidateQueries({ queryKey: [`/api/admin/classes/${selectedClass}/students`] });
-    } catch (e: any) {
-      toast({ title: e?.message ?? "Erreur lors de la promotion.", variant: "destructive" });
-    }
-  };
-
   const approvedSet = useMemo(() => {
     const s = new Set<string>();
     (approvals as any[]).forEach((a) => s.add(`${a.subjectId}-${a.classId}`));
@@ -343,52 +315,6 @@ export default function AdminResults() {
               </div>
             )}
 
-            {/* Promotion panel — scolarité only, specific class */}
-            {isScolarite && selectedClass !== "all" && (
-              isTerminalClass ? (
-                /* Terminal class — fin de cycle */
-                <div className="rounded-2xl border border-amber-200 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-700 shadow-sm p-5 flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-xl bg-amber-100 dark:bg-amber-900/40 flex items-center justify-center shrink-0">
-                    <GraduationCap className="w-5 h-5 text-amber-600" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-sm text-amber-800 dark:text-amber-200">
-                      Fin de cycle — {currentClass?.name}
-                    </h3>
-                    <p className="text-xs text-amber-700/80 dark:text-amber-300/80 mt-0.5">
-                      Les étudiants admis dans cette classe terminent leur cycle et obtiennent leur diplôme. Aucune promotion automatique n'est effectuée.
-                    </p>
-                  </div>
-                </div>
-              ) : (
-                /* Normal class — promotion possible or not configured */
-                <div className={`rounded-2xl border shadow-sm p-5 flex items-center justify-between gap-4 ${canPromote ? "bg-violet-50 border-violet-200 dark:bg-violet-950/30 dark:border-violet-700" : "bg-muted/30 border-border"}`}>
-                  <div>
-                    <h3 className="font-semibold text-sm flex items-center gap-2">
-                      <TrendingUp className={`w-4 h-4 ${canPromote ? "text-violet-600" : "text-muted-foreground"}`} />
-                      Promotion de classe
-                    </h3>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      {!currentClass?.nextClassId
-                        ? `Aucune classe supérieure configurée. Configurez-la depuis la page Classes.`
-                        : admittedCount === 0 && selectedClass !== "all"
-                        ? `Aucun étudiant admis dans cette classe pour ce semestre.`
-                        : `${admittedCount} étudiant${admittedCount > 1 ? "s" : ""} admis seront transférés vers la classe supérieure.`}
-                    </p>
-                  </div>
-                  <Button
-                    onClick={handlePromote}
-                    disabled={!canPromote || promoteMutation.isPending}
-                    className={canPromote ? "bg-violet-600 hover:bg-violet-700 text-white shrink-0" : "shrink-0"}
-                    variant={canPromote ? "default" : "outline"}
-                  >
-                    <TrendingUp className="w-4 h-4 mr-2" />
-                    {promoteMutation.isPending ? "Promotion en cours..." : "Promouvoir les admis"}
-                  </Button>
-                </div>
-              )
-            )}
-
             {/* Results table */}
             <div className="bg-card rounded-2xl shadow-sm border border-border overflow-hidden">
               <Table>
@@ -524,41 +450,6 @@ export default function AdminResults() {
         )}
       </div>
 
-      {/* Promote confirmation dialog */}
-      <Dialog open={showPromoteConfirm} onOpenChange={setShowPromoteConfirm}>
-        <DialogContent className="w-[calc(100vw-2rem)] max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-base">
-              <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0" />
-              Confirmer la promotion de classe
-            </DialogTitle>
-            <DialogDescription className="pt-2 text-sm leading-relaxed">
-              Les étudiants <strong>admis</strong> de{" "}
-              <span className="font-semibold text-foreground">"{currentClass?.name}"</span>{" "}
-              seront transférés vers{" "}
-              <span className="font-semibold text-foreground">
-                "{(classes as any[])?.find((c: any) => c.id === currentClass?.nextClassId)?.name ?? "la classe supérieure"}"
-              </span>.
-              <br /><br />
-              Les étudiants <strong>ajournés</strong> resteront dans leur classe actuelle. Cette action est <strong>irréversible</strong>.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="flex-col-reverse sm:flex-row gap-2 pt-2">
-            <Button variant="outline" onClick={() => setShowPromoteConfirm(false)} className="flex-1">
-              Annuler
-            </Button>
-            <Button
-              className="flex-1 bg-violet-600 hover:bg-violet-700 text-white"
-              onClick={handlePromoteConfirm}
-              disabled={promoteMutation.isPending}
-            >
-              <TrendingUp className="w-4 h-4 mr-2" />
-              {promoteMutation.isPending ? "Promotion en cours..." : "Confirmer la promotion"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
       {/* Derogation modal */}
       <Dialog open={!!derogationTarget} onOpenChange={(o) => { if (!o) setDerogationTarget(null); }}>
         <DialogContent className="w-[calc(100vw-2rem)] max-w-md max-h-[90vh] flex flex-col overflow-hidden">
@@ -619,50 +510,6 @@ export default function AdminResults() {
                 className="w-full bg-amber-500 hover:bg-amber-600 text-white"
               >
                 {derogateGrade.isPending ? "Enregistrement..." : "Valider la dérogation"}
-              </Button>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      {/* Promotion result modal */}
-      <Dialog open={!!promotionResult} onOpenChange={(o) => { if (!o) setPromotionResult(null); }}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <TrendingUp className="w-5 h-5 text-violet-600" />
-              Promotion effectuée
-            </DialogTitle>
-          </DialogHeader>
-          {promotionResult && (
-            <div className="space-y-4 mt-2">
-              <div className="bg-violet-50 border border-violet-200 dark:bg-violet-950/30 dark:border-violet-700 rounded-xl p-4">
-                <p className="text-sm font-semibold text-violet-900 dark:text-violet-100">
-                  {promotionResult.promoted.length} étudiant{promotionResult.promoted.length !== 1 ? "s" : ""} promu{promotionResult.promoted.length !== 1 ? "s" : ""} depuis <strong>{promotionResult.fromClass}</strong>
-                </p>
-                <p className="text-xs text-violet-700 dark:text-violet-300 mt-1">
-                  Les étudiants ont été transférés dans la classe supérieure. Cette action est enregistrée dans le Journal d'Activité.
-                </p>
-              </div>
-
-              {promotionResult.promoted.length === 0 ? (
-                <div className="flex flex-col items-center py-6 text-muted-foreground">
-                  <Users className="w-8 h-8 mb-2 opacity-30" />
-                  <p className="text-sm">Aucun étudiant admis dans cette classe pour ce semestre.</p>
-                </div>
-              ) : (
-                <div className="space-y-2 max-h-60 overflow-y-auto">
-                  {promotionResult.promoted.map((s) => (
-                    <div key={s.id} className="flex items-center gap-3 p-2 rounded-lg bg-secondary/50">
-                      <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
-                      <span className="text-sm font-medium">{s.name}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              <Button className="w-full" onClick={() => setPromotionResult(null)}>
-                Fermer
               </Button>
             </div>
           )}
