@@ -95,7 +95,8 @@ export default function AdminResults() {
   const isPublished = currentSemester?.published ?? false;
   const currentClass = (classes as any[])?.find((c: any) => String(c.id) === selectedClass);
   const isTerminalClass = !!currentClass?.isTerminal;
-  const canPromote = isScolarite && !!selectedSemester && selectedClass !== "all" && !isTerminalClass && !!currentClass?.nextClassId;
+  const admittedCount = (results as any[]).filter((r: any) => r.classId === currentClass?.id && r.decision === "Admis").length;
+  const canPromote = isScolarite && !!selectedSemester && selectedClass !== "all" && !isTerminalClass && !!currentClass?.nextClassId && admittedCount > 0;
 
   const handlePromote = () => {
     if (!canPromote) return;
@@ -368,9 +369,11 @@ export default function AdminResults() {
                       Promotion de classe
                     </h3>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      {canPromote
-                        ? `Les étudiants admis (toutes UEs validées) seront transférés vers la classe supérieure.`
-                        : `Aucune classe supérieure configurée. Configurez-la depuis la page Classes.`}
+                      {!currentClass?.nextClassId
+                        ? `Aucune classe supérieure configurée. Configurez-la depuis la page Classes.`
+                        : admittedCount === 0 && selectedClass !== "all"
+                        ? `Aucun étudiant admis dans cette classe pour ce semestre.`
+                        : `${admittedCount} étudiant${admittedCount > 1 ? "s" : ""} admis seront transférés vers la classe supérieure.`}
                     </p>
                   </div>
                   <Button
