@@ -669,6 +669,150 @@ router.post("/semesters/:id/promote", requireRole("admin"), async (req, res) => 
   }
 });
 
+// ─── Annual Promotion ─────────────────────────────────────────────────────────
+
+async function computeAnnualDecision(studentId: number, yearSemesters: { id: number; name: string }[]): Promise<{ decision: "Admis" | "Ajourné" | "En attente"; semesterDecisions: string[] }> {
+  const semesterDecisions: string[] = [];
+  let hasAjourné = false;
+  let hasPending = false;
+  for (const sem of yearSemesters) {
+    const result = await computeStudentResult(studentId, sem.id);
+    const d = result?.decision ?? "En attente";
+    semesterDecisions.push(`${sem.name}: ${d}`);
+    if (d === "Ajourné") hasAjourné = true;
+    if (d === "En attente") hasPending = true;
+  }
+  const decision = hasAjourné ? "Ajourné" : hasPending ? "En attente" : "Admis";
+  return { decision, semesterDecisions };
+}
+
+// GET /admin/annual-promotion/preview?academicYear=X — preview without changes
+router.get("/annual-promotion/preview", requireRole("admin"), async (req, res) => {
+  try {
+    const cu = req.session.user!;
+    if (cu.adminSubRole !== "scolarite" && cu.adminSubRole !== "directeur") {
+      res.status(403).json({ error: "Réservé au Assistant(e) de Direction." }); return;
+    }
+    const { academicYear } = req.query;
+    if (!academicYear) { res.status(400).json({ error: "academicYear requis." }); return; }
+
+    const yearSemesters = await db
+      .select({ id: semestersTable.id, name: semestersTable.name })
+      .from(semestersTable)
+      .where(eq(semestersTable.academicYear, academicYear as string));
+
+    if (yearSemesters.length === 0) {
+      res.status(404).json({ error: "Aucun semestre trouvé pour cette année académique." }); return;
+    }
+
+    const allClasses = await db.select().from(classesTable);
+    const promotableClasses = allClasses.filter(c => !c.isTerminal && c.nextClassId);
+
+    const classResults = await Promise.all(promotableClasses.map(async (cls) => {
+      const nextCls = allClasses.find(c => c.id === cls.nextClassId);
+      const enrollments = await db
+        .select({ studentId: classEnrollmentsTable.studentId })
+        .from(classEnrollmentsTable)
+        .where(eq(classEnrollmentsTable.classId, cls.id));
+
+      const students = await Promise.all(enrollments.map(async ({ studentId }) => {
+        const [user] = await db.select({ name: usersTable.name }).from(usersTable).where(eq(usersTable.id, studentId)).limit(1);
+        const { decision, semesterDecisions } = await computeAnnualDecision(studentId, yearSemesters);
+        return { id: studentId, name: user?.name ?? "—", decision, semesterDecisions };
+      }));
+
+      return {
+        classId: cls.id,
+        className: cls.name,
+        nextClassId: cls.nextClassId,
+        nextClassName: nextCls?.name ?? "—",
+        students,
+        admittedCount: students.filter(s => s.decision === "Admis").length,
+        deferredCount: students.filter(s => s.decision === "Ajourné").length,
+        pendingCount: students.filter(s => s.decision === "En attente").length,
+      };
+    }));
+
+    res.json({ academicYear, semesters: yearSemesters.map(s => s.name), classes: classResults });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// POST /admin/annual-promotion — launch full annual promotion for all classes
+router.post("/annual-promotion", requireRole("admin"), async (req, res) => {
+  try {
+    const cu = req.session.user!;
+    if (cu.adminSubRole !== "scolarite" && cu.adminSubRole !== "directeur") {
+      res.status(403).json({ error: "Réservé au Assistant(e) de Direction." }); return;
+    }
+    const { academicYear } = req.body;
+    if (!academicYear) { res.status(400).json({ error: "academicYear requis." }); return; }
+
+    const yearSemesters = await db
+      .select({ id: semestersTable.id, name: semestersTable.name })
+      .from(semestersTable)
+      .where(eq(semestersTable.academicYear, academicYear as string));
+
+    if (yearSemesters.length === 0) {
+      res.status(404).json({ error: "Aucun semestre trouvé pour cette année académique." }); return;
+    }
+
+    const allClasses = await db.select().from(classesTable);
+    const promotableClasses = allClasses.filter(c => !c.isTerminal && c.nextClassId);
+
+    const results = [];
+    let totalPromoted = 0;
+
+    for (const cls of promotableClasses) {
+      const nextCls = allClasses.find(c => c.id === cls.nextClassId)!;
+      const enrollments = await db
+        .select({ studentId: classEnrollmentsTable.studentId })
+        .from(classEnrollmentsTable)
+        .where(eq(classEnrollmentsTable.classId, cls.id));
+
+      const promoted: { id: number; name: string }[] = [];
+      const notPromoted: { name: string; reason: string }[] = [];
+
+      for (const { studentId } of enrollments) {
+        const [user] = await db.select({ name: usersTable.name }).from(usersTable).where(eq(usersTable.id, studentId)).limit(1);
+        const { decision, semesterDecisions } = await computeAnnualDecision(studentId, yearSemesters);
+
+        if (decision === "Admis") {
+          await db.delete(classEnrollmentsTable).where(
+            and(eq(classEnrollmentsTable.studentId, studentId), eq(classEnrollmentsTable.classId, cls.id))
+          );
+          await db.insert(classEnrollmentsTable).values({ studentId, classId: cls.nextClassId! }).onConflictDoNothing();
+          promoted.push({ id: studentId, name: user?.name ?? "—" });
+        } else {
+          notPromoted.push({ name: user?.name ?? "—", reason: semesterDecisions.join(", ") });
+        }
+      }
+
+      totalPromoted += promoted.length;
+      results.push({
+        classId: cls.id,
+        className: cls.name,
+        nextClassName: nextCls?.name ?? "—",
+        promoted,
+        notPromoted,
+      });
+    }
+
+    await db.insert(activityLogTable).values({
+      userId: cu.id,
+      action: "promotion_annuelle",
+      details: `Promotion annuelle ${academicYear} : ${totalPromoted} étudiant(s) promu(s) sur ${promotableClasses.length} classe(s).`,
+    });
+
+    res.json({ academicYear, results, totalPromoted });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
 // ─── Results ──────────────────────────────────────────────────────────────────
 async function computeStudentResult(studentId: number, semesterId: number) {
   const [semester] = await db.select().from(semestersTable).where(eq(semestersTable.id, semesterId)).limit(1);

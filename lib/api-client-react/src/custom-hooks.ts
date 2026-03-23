@@ -732,3 +732,62 @@ export const useDeleteTeacherPayment = () =>
   useMutation<{ ok: boolean }, Error, number>({
     mutationFn: (id) => customFetch(`/api/honoraires/payments/${id}`, { method: "DELETE" }),
   });
+
+// ─── Annual Promotion ─────────────────────────────────────────────────────────
+
+export type AnnualPromotionStudentPreview = {
+  id: number;
+  name: string;
+  decision: "Admis" | "Ajourné" | "En attente";
+  semesterDecisions: string[];
+};
+
+export type AnnualPromotionClassPreview = {
+  classId: number;
+  className: string;
+  nextClassId: number | null;
+  nextClassName: string;
+  students: AnnualPromotionStudentPreview[];
+  admittedCount: number;
+  deferredCount: number;
+  pendingCount: number;
+};
+
+export type AnnualPromotionPreviewResponse = {
+  academicYear: string;
+  semesters: string[];
+  classes: AnnualPromotionClassPreview[];
+};
+
+export type AnnualPromotionResult = {
+  classId: number;
+  className: string;
+  nextClassName: string;
+  promoted: { id: number; name: string }[];
+  notPromoted: { name: string; reason: string }[];
+};
+
+export type AnnualPromotionResponse = {
+  academicYear: string;
+  results: AnnualPromotionResult[];
+  totalPromoted: number;
+};
+
+export const useGetAnnualPromotionPreview = (academicYear: string, options?: QueryOpts<AnnualPromotionPreviewResponse>) =>
+  useQuery<AnnualPromotionPreviewResponse, Error>({
+    queryKey: ["annual-promotion-preview", academicYear],
+    queryFn: () => customFetch<AnnualPromotionPreviewResponse>(`/api/admin/annual-promotion/preview?academicYear=${encodeURIComponent(academicYear)}`),
+    enabled: !!academicYear,
+    ...options,
+  });
+
+export const useLaunchAnnualPromotion = (options?: UseMutationOptions<AnnualPromotionResponse, Error, { academicYear: string }>) =>
+  useMutation<AnnualPromotionResponse, Error, { academicYear: string }>({
+    mutationFn: (body) =>
+      customFetch<AnnualPromotionResponse>("/api/admin/annual-promotion", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      }),
+    ...options,
+  });

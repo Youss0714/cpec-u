@@ -25,6 +25,7 @@ import {
   Bell,
   MessageSquare,
   Building2,
+  Rocket,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
@@ -121,6 +122,7 @@ export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
     { name: "Feuilles de Présence", href: "/admin/attendance", icon: ClipboardList },
     { name: "Bilan des Absences", href: "/admin/attendance/summary", icon: BarChart3 },
     { name: "Résultats & Bulletins", href: "/admin/results", icon: GraduationCap, badge: pendingCount > 0 ? pendingCount : undefined },
+    { name: "Promotion Annuelle", href: "/admin/promotion", icon: Rocket },
     { name: "Journal d'Activité", href: "/admin/activity-log", icon: ScrollText },
     { name: "Messages", href: "/admin/messages", icon: MessageSquare },
   ];
@@ -149,6 +151,7 @@ export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
     { name: "Salles", href: "/admin/rooms", icon: DoorOpen },
     { name: "Affectations", href: "/admin/assignments", icon: ClipboardList },
     { name: "Résultats & Bulletins", href: "/admin/results", icon: GraduationCap, badge: pendingCount > 0 ? pendingCount : undefined },
+    { name: "Promotion Annuelle", href: "/admin/promotion", icon: Rocket },
     { name: "Journal d'Activité", href: "/admin/activity-log", icon: ScrollText },
     { name: "Hébergement", href: "/admin/housing", icon: Building2 },
     { name: "Messages", href: "/admin/messages", icon: MessageSquare },

@@ -1,0 +1,474 @@
+import { useState, useMemo } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import {
+  useListSemesters,
+  useGetAnnualPromotionPreview,
+  useLaunchAnnualPromotion,
+  type AnnualPromotionClassPreview,
+  type AnnualPromotionResponse,
+} from "@workspace/api-client-react";
+import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import { useToast } from "@/hooks/use-toast";
+import {
+  GraduationCap,
+  ChevronDown,
+  ChevronRight,
+  CheckCircle2,
+  XCircle,
+  Clock,
+  ArrowRight,
+  Rocket,
+  Search,
+  Users,
+  AlertTriangle,
+} from "lucide-react";
+
+type Step = "select" | "preview" | "done";
+
+const DECISION_CONFIG = {
+  Admis: { label: "Admis", color: "bg-green-100 text-green-800 border-green-200", icon: CheckCircle2, iconColor: "text-green-600" },
+  Ajourné: { label: "Ajourné", color: "bg-red-100 text-red-800 border-red-200", icon: XCircle, iconColor: "text-red-500" },
+  "En attente": { label: "En attente", color: "bg-amber-100 text-amber-800 border-amber-200", icon: Clock, iconColor: "text-amber-500" },
+} as const;
+
+function DecisionBadge({ decision }: { decision: string }) {
+  const cfg = DECISION_CONFIG[decision as keyof typeof DECISION_CONFIG] ?? {
+    label: decision,
+    color: "bg-gray-100 text-gray-700 border-gray-200",
+    icon: Clock,
+    iconColor: "text-gray-400",
+  };
+  const Icon = cfg.icon;
+  return (
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-xs font-medium ${cfg.color}`}>
+      <Icon className={`w-3 h-3 ${cfg.iconColor}`} />
+      {cfg.label}
+    </span>
+  );
+}
+
+function ClassCard({ cls }: { cls: AnnualPromotionClassPreview }) {
+  const [open, setOpen] = useState(false);
+  const total = cls.students.length;
+  const hasIssues = cls.pendingCount > 0 || cls.deferredCount > 0;
+
+  return (
+    <div className={`rounded-xl border bg-white shadow-sm overflow-hidden transition-all ${hasIssues ? "border-amber-200" : "border-gray-200"}`}>
+      <Collapsible open={open} onOpenChange={setOpen}>
+        <CollapsibleTrigger className="w-full text-left">
+          <div className="flex items-center justify-between px-5 py-4 hover:bg-gray-50 transition-colors cursor-pointer">
+            <div className="flex items-center gap-4 min-w-0">
+              <div className="flex items-center gap-2 min-w-0">
+                {open ? <ChevronDown className="w-4 h-4 text-gray-400 shrink-0" /> : <ChevronRight className="w-4 h-4 text-gray-400 shrink-0" />}
+                <div>
+                  <p className="font-semibold text-gray-900 text-sm">{cls.className}</p>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <ArrowRight className="w-3 h-3 text-blue-400" />
+                    <p className="text-xs text-blue-600 font-medium">{cls.nextClassName}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="text-xs text-gray-500">{total} étudiant{total > 1 ? "s" : ""}</span>
+              {cls.admittedCount > 0 && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-green-100 text-green-800 border border-green-200 text-xs font-semibold">
+                  <CheckCircle2 className="w-3 h-3" />{cls.admittedCount} admis
+                </span>
+              )}
+              {cls.deferredCount > 0 && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-red-100 text-red-800 border border-red-200 text-xs font-semibold">
+                  <XCircle className="w-3 h-3" />{cls.deferredCount} ajourné{cls.deferredCount > 1 ? "s" : ""}
+                </span>
+              )}
+              {cls.pendingCount > 0 && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200 text-xs font-semibold">
+                  <Clock className="w-3 h-3" />{cls.pendingCount} en attente
+                </span>
+              )}
+            </div>
+          </div>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <div className="border-t border-gray-100 bg-gray-50/50">
+            {cls.students.length === 0 ? (
+              <p className="px-5 py-4 text-sm text-gray-400 italic">Aucun étudiant inscrit dans cette classe.</p>
+            ) : (
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-200">
+                    <th className="text-left px-5 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Étudiant</th>
+                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Décision annuelle</th>
+                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Détail par semestre</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {cls.students.map((s) => (
+                    <tr key={s.id} className="hover:bg-white transition-colors">
+                      <td className="px-5 py-3 font-medium text-gray-800">{s.name}</td>
+                      <td className="px-4 py-3"><DecisionBadge decision={s.decision} /></td>
+                      <td className="px-4 py-3 text-xs text-gray-500">{s.semesterDecisions.join(" · ")}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
+    </div>
+  );
+}
+
+function ResultCard({ result }: { result: AnnualPromotionResponse["results"][number] }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+      <Collapsible open={open} onOpenChange={setOpen}>
+        <CollapsibleTrigger className="w-full text-left">
+          <div className="flex items-center justify-between px-5 py-4 hover:bg-gray-50 transition-colors cursor-pointer">
+            <div className="flex items-center gap-3">
+              {open ? <ChevronDown className="w-4 h-4 text-gray-400" /> : <ChevronRight className="w-4 h-4 text-gray-400" />}
+              <div>
+                <p className="font-semibold text-gray-900 text-sm">{result.className}</p>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <ArrowRight className="w-3 h-3 text-blue-400" />
+                  <p className="text-xs text-blue-600 font-medium">{result.nextClassName}</p>
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              {result.promoted.length > 0 && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-green-100 text-green-800 border border-green-200 text-xs font-semibold">
+                  <CheckCircle2 className="w-3 h-3" />{result.promoted.length} promu{result.promoted.length > 1 ? "s" : ""}
+                </span>
+              )}
+              {result.notPromoted.length > 0 && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-red-100 text-red-800 border border-red-200 text-xs font-semibold">
+                  <XCircle className="w-3 h-3" />{result.notPromoted.length} non promu{result.notPromoted.length > 1 ? "s" : ""}
+                </span>
+              )}
+            </div>
+          </div>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <div className="border-t border-gray-100 bg-gray-50/50 divide-y divide-gray-100">
+            {result.promoted.map((s) => (
+              <div key={s.id} className="flex items-center gap-3 px-5 py-3">
+                <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" />
+                <span className="text-sm font-medium text-gray-800">{s.name}</span>
+                <span className="text-xs text-green-600 ml-auto">Promu → {result.nextClassName}</span>
+              </div>
+            ))}
+            {result.notPromoted.map((s, i) => (
+              <div key={i} className="flex items-start gap-3 px-5 py-3">
+                <XCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                <div>
+                  <span className="text-sm font-medium text-gray-800">{s.name}</span>
+                  <p className="text-xs text-gray-500 mt-0.5">{s.reason}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
+    </div>
+  );
+}
+
+export default function AnnualPromotionPage() {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [step, setStep] = useState<Step>("select");
+  const [selectedYear, setSelectedYear] = useState("");
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [launchResult, setLaunchResult] = useState<AnnualPromotionResponse | null>(null);
+
+  const { data: semesters } = useListSemesters();
+  const academicYears = useMemo(() => {
+    const years = [...new Set((semesters as any[] ?? []).map((s: any) => s.academicYear as string))].sort().reverse();
+    return years;
+  }, [semesters]);
+
+  const { data: preview, isLoading: previewLoading, error: previewError, refetch: refetchPreview } = useGetAnnualPromotionPreview(
+    selectedYear,
+    { enabled: false }
+  );
+
+  const launchMutation = useLaunchAnnualPromotion({
+    onSuccess: (data) => {
+      setLaunchResult(data);
+      setConfirmOpen(false);
+      setStep("done");
+      qc.invalidateQueries({ queryKey: ["/api/admin/semesters"] });
+    },
+    onError: (err: any) => {
+      toast({ title: "Erreur", description: err?.message ?? "Une erreur est survenue.", variant: "destructive" });
+      setConfirmOpen(false);
+    },
+  });
+
+  const hasPending = preview?.classes.some(c => c.pendingCount > 0) ?? false;
+  const totalAdmitted = preview?.classes.reduce((sum, c) => sum + c.admittedCount, 0) ?? 0;
+
+  async function handlePreview() {
+    if (!selectedYear) return;
+    await refetchPreview();
+    setStep("preview");
+  }
+
+  function handleLaunch() {
+    launchMutation.mutate({ academicYear: selectedYear });
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50/50 p-6">
+      <div className="max-w-4xl mx-auto space-y-6">
+
+        {/* Header */}
+        <div className="flex items-start gap-4">
+          <div className="p-3 bg-blue-600 rounded-xl shadow-md shrink-0">
+            <GraduationCap className="w-6 h-6 text-white" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Promotion Annuelle</h1>
+            <p className="text-gray-500 text-sm mt-1">
+              Délibération et passage des étudiants admis vers la classe supérieure.
+            </p>
+          </div>
+        </div>
+
+        {/* Steps indicator */}
+        <div className="flex items-center gap-2">
+          {[
+            { key: "select", label: "Sélection" },
+            { key: "preview", label: "Délibération" },
+            { key: "done", label: "Résultats" },
+          ].map((s, i, arr) => (
+            <div key={s.key} className="flex items-center gap-2">
+              <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${
+                step === s.key
+                  ? "bg-blue-600 text-white"
+                  : (arr.findIndex(x => x.key === step) > i ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-400")
+              }`}>
+                <span>{i + 1}</span>
+                <span>{s.label}</span>
+              </div>
+              {i < arr.length - 1 && <ArrowRight className="w-3.5 h-3.5 text-gray-300" />}
+            </div>
+          ))}
+        </div>
+
+        {/* Step 1: Select academic year */}
+        {step === "select" && (
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 space-y-5">
+            <div>
+              <h2 className="text-base font-semibold text-gray-900 mb-1">Étape 1 — Sélectionner l'année académique</h2>
+              <p className="text-sm text-gray-500">Choisissez l'année pour laquelle vous souhaitez lancer la promotion.</p>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <Select value={selectedYear} onValueChange={setSelectedYear}>
+                <SelectTrigger className="w-64">
+                  <SelectValue placeholder="Année académique…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {academicYears.map(y => (
+                    <SelectItem key={y} value={y}>{y}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button onClick={handlePreview} disabled={!selectedYear || previewLoading} className="gap-2">
+                <Search className="w-4 h-4" />
+                {previewLoading ? "Calcul en cours…" : "Prévisualiser la délibération"}
+              </Button>
+            </div>
+
+            {previewError && (
+              <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-3">
+                <XCircle className="w-4 h-4 shrink-0" />
+                {(previewError as any)?.message ?? "Erreur lors du calcul."}
+              </div>
+            )}
+
+            <div className="rounded-xl bg-blue-50 border border-blue-100 px-4 py-4 space-y-2">
+              <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide">Processus de promotion</p>
+              <ol className="space-y-1.5 text-sm text-blue-800">
+                <li className="flex items-start gap-2"><span className="font-bold shrink-0">1.</span> Sélectionner l'année académique à clôturer</li>
+                <li className="flex items-start gap-2"><span className="font-bold shrink-0">2.</span> Vérifier la délibération automatique (admis / ajournés)</li>
+                <li className="flex items-start gap-2"><span className="font-bold shrink-0">3.</span> Lancer la promotion — les étudiants admis sont affectés à la classe supérieure</li>
+              </ol>
+            </div>
+          </div>
+        )}
+
+        {/* Step 2: Preview / Délibération */}
+        {step === "preview" && preview && (
+          <div className="space-y-5">
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
+              <div className="flex items-center justify-between flex-wrap gap-4">
+                <div>
+                  <h2 className="text-base font-semibold text-gray-900">
+                    Étape 2 — Délibération · <span className="text-blue-600">{preview.academicYear}</span>
+                  </h2>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Semestres pris en compte : {preview.semesters.join(", ")}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" onClick={() => setStep("select")} disabled={launchMutation.isPending}>
+                    ← Retour
+                  </Button>
+                  <Button
+                    onClick={() => setConfirmOpen(true)}
+                    disabled={totalAdmitted === 0 || launchMutation.isPending}
+                    className="gap-2 bg-blue-600 hover:bg-blue-700"
+                  >
+                    <Rocket className="w-4 h-4" />
+                    Lancer la promotion annuelle
+                  </Button>
+                </div>
+              </div>
+
+              {/* Summary stats */}
+              <div className="grid grid-cols-3 gap-4 mt-5">
+                <div className="rounded-xl bg-green-50 border border-green-200 p-4 text-center">
+                  <p className="text-2xl font-bold text-green-700">{totalAdmitted}</p>
+                  <p className="text-xs text-green-600 mt-0.5 font-medium">Admis à promouvoir</p>
+                </div>
+                <div className="rounded-xl bg-red-50 border border-red-200 p-4 text-center">
+                  <p className="text-2xl font-bold text-red-600">{preview.classes.reduce((s, c) => s + c.deferredCount, 0)}</p>
+                  <p className="text-xs text-red-500 mt-0.5 font-medium">Ajournés</p>
+                </div>
+                <div className="rounded-xl bg-amber-50 border border-amber-200 p-4 text-center">
+                  <p className="text-2xl font-bold text-amber-600">{preview.classes.reduce((s, c) => s + c.pendingCount, 0)}</p>
+                  <p className="text-xs text-amber-500 mt-0.5 font-medium">En attente de notes</p>
+                </div>
+              </div>
+
+              {hasPending && (
+                <div className="mt-4 flex items-start gap-2 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
+                  <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span>Certains étudiants ont des notes manquantes. Ils ne seront pas promus tant que leur dossier n'est pas complet.</span>
+                </div>
+              )}
+
+              {totalAdmitted === 0 && (
+                <div className="mt-4 flex items-center gap-2 text-sm text-gray-500 bg-gray-50 border border-gray-200 rounded-lg px-4 py-3">
+                  <Users className="w-4 h-4 shrink-0" />
+                  Aucun étudiant admis à promouvoir pour cette année académique.
+                </div>
+              )}
+            </div>
+
+            {/* Per-class breakdown */}
+            <div className="space-y-3">
+              {preview.classes.map(cls => (
+                <ClassCard key={cls.classId} cls={cls} />
+              ))}
+              {preview.classes.length === 0 && (
+                <div className="bg-white rounded-xl border border-gray-200 p-8 text-center text-gray-400">
+                  Aucune classe promotable trouvée (toutes marquées comme fin de cycle ou sans classe supérieure).
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Step 3: Done */}
+        {step === "done" && launchResult && (
+          <div className="space-y-5">
+            <div className="bg-white rounded-2xl border border-green-200 shadow-sm p-6">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-green-100 rounded-xl">
+                  <CheckCircle2 className="w-6 h-6 text-green-600" />
+                </div>
+                <div>
+                  <h2 className="text-base font-semibold text-gray-900">Promotion annuelle terminée</h2>
+                  <p className="text-sm text-gray-500 mt-0.5">
+                    Année <span className="font-semibold text-blue-600">{launchResult.academicYear}</span> ·{" "}
+                    <span className="font-semibold text-green-600">{launchResult.totalPromoted} étudiant{launchResult.totalPromoted > 1 ? "s" : ""}</span> promu{launchResult.totalPromoted > 1 ? "s" : ""}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              {launchResult.results.map(r => (
+                <ResultCard key={r.classId} result={r} />
+              ))}
+            </div>
+
+            <div className="flex justify-end">
+              <Button
+                variant="outline"
+                onClick={() => { setStep("select"); setSelectedYear(""); setLaunchResult(null); }}
+              >
+                Nouvelle promotion
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Confirmation Dialog */}
+      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Rocket className="w-5 h-5 text-blue-600" />
+              Lancer la promotion annuelle
+            </DialogTitle>
+            <DialogDescription className="space-y-2 text-sm pt-1">
+              <p>
+                Vous êtes sur le point de lancer la <strong>promotion annuelle {selectedYear}</strong>.
+              </p>
+              <p>
+                <strong className="text-green-700">{totalAdmitted} étudiant{totalAdmitted > 1 ? "s" : ""}</strong> admis seront déplacés vers leur classe supérieure respective.
+              </p>
+              {hasPending && (
+                <p className="text-amber-700 bg-amber-50 rounded-lg px-3 py-2 border border-amber-200">
+                  Les étudiants avec des notes manquantes ne seront pas promus.
+                </p>
+              )}
+              <p className="text-gray-500">Cette opération ne peut pas être annulée. Confirmez-vous ?</p>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmOpen(false)} disabled={launchMutation.isPending}>
+              Annuler
+            </Button>
+            <Button
+              onClick={handleLaunch}
+              disabled={launchMutation.isPending}
+              className="bg-blue-600 hover:bg-blue-700 gap-2"
+            >
+              <Rocket className="w-4 h-4" />
+              {launchMutation.isPending ? "En cours…" : "Confirmer la promotion"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

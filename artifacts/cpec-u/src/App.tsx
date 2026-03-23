@@ -34,6 +34,7 @@ import StudentAbsences from "@/pages/student/absences";
 import AdminMessages from "@/pages/admin/messages";
 import SharedMessages from "@/pages/shared/messages";
 import HousingPage from "@/pages/admin/housing";
+import AnnualPromotion from "@/pages/admin/promotion";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -70,6 +71,7 @@ function Router() {
       <Route path="/admin/semesters" component={AdminSemesters} />
       <Route path="/admin/assignments" component={AdminAssignments} />
       <Route path="/admin/results" component={AdminResults} />
+      <Route path="/admin/promotion" component={AnnualPromotion} />
       <Route path="/admin/rooms" component={AdminRooms} />
       <Route path="/admin/schedules" component={AdminSchedules} />
       <Route path="/admin/planning-assignments" component={PlanningAssignments} />
