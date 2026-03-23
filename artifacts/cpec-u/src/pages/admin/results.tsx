@@ -175,6 +175,61 @@ export default function AdminResults() {
     window.open(`/api/admin/bulletin/${studentId}/${semesterId}`, "_blank", "noopener");
   };
 
+  const handleExportCSV = () => {
+    if (!(results as any[]).length) return;
+    const sem = (semesters as any[])?.find((s: any) => s.id === parseInt(selectedSemester));
+    const semLabel = sem ? `${sem.name} ${sem.academicYear}` : "resultats";
+
+    // Collect all unique subjects across all students (for per-subject columns)
+    const subjectMap = new Map<number, string>();
+    (results as any[]).forEach((r: any) => {
+      (r.grades ?? []).forEach((g: any) => { if (!subjectMap.has(g.subjectId)) subjectMap.set(g.subjectId, g.subjectName); });
+    });
+    const subjects = Array.from(subjectMap.entries()); // [[id, name], ...]
+
+    // Build header row
+    const headerBase = ["Rang", "Nom de l'étudiant", "Classe", "Moyenne brute", "Déduction absences", "Moyenne nette", "Décision"];
+    const headerSubjects = subjects.map(([, name]) => name);
+    const header = [...headerBase, ...headerSubjects];
+
+    // Build data rows (sorted by rank then name)
+    const sorted = [...(results as any[])].sort((a, b) => {
+      if (a.rank !== null && b.rank !== null) return a.rank - b.rank;
+      if (a.rank !== null) return -1;
+      if (b.rank !== null) return 1;
+      return a.studentName.localeCompare(b.studentName, "fr");
+    });
+
+    const rows = sorted.map((r: any) => {
+      const moyBrute = r.absenceDeduction != null && r.average != null
+        ? (r.average + r.absenceDeduction).toFixed(2)
+        : r.average != null ? r.average.toFixed(2) : "";
+      const moyNette = r.average != null ? r.average.toFixed(2) : "";
+      const deduction = r.absenceDeduction > 0 ? `-${r.absenceDeduction.toFixed(2)}` : "0";
+      const rang = r.rank != null ? `${r.rank}/${r.totalStudents}` : "—";
+      const base = [rang, r.studentName, r.className ?? "", moyBrute, deduction, moyNette, r.decision ?? "—"];
+      const gradesBySubject = subjects.map(([id]) => {
+        const g = (r.grades ?? []).find((g: any) => g.subjectId === id);
+        return g?.value != null ? g.value.toFixed(2) : "—";
+      });
+      return [...base, ...gradesBySubject];
+    });
+
+    // Encode to CSV with ; delimiter + UTF-8 BOM for Excel
+    const escape = (v: string) => `"${String(v).replace(/"/g, '""')}"`;
+    const csvLines = [header, ...rows].map(row => row.map(escape).join(";"));
+    const bom = "\uFEFF";
+    const csvContent = bom + csvLines.join("\r\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `resultats_${semLabel.replace(/\s+/g, "_")}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <AppLayout allowedRoles={["admin"]}>
       <div className="space-y-6">
@@ -305,6 +360,26 @@ export default function AdminResults() {
 
             {/* Results table */}
             <div className="bg-card rounded-2xl shadow-sm border border-border overflow-hidden">
+              {/* Table toolbar */}
+              {(results as any[]).length > 0 && (
+                <div className="flex items-center justify-between px-5 py-3 border-b bg-muted/30">
+                  <p className="text-sm text-muted-foreground">
+                    <span className="font-semibold text-foreground">{(results as any[]).length}</span> étudiant{(results as any[]).length > 1 ? "s" : ""}
+                    {currentClass ? ` · ${currentClass.name}` : ""}
+                  </p>
+                  {isScolarite && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-2 text-emerald-700 border-emerald-300 hover:bg-emerald-50"
+                      onClick={handleExportCSV}
+                    >
+                      <Download className="w-4 h-4" />
+                      Exporter CSV
+                    </Button>
+                  )}
+                </div>
+              )}
               <Table>
                 <TableHeader className="bg-secondary/50">
                   <TableRow>
