@@ -606,6 +606,15 @@ router.post("/semesters/:id/promote", requireRole("admin"), async (req, res) => 
     }
     const nextClassId = cls.nextClassId;
 
+    // Get all semesters of the same academic year (Rule 4: student must pass ALL semesters)
+    const [currentSem] = await db.select().from(semestersTable).where(eq(semestersTable.id, semesterId)).limit(1);
+    if (!currentSem) { res.status(404).json({ error: "Semestre introuvable." }); return; }
+
+    const yearSemesters = await db
+      .select({ id: semestersTable.id, name: semestersTable.name })
+      .from(semestersTable)
+      .where(eq(semestersTable.academicYear, currentSem.academicYear));
+
     // Get all students in this class
     const enrollments = await db
       .select({ studentId: classEnrollmentsTable.studentId })
@@ -613,10 +622,26 @@ router.post("/semesters/:id/promote", requireRole("admin"), async (req, res) => 
       .where(eq(classEnrollmentsTable.classId, classId));
 
     const promoted: { id: number; name: string }[] = [];
+    const notPromoted: { name: string; reason: string }[] = [];
 
     for (const { studentId } of enrollments) {
-      const result = await computeStudentResult(studentId, semesterId);
-      if (!result || result.decision !== "Admis") continue;
+      // Rule 4: student must be "Admis" in ALL semesters of the academic year
+      let isAnnuallyAdmis = true;
+      const semesterDetails: string[] = [];
+
+      for (const sem of yearSemesters) {
+        const result = await computeStudentResult(studentId, sem.id);
+        if (!result || result.decision !== "Admis") {
+          isAnnuallyAdmis = false;
+          semesterDetails.push(`${sem.name}: ${result?.decision ?? "Non calculé"}`);
+        }
+      }
+
+      if (!isAnnuallyAdmis) {
+        const [student] = await db.select({ name: usersTable.name }).from(usersTable).where(eq(usersTable.id, studentId)).limit(1);
+        notPromoted.push({ name: student?.name ?? "Étudiant inconnu", reason: semesterDetails.join(", ") });
+        continue;
+      }
 
       // Remove from current class
       await db.delete(classEnrollmentsTable).where(
@@ -633,7 +658,7 @@ router.post("/semesters/:id/promote", requireRole("admin"), async (req, res) => 
     await db.insert(activityLogTable).values({
       userId: cu.id,
       action: "promotion_etudiants",
-      details: `${promoted.length} étudiant(s) promus de "${cls.name}" vers la classe supérieure (semestre ID ${semesterId}).`,
+      details: `${promoted.length} étudiant(s) promus de "${cls.name}" vers la classe supérieure (année ${currentSem.academicYear}). Non promus: ${notPromoted.length}.`,
     });
 
     res.json({ promoted, fromClass: cls.name, toClassId: nextClassId });
@@ -790,22 +815,30 @@ async function computeStudentResult(studentId: number, semesterId: number) {
   }
 
   if (ues.length > 0) {
-    // Semester validated only if ALL UEs are validated (average >= 10)
+    // Rule 3: Semester validated if (1) ALL UEs validated (avg >= 10) AND (2) semester avg >= 12
     const uesWithGrades = ueResults.filter(u => u.average !== null);
     if (uesWithGrades.length === 0) {
       decision = "En attente";
     } else if (uesWithGrades.length < ueResults.length) {
-      // Some UEs still have no grades — partial results
+      // Some UEs still missing grades — can already fail if any graded UE is not acquis
       const allAcquisSoFar = uesWithGrades.every(u => u.acquis);
       decision = allAcquisSoFar ? "En attente" : "Ajourné";
     } else {
-      // All UEs have grades — validate only if every UE is acquis
-      decision = ueResults.every(u => u.acquis) ? "Admis" : "Ajourné";
+      // All UEs have grades — both conditions must hold
+      const allUesAcquis = ueResults.every(u => u.acquis);
+      const averageOk = average !== null && average >= 12;
+      decision = (allUesAcquis && averageOk) ? "Admis" : "Ajourné";
     }
   } else if (average !== null) {
-    // No UE structure: fall back to overall average threshold
+    // No UE structure: fall back to overall average threshold alone
     decision = average >= 12 ? "Admis" : "Ajourné";
   }
+
+  // Rule 5: Identify failure reasons for non-validated semesters
+  const failedUes = ueResults
+    .filter(u => u.average !== null && !u.acquis)
+    .map(u => ({ ueId: u.ueId, ueCode: u.ueCode, ueName: u.ueName, average: u.average, acquis: false }));
+  const averageFailed = decision === "Ajourné" && average !== null && average < 12;
 
   return {
     studentId, studentName: student.name,
@@ -814,6 +847,7 @@ async function computeStudentResult(studentId: number, semesterId: number) {
     average, decision, grades,
     ueResults, creditsValidated, totalCredits,
     absenceDeductionHours, absenceDeduction,
+    failedUes, averageFailed,
     rank: null, totalStudents: null,
   };
 }

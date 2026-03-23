@@ -19,7 +19,7 @@ import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
-import { Download, Search, CheckCircle, Lock, Unlock, FileEdit, Globe, GlobeLock, TrendingUp, Users, GraduationCap } from "lucide-react";
+import { Download, Search, CheckCircle, Lock, Unlock, FileEdit, Globe, GlobeLock, TrendingUp, Users, GraduationCap, ChevronDown, ChevronUp, AlertTriangle, XCircle } from "lucide-react";
 
 export default function AdminResults() {
   const { toast } = useToast();
@@ -33,6 +33,8 @@ export default function AdminResults() {
 
   const [selectedSemester, setSelectedSemester] = useState<string>("");
   const [selectedClass, setSelectedClass] = useState<string>("all");
+  const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
+  const toggleRow = (id: number) => setExpandedRows(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; });
 
   const { data: results = [], isLoading } = useGetSemesterResults(
     selectedSemester ? parseInt(selectedSemester) : 0,
@@ -361,12 +363,21 @@ export default function AdminResults() {
                   ) : (results as any[]).length === 0 ? (
                     <TableRow><TableCell colSpan={7} className="text-center py-12">Aucun résultat trouvé pour cette sélection.</TableCell></TableRow>
                   ) : (
-                    (results as any[]).map((res) => (
-                      <TableRow key={res.studentId} className="hover:bg-muted/50">
-                        <TableCell className="font-bold">{res.studentName}</TableCell>
+                    (results as any[]).map((res) => {
+                      const isExpanded = expandedRows.has(res.studentId);
+                      const failedUes: any[] = res.failedUes ?? [];
+                      const hasFailure = res.decision === "Ajourné" && (failedUes.length > 0 || res.averageFailed);
+                      return (<>
+                      <TableRow key={res.studentId} className={`hover:bg-muted/50 ${hasFailure ? "cursor-pointer" : ""}`} onClick={() => hasFailure && toggleRow(res.studentId)}>
+                        <TableCell className="font-bold">
+                          <div className="flex items-center gap-1.5">
+                            {hasFailure && (isExpanded ? <ChevronUp className="w-3.5 h-3.5 text-muted-foreground shrink-0" /> : <ChevronDown className="w-3.5 h-3.5 text-muted-foreground shrink-0" />)}
+                            {res.studentName}
+                          </div>
+                        </TableCell>
                         <TableCell>{res.className}</TableCell>
                         <TableCell className="text-center">
-                          <span className="font-mono font-bold text-lg block">
+                          <span className={`font-mono font-bold text-lg block ${res.averageFailed ? "text-destructive" : ""}`}>
                             {res.average !== null ? res.average?.toFixed(2) : "—"}
                           </span>
                           {res.absenceDeduction > 0 && (
@@ -421,7 +432,39 @@ export default function AdminResults() {
                           )}
                         </TableCell>
                       </TableRow>
-                    ))
+                      {/* Rule 5: Expanded failure detail row */}
+                      {hasFailure && isExpanded && (
+                        <TableRow key={`${res.studentId}-detail`} className="bg-red-50/60 border-b border-red-100">
+                          <TableCell colSpan={isScolarite ? 7 : 6} className="py-3 px-6">
+                            <div className="flex flex-wrap gap-4 items-start">
+                              <div className="flex items-center gap-1.5 text-destructive font-semibold text-xs uppercase tracking-wide pt-0.5">
+                                <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                                Motifs d'ajournement :
+                              </div>
+                              <div className="flex flex-wrap gap-2">
+                                {failedUes.map((ue: any) => (
+                                  <span key={ue.ueId} className="inline-flex items-center gap-1.5 bg-white border border-red-200 text-red-700 text-xs font-medium px-2.5 py-1 rounded-full shadow-sm">
+                                    <XCircle className="w-3 h-3 shrink-0" />
+                                    {ue.ueCode ? `${ue.ueCode} – ` : ""}{ue.ueName}
+                                    <span className="font-bold ml-0.5">{ue.average?.toFixed(2)}/20</span>
+                                    <span className="text-red-400">(Non validée)</span>
+                                  </span>
+                                ))}
+                                {res.averageFailed && (
+                                  <span className="inline-flex items-center gap-1.5 bg-white border border-orange-200 text-orange-700 text-xs font-medium px-2.5 py-1 rounded-full shadow-sm">
+                                    <AlertTriangle className="w-3 h-3 shrink-0" />
+                                    Moyenne semestrielle insuffisante
+                                    <span className="font-bold ml-0.5">{res.average?.toFixed(2)}/20</span>
+                                    <span className="text-orange-400">(min. 12/20)</span>
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                      </>);
+                    })
                   )}
                 </TableBody>
               </Table>
