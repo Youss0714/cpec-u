@@ -17,3 +17,4 @@ export * from "./attendance";
 export * from "./messages";
 export * from "./housing";
 export * from "./grade_submissions";
+export * from "./archives";

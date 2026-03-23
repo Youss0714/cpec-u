@@ -806,3 +806,77 @@ export const useRollbackAnnualPromotion = (options?: UseMutationOptions<Rollback
       }),
     ...options,
   });
+
+// ─── Archives ─────────────────────────────────────────────────────────────────
+
+export interface AcademicYearArchive {
+  id: number;
+  academicYear: string;
+  archivedAt: string;
+  archivedById: number | null;
+  newAcademicYear: string | null;
+  initializedAt: string | null;
+  initializedById: number | null;
+}
+
+export interface ArchiveDetailGrade {
+  studentId: number;
+  semesterId: number;
+  average: number | null;
+  decision: string | null;
+}
+
+export interface ArchiveDetailEnrollment {
+  studentId: number;
+  studentName: string;
+  classId: number;
+  className: string;
+}
+
+export interface ArchiveDetailResponse {
+  archive: AcademicYearArchive;
+  semesters: { id: number; name: string; academicYear: string; published: boolean }[];
+  classes: { id: number; name: string }[];
+  enrollments: ArchiveDetailEnrollment[];
+  grades: ArchiveDetailGrade[];
+}
+
+export const useGetArchives = (options?: QueryOpts<AcademicYearArchive[]>) =>
+  useQuery<AcademicYearArchive[], Error>({
+    queryKey: ["/api/admin/archives"],
+    queryFn: () => customFetch<AcademicYearArchive[]>("/api/admin/archives"),
+    ...options,
+  });
+
+export const useGetArchiveDetail = (academicYear: string, options?: QueryOpts<ArchiveDetailResponse>) =>
+  useQuery<ArchiveDetailResponse, Error>({
+    queryKey: ["/api/admin/archives", academicYear],
+    queryFn: () => customFetch<ArchiveDetailResponse>(`/api/admin/archives/${encodeURIComponent(academicYear)}`),
+    enabled: !!academicYear,
+    ...options,
+  });
+
+export const useArchiveYear = (options?: UseMutationOptions<AcademicYearArchive, Error, { academicYear: string }>) =>
+  useMutation<AcademicYearArchive, Error, { academicYear: string }>({
+    mutationFn: (body) =>
+      customFetch<AcademicYearArchive>("/api/admin/annual-promotion/archive", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      }),
+    ...options,
+  });
+
+export type InitializeYearRequest = { fromAcademicYear: string; toAcademicYear: string };
+export type InitializeYearResponse = { ok: boolean; toAcademicYear: string; semestersCreated: number; semesters: { id: number; name: string }[] };
+
+export const useInitializeYear = (options?: UseMutationOptions<InitializeYearResponse, Error, InitializeYearRequest>) =>
+  useMutation<InitializeYearResponse, Error, InitializeYearRequest>({
+    mutationFn: (body) =>
+      customFetch<InitializeYearResponse>("/api/admin/annual-promotion/initialize-year", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      }),
+    ...options,
+  });

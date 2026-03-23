@@ -79,6 +79,17 @@ artifacts-monorepo/
 - `teacher_assignments`: added `planned_hours` (integer) — plans horaires
 - `blocked_dates`: new table (date, reason, type enum: vacances/ferie/autre)
 
+### Annual Promotion + Archive System (scolarité & directeur)
+- `POST /api/admin/annual-promotion/preview?academicYear=X` — dry-run per-class breakdown
+- `POST /api/admin/annual-promotion` — bulk promotion all promotable classes
+- `POST /api/admin/annual-promotion/rollback` — reverse promoted students
+- `POST /api/admin/annual-promotion/archive` — mark an academic year as archived (requires semesters to exist)
+- `POST /api/admin/annual-promotion/initialize-year` — create new year's semesters (copies names from source year; requires source to be archived)
+- `GET /api/admin/archives` — list all archived years
+- `GET /api/admin/archives/:academicYear` — detailed view with semesters, enrollments, averages, decisions (read-only)
+- DB: `academic_year_archives` table — `{ academicYear, archivedAt, archivedById, newAcademicYear, initializedAt, initializedById }`
+- Pages: `/admin/promotion` (stepper + post-promotion actions), `/admin/archives` (read-only accordion list)
+
 ### New API routes (planning)
 - `PUT /api/admin/schedules/:id` — update a schedule entry
 - `POST /api/admin/schedules/publish` — publish/unpublish by semesterId

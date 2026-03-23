@@ -6,6 +6,8 @@ import {
   useGetAnnualPromotionPreview,
   useLaunchAnnualPromotion,
   useRollbackAnnualPromotion,
+  useArchiveYear,
+  useInitializeYear,
   type AnnualPromotionClassPreview,
   type AnnualPromotionResponse,
 } from "@workspace/api-client-react";
@@ -44,6 +46,9 @@ import {
   Users,
   AlertTriangle,
   Undo2,
+  Archive,
+  Sparkles,
+  ExternalLink,
 } from "lucide-react";
 
 type Step = "select" | "preview" | "done";
@@ -199,6 +204,15 @@ function ResultCard({ result }: { result: AnnualPromotionResponse["results"][num
   );
 }
 
+function nextAcademicYear(year: string): string {
+  const parts = year.split("-");
+  if (parts.length === 2) {
+    const end = parseInt(parts[1]);
+    if (!isNaN(end)) return `${end}-${end + 1}`;
+  }
+  return "";
+}
+
 export default function AnnualPromotionPage() {
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -208,6 +222,9 @@ export default function AnnualPromotionPage() {
   const [rollbackConfirmOpen, setRollbackConfirmOpen] = useState(false);
   const [launchResult, setLaunchResult] = useState<AnnualPromotionResponse | null>(null);
   const [reverted, setReverted] = useState(false);
+  const [archiveDone, setArchiveDone] = useState(false);
+  const [toAcademicYear, setToAcademicYear] = useState("");
+  const [initDone, setInitDone] = useState(false);
 
   const { data: semesters } = useListSemesters();
   const academicYears = useMemo(() => {
@@ -220,11 +237,37 @@ export default function AnnualPromotionPage() {
     { enabled: false }
   );
 
+  const archiveMutation = useArchiveYear({
+    onSuccess: () => {
+      setArchiveDone(true);
+      qc.invalidateQueries({ queryKey: ["/api/admin/archives"] });
+      toast({ title: "Année archivée", description: `L'année ${selectedYear} a été archivée avec succès.` });
+    },
+    onError: (err: any) => {
+      toast({ title: "Erreur", description: err?.message ?? "Échec de l'archivage.", variant: "destructive" });
+    },
+  });
+
+  const initMutation = useInitializeYear({
+    onSuccess: (data) => {
+      setInitDone(true);
+      qc.invalidateQueries({ queryKey: ["/api/admin/semesters"] });
+      qc.invalidateQueries({ queryKey: ["/api/admin/archives"] });
+      toast({ title: "Nouvelle année créée", description: `${data.semestersCreated} semestre(s) créé(s) pour ${data.toAcademicYear}.` });
+    },
+    onError: (err: any) => {
+      toast({ title: "Erreur", description: err?.message ?? "Échec de l'initialisation.", variant: "destructive" });
+    },
+  });
+
   const launchMutation = useLaunchAnnualPromotion({
     onSuccess: (data) => {
       setLaunchResult(data);
       setConfirmOpen(false);
       setReverted(false);
+      setArchiveDone(false);
+      setInitDone(false);
+      setToAcademicYear(nextAcademicYear(data.academicYear));
       setStep("done");
       qc.invalidateQueries({ queryKey: ["/api/admin/semesters"] });
     },
@@ -487,10 +530,109 @@ export default function AnnualPromotionPage() {
               ))}
             </div>
 
+            {/* Post-promotion actions — only when not reverted */}
+            {!reverted && (
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/60">
+                  <h3 className="font-semibold text-slate-800 text-sm flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-slate-500" />
+                    Étapes suivantes
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">Complétez le cycle académique avant de passer à la nouvelle année.</p>
+                </div>
+
+                <div className="divide-y divide-slate-100">
+                  {/* Step A: Archive */}
+                  <div className="px-6 py-5 flex items-start gap-4">
+                    <div className={`p-2.5 rounded-xl shrink-0 ${archiveDone ? "bg-green-100" : "bg-slate-100"}`}>
+                      <Archive className={`w-5 h-5 ${archiveDone ? "text-green-600" : "text-slate-500"}`} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-semibold text-slate-800 text-sm">
+                          1. Archiver l'année {launchResult.academicYear}
+                        </p>
+                        {archiveDone && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-xs font-semibold border border-green-200">
+                            <CheckCircle2 className="w-3 h-3" /> Archivée
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Conserve toutes les notes, moyennes et décisions. Les données restent consultables mais non modifiables.
+                      </p>
+                      {!archiveDone && (
+                        <Button
+                          size="sm"
+                          className="mt-3 bg-slate-700 hover:bg-slate-800 text-white gap-1.5"
+                          disabled={archiveMutation.isPending}
+                          onClick={() => archiveMutation.mutate({ academicYear: launchResult.academicYear })}
+                        >
+                          <Archive className="w-3.5 h-3.5" />
+                          {archiveMutation.isPending ? "Archivage…" : `Archiver ${launchResult.academicYear}`}
+                        </Button>
+                      )}
+                      {archiveDone && (
+                        <Link href="/admin/archives">
+                          <Button variant="outline" size="sm" className="mt-3 gap-1.5 text-slate-600">
+                            <ExternalLink className="w-3.5 h-3.5" />
+                            Voir les archives
+                          </Button>
+                        </Link>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Step B: Initialize new year */}
+                  <div className={`px-6 py-5 flex items-start gap-4 ${!archiveDone ? "opacity-50" : ""}`}>
+                    <div className={`p-2.5 rounded-xl shrink-0 ${initDone ? "bg-green-100" : "bg-blue-50"}`}>
+                      <Sparkles className={`w-5 h-5 ${initDone ? "text-green-600" : "text-blue-500"}`} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-semibold text-slate-800 text-sm">
+                          2. Initialiser la nouvelle année
+                        </p>
+                        {initDone && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-xs font-semibold border border-green-200">
+                            <CheckCircle2 className="w-3 h-3" /> {toAcademicYear} créée
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Crée les semestres de la nouvelle année. Les étudiants déjà promus dans leurs nouvelles classes conservent leurs inscriptions.
+                      </p>
+                      {!initDone && (
+                        <div className="flex items-center gap-2 mt-3">
+                          <input
+                            type="text"
+                            value={toAcademicYear}
+                            onChange={(e) => setToAcademicYear(e.target.value)}
+                            placeholder="ex. 2025-2026"
+                            disabled={!archiveDone}
+                            className="w-36 px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-40 disabled:cursor-not-allowed"
+                          />
+                          <Button
+                            size="sm"
+                            className="bg-blue-600 hover:bg-blue-700 text-white gap-1.5"
+                            disabled={!archiveDone || !toAcademicYear || initMutation.isPending}
+                            onClick={() => initMutation.mutate({ fromAcademicYear: launchResult.academicYear, toAcademicYear })}
+                          >
+                            <Sparkles className="w-3.5 h-3.5" />
+                            {initMutation.isPending ? "Création…" : "Initialiser"}
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="flex justify-end">
               <Button
                 variant="outline"
-                onClick={() => { setStep("select"); setSelectedYear(""); setLaunchResult(null); setReverted(false); }}
+                onClick={() => { setStep("select"); setSelectedYear(""); setLaunchResult(null); setReverted(false); setArchiveDone(false); setInitDone(false); setToAcademicYear(""); }}
               >
                 Nouvelle promotion
               </Button>

@@ -18,6 +18,7 @@ import {
   classFeesTable,
   studentFeesTable,
   studentProfilesTable,
+  academicYearArchivesTable,
 } from "@workspace/db";
 import { eq, and, sql, count, inArray, desc, ne, isNotNull } from "drizzle-orm";
 import { requireRole } from "../lib/auth.js";
@@ -853,6 +854,222 @@ router.post("/annual-promotion/rollback", requireRole("admin"), async (req, res)
     });
 
     res.json({ ok: true, totalReverted, academicYear });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// ─── Archive & Initialize Year ────────────────────────────────────────────────
+
+// GET /admin/archives — list all archived academic years
+router.get("/archives", requireRole("admin"), async (req, res) => {
+  try {
+    const archives = await db
+      .select()
+      .from(academicYearArchivesTable)
+      .orderBy(desc(academicYearArchivesTable.archivedAt));
+    res.json(archives);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// GET /admin/archives/:academicYear — detailed view of an archived year
+router.get("/archives/:academicYear", requireRole("admin"), async (req, res) => {
+  try {
+    const { academicYear } = req.params;
+    const [archive] = await db
+      .select()
+      .from(academicYearArchivesTable)
+      .where(eq(academicYearArchivesTable.academicYear, academicYear))
+      .limit(1);
+    if (!archive) { res.status(404).json({ error: "Archive non trouvée." }); return; }
+
+    // Fetch all semesters of this year
+    const semesters = await db
+      .select()
+      .from(semestersTable)
+      .where(eq(semestersTable.academicYear, academicYear))
+      .orderBy(semestersTable.id);
+
+    // Fetch all classes (just names for reference)
+    const classes = await db.select({ id: classesTable.id, name: classesTable.name }).from(classesTable);
+
+    // Fetch all enrollments active during this year (students)
+    const enrollments = await db
+      .select({
+        studentId: classEnrollmentsTable.studentId,
+        studentName: usersTable.name,
+        classId: classEnrollmentsTable.classId,
+        className: classesTable.name,
+      })
+      .from(classEnrollmentsTable)
+      .innerJoin(usersTable, eq(usersTable.id, classEnrollmentsTable.studentId))
+      .innerJoin(classesTable, eq(classesTable.id, classEnrollmentsTable.classId));
+
+    const semesterIds = semesters.map((s) => s.id);
+
+    // Fetch grades aggregated per student per semester
+    let gradeRows: { studentId: number; semesterId: number; average: number | null; decision: string | null }[] = [];
+    if (semesterIds.length > 0) {
+      const rawGrades = await db
+        .select({
+          studentId: gradesTable.studentId,
+          semesterId: gradesTable.semesterId,
+          grade: gradesTable.grade,
+          coefficient: subjectsTable.coefficient,
+        })
+        .from(gradesTable)
+        .innerJoin(subjectsTable, eq(subjectsTable.id, gradesTable.subjectId))
+        .where(inArray(gradesTable.semesterId, semesterIds));
+
+      // Compute averages per student per semester
+      const map = new Map<string, { sum: number; totalCoef: number }>();
+      for (const row of rawGrades) {
+        if (row.grade === null || row.grade === undefined) continue;
+        const key = `${row.studentId}-${row.semesterId}`;
+        const entry = map.get(key) ?? { sum: 0, totalCoef: 0 };
+        entry.sum += Number(row.grade) * Number(row.coefficient || 1);
+        entry.totalCoef += Number(row.coefficient || 1);
+        map.set(key, entry);
+      }
+      for (const [key, { sum, totalCoef }] of map.entries()) {
+        const [studentId, semesterId] = key.split("-").map(Number);
+        const average = totalCoef > 0 ? parseFloat((sum / totalCoef).toFixed(2)) : null;
+        const decision = average === null ? null : average >= 10 ? "Admis" : "Ajourné";
+        gradeRows.push({ studentId, semesterId, average, decision });
+      }
+    }
+
+    res.json({
+      archive,
+      semesters,
+      classes,
+      enrollments,
+      grades: gradeRows,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// POST /admin/annual-promotion/archive — mark an academic year as archived
+router.post("/annual-promotion/archive", requireRole("admin"), async (req, res) => {
+  try {
+    const { academicYear } = req.body as { academicYear: string };
+    if (!academicYear) { res.status(400).json({ error: "academicYear requis." }); return; }
+
+    // Check year exists (has semesters)
+    const yearSemesters = await db
+      .select({ id: semestersTable.id })
+      .from(semestersTable)
+      .where(eq(semestersTable.academicYear, academicYear));
+    if (yearSemesters.length === 0) { res.status(400).json({ error: "Aucun semestre trouvé pour cette année." }); return; }
+
+    // Check not already archived
+    const [existing] = await db
+      .select()
+      .from(academicYearArchivesTable)
+      .where(eq(academicYearArchivesTable.academicYear, academicYear))
+      .limit(1);
+    if (existing) { res.status(409).json({ error: "Cette année est déjà archivée." }); return; }
+
+    const userId = (req.session as any)?.userId;
+    const [archive] = await db
+      .insert(academicYearArchivesTable)
+      .values({ academicYear, archivedById: userId ?? null })
+      .returning();
+
+    await db.insert(activityLogTable).values({
+      userId: userId ?? null,
+      action: "archive_year",
+      targetType: "academic_year",
+      targetId: null,
+      details: `Année académique ${academicYear} archivée.`,
+    });
+
+    res.json(archive);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// POST /admin/annual-promotion/initialize-year — create semesters for new academic year
+router.post("/annual-promotion/initialize-year", requireRole("admin"), async (req, res) => {
+  try {
+    const { fromAcademicYear, toAcademicYear } = req.body as {
+      fromAcademicYear: string;
+      toAcademicYear: string;
+    };
+    if (!fromAcademicYear || !toAcademicYear) {
+      res.status(400).json({ error: "fromAcademicYear et toAcademicYear requis." });
+      return;
+    }
+    if (fromAcademicYear === toAcademicYear) {
+      res.status(400).json({ error: "L'année cible doit être différente de l'année source." });
+      return;
+    }
+
+    // Verify archive exists for fromYear
+    const [archive] = await db
+      .select()
+      .from(academicYearArchivesTable)
+      .where(eq(academicYearArchivesTable.academicYear, fromAcademicYear))
+      .limit(1);
+    if (!archive) {
+      res.status(400).json({ error: "L'année source doit d'abord être archivée avant l'initialisation." });
+      return;
+    }
+
+    // Check target year doesn't already have semesters
+    const existing = await db
+      .select({ id: semestersTable.id })
+      .from(semestersTable)
+      .where(eq(semestersTable.academicYear, toAcademicYear));
+    if (existing.length > 0) {
+      res.status(409).json({ error: `L'année ${toAcademicYear} possède déjà des semestres.` });
+      return;
+    }
+
+    // Copy semester names from the source year
+    const sourceSemesters = await db
+      .select()
+      .from(semestersTable)
+      .where(eq(semestersTable.academicYear, fromAcademicYear))
+      .orderBy(semestersTable.id);
+
+    const userId = (req.session as any)?.userId;
+
+    const newSemesters = await db
+      .insert(semestersTable)
+      .values(
+        sourceSemesters.map((s) => ({
+          name: s.name.replace(fromAcademicYear, toAcademicYear),
+          academicYear: toAcademicYear,
+          published: false,
+        }))
+      )
+      .returning();
+
+    // Update archive record with new year info
+    await db
+      .update(academicYearArchivesTable)
+      .set({ newAcademicYear: toAcademicYear, initializedAt: new Date(), initializedById: userId ?? null })
+      .where(eq(academicYearArchivesTable.academicYear, fromAcademicYear));
+
+    await db.insert(activityLogTable).values({
+      userId: userId ?? null,
+      action: "initialize_year",
+      targetType: "academic_year",
+      targetId: null,
+      details: `Nouvelle année académique ${toAcademicYear} initialisée (${newSemesters.length} semestre(s) créé(s)).`,
+    });
+
+    res.json({ ok: true, toAcademicYear, semestersCreated: newSemesters.length, semesters: newSemesters });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Internal Server Error" });
