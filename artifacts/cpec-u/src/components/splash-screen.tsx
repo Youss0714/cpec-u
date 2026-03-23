@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { CpecLogo } from "./cpec-logo";
 
 export function SplashScreen({ onDone }: { onDone: () => void }) {
   const [phase, setPhase] = useState<"in" | "hold" | "out">("in");
@@ -21,11 +22,11 @@ export function SplashScreen({ onDone }: { onDone: () => void }) {
       }}
     >
       <div
-        className="flex flex-col items-center gap-8"
+        className="flex flex-col items-center gap-6"
         style={{
           opacity: phase === "in" ? 0 : 1,
-          transform: phase === "in" ? "translateY(24px) scale(0.94)" : "translateY(0) scale(1)",
-          transition: "opacity 0.6s cubic-bezier(0.22,1,0.36,1), transform 0.6s cubic-bezier(0.22,1,0.36,1)",
+          transform: phase === "in" ? "translateY(28px) scale(0.93)" : "translateY(0) scale(1)",
+          transition: "opacity 0.65s cubic-bezier(0.22,1,0.36,1), transform 0.65s cubic-bezier(0.22,1,0.36,1)",
         }}
       >
         <div
@@ -33,30 +34,14 @@ export function SplashScreen({ onDone }: { onDone: () => void }) {
             animation: phase === "hold" ? "splash-float 3.5s ease-in-out infinite" : "none",
           }}
         >
-          <img
-            src="/logo.png"
-            alt="CPEC-Digital"
-            className="w-72 h-auto select-none"
-            draggable={false}
-            style={{ display: "block", mixBlendMode: "multiply" }}
-          />
+          <CpecLogo size={260} />
         </div>
 
-        <div className="text-center space-y-1">
-          <p
-            className="text-sm font-semibold tracking-[0.22em] uppercase"
-            style={{ color: "#2d6a4f", letterSpacing: "0.22em" }}
-          >
-            Gestion Académique
-          </p>
-          <p className="text-xs text-slate-400 tracking-widest">Système de gestion intégré</p>
-        </div>
-
-        <div className="w-56 h-1 rounded-full overflow-hidden bg-slate-100">
+        <div className="w-56 h-1 rounded-full overflow-hidden bg-slate-200">
           <div
             className="h-full rounded-full"
             style={{
-              background: "linear-gradient(90deg, #1d6fa4 0%, #3aaa6f 100%)",
+              background: "linear-gradient(90deg, #1654a2 0%, #16a34a 100%)",
               width: phase === "hold" ? "100%" : "0%",
               transition: phase === "hold" ? "width 8.4s cubic-bezier(0.4,0,0.2,1)" : "none",
             }}
@@ -67,7 +52,7 @@ export function SplashScreen({ onDone }: { onDone: () => void }) {
       <style>{`
         @keyframes splash-float {
           0%, 100% { transform: translateY(0px); }
-          50% { transform: translateY(-8px); }
+          50% { transform: translateY(-10px); }
         }
       `}</style>
     </div>
