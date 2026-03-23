@@ -951,29 +951,31 @@ export default function AdminUsers() {
                     </Select>
                   </div>
                   {selectedRole === "student" && (
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-1">
-                        <Label>Classe</Label>
-                        <Select name="classId">
-                          <SelectTrigger><SelectValue placeholder="Choisir une classe..." /></SelectTrigger>
-                          <SelectContent>{classes?.map((c: any) => <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>)}</SelectContent>
-                        </Select>
+                    <>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <Label>Classe</Label>
+                          <Select name="classId">
+                            <SelectTrigger><SelectValue placeholder="Choisir une classe..." /></SelectTrigger>
+                            <SelectContent>{classes?.map((c: any) => <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>)}</SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="flex items-center gap-1.5"><School className="w-3.5 h-3.5 text-muted-foreground" /> N° Matricule <span className="text-destructive">*</span></Label>
+                          <Input required value={createProfileForm.matricule} onChange={e => setCreateProfileForm(f => ({ ...f, matricule: e.target.value }))} placeholder="Ex: INP-HB/2024/001" />
+                        </div>
                       </div>
-                      <div className="space-y-1">
-                        <Label className="flex items-center gap-1.5"><School className="w-3.5 h-3.5 text-muted-foreground" /> N° Matricule <span className="text-destructive">*</span></Label>
-                        <Input required value={createProfileForm.matricule} onChange={e => setCreateProfileForm(f => ({ ...f, matricule: e.target.value }))} placeholder="Ex: INP-HB/2024/001" />
+                      <div className="grid grid-cols-2 gap-3 mt-2">
+                        <div className="space-y-1">
+                          <Label className="flex items-center gap-1.5 text-sm">Date de naissance</Label>
+                          <Input value={createProfileForm.dateNaissance} onChange={e => setCreateProfileForm(f => ({ ...f, dateNaissance: e.target.value }))} placeholder="Ex: 25/10/2001" />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="flex items-center gap-1.5 text-sm">Lieu de naissance</Label>
+                          <Input value={createProfileForm.lieuNaissance} onChange={e => setCreateProfileForm(f => ({ ...f, lieuNaissance: e.target.value }))} placeholder="Ex: Abidjan" />
+                        </div>
                       </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3 mt-2">
-                      <div className="space-y-1">
-                        <Label className="flex items-center gap-1.5 text-sm">Date de naissance</Label>
-                        <Input value={createProfileForm.dateNaissance} onChange={e => setCreateProfileForm(f => ({ ...f, dateNaissance: e.target.value }))} placeholder="Ex: 25/10/2001" />
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="flex items-center gap-1.5 text-sm">Lieu de naissance</Label>
-                        <Input value={createProfileForm.lieuNaissance} onChange={e => setCreateProfileForm(f => ({ ...f, lieuNaissance: e.target.value }))} placeholder="Ex: Abidjan" />
-                      </div>
-                    </div>
+                    </>
                   )}
                   {selectedRole === "student" && (
                     <div className="space-y-3">

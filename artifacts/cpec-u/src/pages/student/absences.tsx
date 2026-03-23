@@ -1,11 +1,17 @@
 import { AppLayout } from "@/components/layout";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { CalendarOff, Clock, CheckCircle2, XCircle, AlertTriangle, BookOpen } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { useToast } from "@/hooks/use-toast";
+import { useMyJustifications, useSubmitJustification } from "@workspace/api-client-react";
+import { CalendarOff, Clock, CheckCircle2, XCircle, AlertTriangle, BookOpen, FileText, Loader2, HelpCircle } from "lucide-react";
 
 function useMyAttendance() {
   return useQuery({
@@ -24,6 +30,12 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.
   present:{ label: "Présent", color: "bg-green-100 text-green-700 border-green-200", icon: <CheckCircle2 className="w-3.5 h-3.5" /> },
 };
 
+const JUST_STATUS: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
+  pending:  { label: "En attente",  color: "bg-amber-100 text-amber-700 border-amber-200", icon: <HelpCircle className="w-3 h-3" /> },
+  approved: { label: "Approuvée",   color: "bg-green-100 text-green-700 border-green-200", icon: <CheckCircle2 className="w-3 h-3" /> },
+  rejected: { label: "Refusée",     color: "bg-red-100 text-red-700 border-red-200",    icon: <XCircle className="w-3 h-3" /> },
+};
+
 function calcHours(r: any): number {
   if (r.startTime && r.endTime) {
     const [sh, sm] = r.startTime.split(":").map(Number);
@@ -34,12 +46,21 @@ function calcHours(r: any): number {
 }
 
 export default function StudentAbsences() {
+  const { toast } = useToast();
+  const qc = useQueryClient();
   const { data, isLoading } = useMyAttendance();
+  const { data: justifications = [] } = useMyJustifications();
+  const submitJust = useSubmitJustification();
   const [filter, setFilter] = useState<"all" | "absent" | "late" | "present">("all");
   const [semesterFilter, setSemesterFilter] = useState<string>("all");
+  const [justDialog, setJustDialog] = useState<{ attendanceId: number; subjectName: string; sessionDate: string } | null>(null);
+  const [reason, setReason] = useState("");
 
   const records: any[] = data?.records ?? [];
   const summary = data?.summary;
+
+  // Map attendanceId → justification
+  const justMap = new Map<number, any>((justifications as any[]).map((j: any) => [j.attendanceId, j]));
 
   const semesters = Array.from(new Map(records.map(r => [String(r.semesterId), r.semesterName])).entries());
 
@@ -82,6 +103,27 @@ export default function StudentAbsences() {
       border: "border-amber-100",
     },
   ];
+
+  const handleOpenJust = (r: any) => {
+    setReason("");
+    setJustDialog({ attendanceId: r.id, subjectName: r.subjectName, sessionDate: r.sessionDate });
+  };
+
+  const handleSubmit = async () => {
+    if (!justDialog || !reason.trim()) {
+      toast({ title: "Veuillez saisir une raison.", variant: "destructive" }); return;
+    }
+    try {
+      await submitJust.mutateAsync({ attendanceId: justDialog.attendanceId, reason: reason.trim() });
+      toast({ title: "Justificatif envoyé — en attente de validation par la scolarité." });
+      qc.invalidateQueries({ queryKey: ["/api/student/justifications"] });
+      setJustDialog(null);
+      setReason("");
+    } catch (e: any) {
+      const msg = e?.message ?? "Erreur lors de l'envoi";
+      toast({ title: msg, variant: "destructive" });
+    }
+  };
 
   return (
     <AppLayout allowedRoles={["student"]}>
@@ -179,7 +221,7 @@ export default function StudentAbsences() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border bg-muted/40">
-                    {["Date", "Matière", "Semestre", "Horaire", "Statut", "Justifié", "Remarque"].map(h => (
+                    {["Date", "Matière", "Semestre", "Horaire", "Statut", "Justificatif", "Remarque"].map(h => (
                       <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">{h}</th>
                     ))}
                   </tr>
@@ -188,6 +230,10 @@ export default function StudentAbsences() {
                   {filtered.map((r: any, i: number) => {
                     const cfg = STATUS_CONFIG[r.status] ?? STATUS_CONFIG.present;
                     const hours = (r.status === "absent" || r.status === "late") ? calcHours(r) : null;
+                    const justification = justMap.get(r.id);
+                    const canJustify = (r.status === "absent" || r.status === "late") && (!justification || justification.status === "rejected");
+                    const justCfg = justification ? JUST_STATUS[justification.status] : null;
+
                     return (
                       <tr key={r.id} className={`border-b border-border/50 last:border-0 hover:bg-muted/20 transition-colors ${i % 2 === 0 ? "" : "bg-muted/5"}`}>
                         <td className="px-4 py-3 font-medium text-foreground whitespace-nowrap">
@@ -213,17 +259,42 @@ export default function StudentAbsences() {
                             {cfg.icon}{cfg.label}
                           </Badge>
                         </td>
-                        <td className="px-4 py-3">
-                          {r.status === "absent" ? (
-                            r.justified
-                              ? <span className="flex items-center gap-1 text-green-600 text-xs font-medium"><CheckCircle2 className="w-3.5 h-3.5" />Oui</span>
-                              : <span className="flex items-center gap-1 text-red-500 text-xs font-medium"><XCircle className="w-3.5 h-3.5" />Non</span>
+                        <td className="px-4 py-3 min-w-[160px]">
+                          {r.status === "absent" || r.status === "late" ? (
+                            <div className="flex flex-col gap-1">
+                              {r.justified && (
+                                <span className="flex items-center gap-1 text-green-600 text-xs font-semibold">
+                                  <CheckCircle2 className="w-3.5 h-3.5" />Justifiée
+                                </span>
+                              )}
+                              {justCfg && !r.justified && (
+                                <Badge className={`${justCfg.color} border text-xs gap-1 flex items-center w-fit`}>
+                                  {justCfg.icon}{justCfg.label}
+                                </Badge>
+                              )}
+                              {canJustify && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 text-xs gap-1.5 text-blue-600 border-blue-200 hover:bg-blue-50 w-fit"
+                                  onClick={() => handleOpenJust(r)}
+                                >
+                                  <FileText className="w-3 h-3" />
+                                  {justification?.status === "rejected" ? "Soumettre à nouveau" : "Soumettre"}
+                                </Button>
+                              )}
+                              {!justification && !canJustify && !r.justified && (
+                                <span className="text-muted-foreground text-xs italic">—</span>
+                              )}
+                            </div>
                           ) : (
                             <span className="text-muted-foreground text-xs">—</span>
                           )}
                         </td>
-                        <td className="px-4 py-3 text-muted-foreground text-xs max-w-[180px] truncate">
-                          {r.note ?? "—"}
+                        <td className="px-4 py-3 text-muted-foreground text-xs max-w-[160px] truncate">
+                          {justification?.reviewNote
+                            ? <span className="italic text-red-500">{justification.reviewNote}</span>
+                            : (r.note ?? "—")}
                         </td>
                       </tr>
                     );
@@ -234,6 +305,45 @@ export default function StudentAbsences() {
           )}
         </motion.div>
       </div>
+
+      {/* Justification dialog */}
+      <Dialog open={!!justDialog} onOpenChange={open => { if (!open) { setJustDialog(null); setReason(""); } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="w-4 h-4 text-primary" />
+              Soumettre un justificatif
+            </DialogTitle>
+          </DialogHeader>
+          {justDialog && (
+            <div className="space-y-4 py-2">
+              <div className="bg-muted/50 rounded-lg p-3 text-sm space-y-1">
+                <p className="font-semibold text-foreground">{justDialog.subjectName}</p>
+                <p className="text-muted-foreground">
+                  {new Date(justDialog.sessionDate).toLocaleDateString("fr-FR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}
+                </p>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Motif de l'absence <span className="text-destructive">*</span></Label>
+                <Textarea
+                  value={reason}
+                  onChange={e => setReason(e.target.value)}
+                  placeholder="Expliquez la raison de votre absence (maladie, problème familial, etc.)"
+                  rows={4}
+                  autoFocus
+                />
+                <p className="text-xs text-muted-foreground">La scolarité examinera votre demande et vous notifiera de sa décision.</p>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setJustDialog(null); setReason(""); }}>Annuler</Button>
+            <Button onClick={handleSubmit} disabled={submitJust.isPending || !reason.trim()}>
+              {submitJust.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Envoi…</> : "Soumettre"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   );
 }

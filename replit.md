@@ -42,8 +42,9 @@ artifacts-monorepo/
 - `semesters` — academic semesters with published flag
 - `grades` — student grade per subject per semester (unique constraint)
 - `teacher_assignments` — teacher → subject → class → semester
-- `rooms` — classrooms, amphithéâtres, labs (new)
-- `schedule_entries` — timetable entries (teacher + subject + class + room + semester + day + time) (new)
+- `rooms` — classrooms, amphithéâtres, labs
+- `schedule_entries` — timetable entries (teacher + subject + class + room + semester + day + time)
+- `absence_justifications` — student justification requests for absences/lates: `attendanceId` (unique), `studentId`, `reason`, `status` (pending/approved/rejected), `reviewedBy`, `reviewedAt`, `reviewNote`
 
 ## RBAC — Multi-Admin System
 

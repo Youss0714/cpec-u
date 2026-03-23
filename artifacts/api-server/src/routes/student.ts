@@ -8,6 +8,8 @@ import {
   classEnrollmentsTable,
   classesTable,
   studentProfilesTable,
+  attendanceTable,
+  absenceJustificationsTable,
 } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { requireRole } from "../lib/auth.js";
@@ -231,6 +233,60 @@ router.get("/results", requireRole("student"), async (req, res) => {
       semesterId: semester.id, semesterName: semester.name,
       average, rank, totalStudents, decision, grades,
     });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// ─── Absence Justifications (student) ────────────────────────────────────────
+
+router.post("/justifications", requireRole("student"), async (req, res) => {
+  try {
+    const studentId = req.session!.userId!;
+    const { attendanceId, reason } = req.body;
+    if (!attendanceId || !reason?.trim()) {
+      res.status(400).json({ error: "Bad Request", message: "attendanceId et raison sont obligatoires." });
+      return;
+    }
+    // Verify the attendance record belongs to this student and is an absence/late
+    const [record] = await db.select().from(attendanceTable)
+      .where(and(eq(attendanceTable.id, attendanceId), eq(attendanceTable.studentId, studentId)))
+      .limit(1);
+    if (!record) { res.status(404).json({ error: "Absence introuvable." }); return; }
+    if (record.status === "present") {
+      res.status(400).json({ error: "Impossible de justifier une présence." }); return;
+    }
+    // Upsert: if a justification already exists, update; else insert
+    const [existing] = await db.select().from(absenceJustificationsTable)
+      .where(eq(absenceJustificationsTable.attendanceId, attendanceId)).limit(1);
+    if (existing) {
+      if (existing.status !== "pending") {
+        res.status(409).json({ error: "Cette absence a déjà été traitée.", status: existing.status }); return;
+      }
+      const [updated] = await db.update(absenceJustificationsTable)
+        .set({ reason: reason.trim(), updatedAt: new Date() })
+        .where(eq(absenceJustificationsTable.id, existing.id))
+        .returning();
+      res.json(updated); return;
+    }
+    const [created] = await db.insert(absenceJustificationsTable)
+      .values({ attendanceId, studentId, reason: reason.trim() })
+      .returning();
+    res.status(201).json(created);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+router.get("/justifications", requireRole("student"), async (req, res) => {
+  try {
+    const studentId = req.session!.userId!;
+    const justifications = await db.select()
+      .from(absenceJustificationsTable)
+      .where(eq(absenceJustificationsTable.studentId, studentId));
+    res.json(justifications);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Internal Server Error" });

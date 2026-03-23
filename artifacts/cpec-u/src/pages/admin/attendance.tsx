@@ -3,11 +3,13 @@ import { AppLayout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useGetCurrentUser } from "@workspace/api-client-react";
+import { useGetCurrentUser, useAdminJustifications, useReviewJustification } from "@workspace/api-client-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { CheckCircle2, XCircle, Clock, ClipboardList, Pencil, X, Check, ShieldCheck } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { CheckCircle2, XCircle, Clock, ClipboardList, Pencil, X, Check, ShieldCheck, FileText, HelpCircle, Loader2, BookOpen } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 async function apiFetch(path: string, options?: RequestInit) {
@@ -248,8 +250,197 @@ function StudentRow({
   );
 }
 
+const JUST_STATUS_CFG: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
+  pending:  { label: "En attente", color: "bg-amber-100 text-amber-700 border-amber-200", icon: <HelpCircle className="w-3.5 h-3.5" /> },
+  approved: { label: "Approuvée",  color: "bg-green-100 text-green-700 border-green-200", icon: <CheckCircle2 className="w-3.5 h-3.5" /> },
+  rejected: { label: "Refusée",    color: "bg-red-100 text-red-700 border-red-200",    icon: <XCircle className="w-3.5 h-3.5" /> },
+};
+
+function JustificationsPanel({ canManage }: { canManage: boolean }) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [statusFilter, setStatusFilter] = useState<"" | "pending" | "approved" | "rejected">("");
+  const [reviewDialog, setReviewDialog] = useState<any | null>(null);
+  const [reviewNote, setReviewNote] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const { data: justifications = [], isLoading } = useAdminJustifications(
+    statusFilter ? { status: statusFilter } : undefined
+  );
+  const reviewMutation = useReviewJustification();
+
+  const handleReview = async (status: "approved" | "rejected") => {
+    if (!reviewDialog) return;
+    setSubmitting(true);
+    try {
+      await reviewMutation.mutateAsync({ id: reviewDialog.id, status, reviewNote: reviewNote.trim() || undefined });
+      toast({ title: status === "approved" ? "Justificatif approuvé — absence marquée justifiée." : "Justificatif refusé." });
+      qc.invalidateQueries({ queryKey: ["/api/admin/justifications"] });
+      setReviewDialog(null);
+      setReviewNote("");
+    } catch (e: any) {
+      toast({ title: e?.message ?? "Erreur", variant: "destructive" });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const jlist = justifications as any[];
+
+  return (
+    <div className="space-y-4">
+      {/* Filters */}
+      <div className="flex gap-2 flex-wrap items-center">
+        {(["", "pending", "approved", "rejected"] as const).map(f => {
+          const labels: Record<string, string> = { "": "Tous", pending: "En attente", approved: "Approuvés", rejected: "Refusés" };
+          return (
+            <button
+              key={f}
+              onClick={() => setStatusFilter(f)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                statusFilter === f
+                  ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                  : "bg-background border-border text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {labels[f]}
+            </button>
+          );
+        })}
+        <span className="text-xs text-muted-foreground ml-auto">{jlist.length} justificatif{jlist.length > 1 ? "s" : ""}</span>
+      </div>
+
+      {/* Table */}
+      <div className="bg-card rounded-2xl shadow-sm border border-border overflow-hidden">
+        <div className="overflow-y-auto max-h-[calc(100vh-340px)]">
+          <Table>
+            <TableHeader className="bg-secondary/50 sticky top-0 z-10">
+              <TableRow>
+                <TableHead>Étudiant</TableHead>
+                <TableHead>Matière</TableHead>
+                <TableHead>Classe</TableHead>
+                <TableHead>Date séance</TableHead>
+                <TableHead>Motif</TableHead>
+                <TableHead>Statut</TableHead>
+                {canManage && <TableHead className="text-right">Action</TableHead>}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {isLoading ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Chargement…</TableCell>
+                </TableRow>
+              ) : jlist.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
+                    <div className="flex flex-col items-center gap-2">
+                      <FileText className="w-8 h-8 opacity-20" />
+                      <span>Aucun justificatif pour ce filtre.</span>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ) : (
+                jlist.map((j: any) => {
+                  const jcfg = JUST_STATUS_CFG[j.status] ?? JUST_STATUS_CFG.pending;
+                  return (
+                    <TableRow key={j.id} className="hover:bg-muted/30">
+                      <TableCell className="font-medium">{j.studentName}</TableCell>
+                      <TableCell>
+                        <span className="flex items-center gap-1"><BookOpen className="w-3.5 h-3.5 text-muted-foreground" />{j.subjectName}</span>
+                      </TableCell>
+                      <TableCell><Badge variant="outline">{j.className}</Badge></TableCell>
+                      <TableCell className="font-mono text-sm">{new Date(j.sessionDate).toLocaleDateString("fr-FR")}</TableCell>
+                      <TableCell className="max-w-[200px] text-sm text-muted-foreground truncate" title={j.reason}>{j.reason}</TableCell>
+                      <TableCell>
+                        <Badge className={`${jcfg.color} border text-xs gap-1 flex items-center w-fit`}>
+                          {jcfg.icon}{jcfg.label}
+                        </Badge>
+                      </TableCell>
+                      {canManage && (
+                        <TableCell className="text-right">
+                          {j.status === "pending" && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="text-xs h-7"
+                              onClick={() => { setReviewDialog(j); setReviewNote(""); }}
+                            >
+                              Examiner
+                            </Button>
+                          )}
+                          {j.status !== "pending" && j.reviewNote && (
+                            <span className="text-xs italic text-muted-foreground" title={j.reviewNote}>Note: {j.reviewNote.slice(0, 30)}{j.reviewNote.length > 30 ? "…" : ""}</span>
+                          )}
+                        </TableCell>
+                      )}
+                    </TableRow>
+                  );
+                })
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      </div>
+
+      {/* Review dialog */}
+      <Dialog open={!!reviewDialog} onOpenChange={open => { if (!open) { setReviewDialog(null); setReviewNote(""); } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="w-4 h-4 text-primary" />
+              Examiner le justificatif
+            </DialogTitle>
+          </DialogHeader>
+          {reviewDialog && (
+            <div className="space-y-4 py-2">
+              <div className="bg-muted/50 rounded-lg p-3 text-sm space-y-1">
+                <p className="font-semibold text-foreground">{reviewDialog.studentName}</p>
+                <p className="text-muted-foreground">{reviewDialog.subjectName} · {new Date(reviewDialog.sessionDate).toLocaleDateString("fr-FR", { weekday: "long", day: "2-digit", month: "long" })}</p>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Motif de l'étudiant</Label>
+                <div className="bg-muted/40 rounded-lg p-3 text-sm text-foreground whitespace-pre-wrap">{reviewDialog.reason}</div>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Note de réponse <span className="text-muted-foreground text-xs">(optionnel)</span></Label>
+                <Textarea
+                  value={reviewNote}
+                  onChange={e => setReviewNote(e.target.value)}
+                  placeholder="Commentaire visible par l'étudiant en cas de refus…"
+                  rows={3}
+                />
+              </div>
+            </div>
+          )}
+          <DialogFooter className="gap-2 flex-col sm:flex-row">
+            <Button variant="outline" onClick={() => { setReviewDialog(null); setReviewNote(""); }}>Annuler</Button>
+            <Button
+              variant="outline"
+              className="border-red-200 text-red-600 hover:bg-red-50"
+              disabled={submitting}
+              onClick={() => handleReview("rejected")}
+            >
+              {submitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <XCircle className="w-4 h-4 mr-2" />}
+              Refuser
+            </Button>
+            <Button
+              className="bg-green-600 hover:bg-green-700 text-white"
+              disabled={submitting}
+              onClick={() => handleReview("approved")}
+            >
+              {submitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
+              Approuver
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
 export default function AdminAttendance() {
   const [selectedSessionId, setSelectedSessionId] = useState<number | null>(null);
+  const [activeTab, setActiveTab] = useState<"sessions" | "justifications">("sessions");
   const queryClient = useQueryClient();
   const { data: currentUser } = useGetCurrentUser({ query: { retry: false } } as any);
   const canManage = (currentUser as any)?.adminSubRole === "scolarite" || (currentUser as any)?.adminSubRole === "directeur";
@@ -277,17 +468,41 @@ export default function AdminAttendance() {
   return (
     <AppLayout allowedRoles={["admin"]}>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-serif font-bold text-foreground flex items-center gap-2">
-            <ClipboardList className="w-8 h-8 text-primary" />
-            Feuilles de Présence
-          </h1>
-          <p className="text-muted-foreground">
-            Feuilles transmises par les enseignants à la scolarité.
-          </p>
+        <div className="flex items-end justify-between gap-4 flex-wrap">
+          <div>
+            <h1 className="text-3xl font-serif font-bold text-foreground flex items-center gap-2">
+              <ClipboardList className="w-8 h-8 text-primary" />
+              Feuilles de Présence
+            </h1>
+            <p className="text-muted-foreground">
+              Feuilles transmises par les enseignants à la scolarité.
+            </p>
+          </div>
+
+          {/* Tabs */}
+          <div className="flex rounded-xl border border-border overflow-hidden shadow-sm">
+            {([
+              { key: "sessions", label: "Séances", icon: <ClipboardList className="w-3.5 h-3.5" /> },
+              { key: "justifications", label: "Justificatifs", icon: <FileText className="w-3.5 h-3.5" /> },
+            ] as const).map(t => (
+              <button
+                key={t.key}
+                onClick={() => setActiveTab(t.key)}
+                className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium transition-all ${
+                  activeTab === t.key
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-background text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                }`}
+              >
+                {t.icon}{t.label}
+              </button>
+            ))}
+          </div>
         </div>
 
-        <div className="bg-card rounded-2xl shadow-sm border border-border overflow-hidden">
+        {activeTab === "justifications" && <JustificationsPanel canManage={canManage} />}
+
+        {activeTab === "sessions" && <div className="bg-card rounded-2xl shadow-sm border border-border overflow-hidden">
           <div className="overflow-y-auto max-h-[calc(100vh-260px)]">
             <Table>
               <TableHeader className="bg-secondary/50 sticky top-0 z-10">
@@ -346,7 +561,8 @@ export default function AdminAttendance() {
               {(sessions as any[]).length} feuille{(sessions as any[]).length > 1 ? "s" : ""} reçue{(sessions as any[]).length > 1 ? "s" : ""}
             </div>
           )}
-        </div>
+        </div>}
+
       </div>
 
       {/* Session Detail Dialog */}

@@ -15,6 +15,7 @@ import {
   gradeSubmissionsTable,
   activityLogTable,
   attendanceTable,
+  absenceJustificationsTable,
   teachingUnitsTable,
   classFeesTable,
   studentFeesTable,
@@ -1776,6 +1777,77 @@ router.delete("/class-enrollments", requireRole("admin"), async (req, res) => {
     if (!studentId || !classId) { res.status(400).json({ error: "Bad Request", message: "studentId and classId are required" }); return; }
     await db.delete(classEnrollmentsTable).where(and(eq(classEnrollmentsTable.studentId, studentId), eq(classEnrollmentsTable.classId, classId)));
     res.json({ message: "Student removed from class" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// ─── Absence Justifications (admin) ──────────────────────────────────────────
+
+router.get("/justifications", requireRole("admin"), async (req, res) => {
+  try {
+    const { status } = req.query;
+    const rows = await db
+      .select({
+        id: absenceJustificationsTable.id,
+        attendanceId: absenceJustificationsTable.attendanceId,
+        studentId: absenceJustificationsTable.studentId,
+        studentName: usersTable.name,
+        reason: absenceJustificationsTable.reason,
+        status: absenceJustificationsTable.status,
+        reviewedBy: absenceJustificationsTable.reviewedBy,
+        reviewedAt: absenceJustificationsTable.reviewedAt,
+        reviewNote: absenceJustificationsTable.reviewNote,
+        createdAt: absenceJustificationsTable.createdAt,
+        sessionDate: attendanceTable.sessionDate,
+        attendanceStatus: attendanceTable.status,
+        subjectName: subjectsTable.name,
+        className: classesTable.name,
+      })
+      .from(absenceJustificationsTable)
+      .innerJoin(usersTable, eq(usersTable.id, absenceJustificationsTable.studentId))
+      .innerJoin(attendanceTable, eq(attendanceTable.id, absenceJustificationsTable.attendanceId))
+      .innerJoin(subjectsTable, eq(subjectsTable.id, attendanceTable.subjectId))
+      .innerJoin(classesTable, eq(classesTable.id, attendanceTable.classId))
+      .orderBy(absenceJustificationsTable.createdAt);
+
+    const filtered = status ? rows.filter((r) => r.status === status) : rows;
+    res.json(filtered);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+router.put("/justifications/:id", requireRole("admin"), async (req, res) => {
+  try {
+    const cu = req.session?.user as any;
+    if (cu?.adminSubRole !== "scolarite" && cu?.adminSubRole !== "directeur") {
+      res.status(403).json({ error: "Réservé à la Scolarité et au Directeur." }); return;
+    }
+    const id = parseInt(req.params.id);
+    const { status, reviewNote } = req.body;
+    if (!["approved", "rejected"].includes(status)) {
+      res.status(400).json({ error: "status doit être 'approved' ou 'rejected'." }); return;
+    }
+    const [just] = await db.select().from(absenceJustificationsTable)
+      .where(eq(absenceJustificationsTable.id, id)).limit(1);
+    if (!just) { res.status(404).json({ error: "Justificatif introuvable." }); return; }
+
+    const [updated] = await db.update(absenceJustificationsTable)
+      .set({ status, reviewedBy: cu.id, reviewedAt: new Date(), reviewNote: reviewNote?.trim() || null, updatedAt: new Date() })
+      .where(eq(absenceJustificationsTable.id, id))
+      .returning();
+
+    // If approved → mark the attendance record as justified
+    if (status === "approved") {
+      await db.update(attendanceTable).set({ justified: true }).where(eq(attendanceTable.id, just.attendanceId));
+    } else if (status === "rejected") {
+      await db.update(attendanceTable).set({ justified: false }).where(eq(attendanceTable.id, just.attendanceId));
+    }
+
+    res.json(updated);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Internal Server Error" });

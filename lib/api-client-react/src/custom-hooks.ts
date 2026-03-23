@@ -880,3 +880,48 @@ export const useInitializeYear = (options?: UseMutationOptions<InitializeYearRes
       }),
     ...options,
   });
+
+// ─── Absence Justifications (student) ────────────────────────────────────────
+
+export const useMyJustifications = (options?: QueryOpts<any[]>) =>
+  useQuery<any[], Error>({
+    queryKey: ["/api/student/justifications"],
+    queryFn: () => customFetch<any[]>("/api/student/justifications"),
+    ...options,
+  });
+
+export const useSubmitJustification = (options?: UseMutationOptions<any, unknown, { attendanceId: number; reason: string }>) =>
+  useMutation<any, unknown, { attendanceId: number; reason: string }>({
+    mutationKey: ["submitJustification"],
+    mutationFn: (body) =>
+      customFetch<any>("/api/student/justifications", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      }),
+    ...options,
+  });
+
+// ─── Absence Justifications (admin) ──────────────────────────────────────────
+
+export const useAdminJustifications = (params?: { status?: string }, options?: QueryOpts<any[]>) =>
+  useQuery<any[], Error>({
+    queryKey: ["/api/admin/justifications", params],
+    queryFn: () => {
+      const q = params?.status ? `?status=${params.status}` : "";
+      return customFetch<any[]>(`/api/admin/justifications${q}`);
+    },
+    ...options,
+  });
+
+export const useReviewJustification = (options?: UseMutationOptions<any, unknown, { id: number; status: "approved" | "rejected"; reviewNote?: string }>) =>
+  useMutation<any, unknown, { id: number; status: "approved" | "rejected"; reviewNote?: string }>({
+    mutationKey: ["reviewJustification"],
+    mutationFn: ({ id, ...body }) =>
+      customFetch<any>(`/api/admin/justifications/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      }),
+    ...options,
+  });
