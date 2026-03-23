@@ -6,8 +6,8 @@ export function SplashScreen({ onDone }: { onDone: () => void }) {
 
   useEffect(() => {
     const t1 = setTimeout(() => setPhase("hold"), 400);
-    const t2 = setTimeout(() => setPhase("out"), 9000);
-    const t3 = setTimeout(() => onDone(), 10000);
+    const t2 = setTimeout(() => setPhase("out"), 4200);
+    const t3 = setTimeout(() => onDone(), 5000);
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [onDone]);
 
@@ -43,7 +43,7 @@ export function SplashScreen({ onDone }: { onDone: () => void }) {
             style={{
               background: "linear-gradient(90deg, #1654a2 0%, #16a34a 100%)",
               width: phase === "hold" ? "100%" : "0%",
-              transition: phase === "hold" ? "width 8.4s cubic-bezier(0.4,0,0.2,1)" : "none",
+              transition: phase === "hold" ? "width 3.7s cubic-bezier(0.4,0,0.2,1)" : "none",
             }}
           />
         </div>
