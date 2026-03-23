@@ -612,32 +612,49 @@ export function generateBulletinHTML(data: BulletinData): string {
     /* ── Footer ── */
     .footer-schools {
       display: flex;
-      flex-wrap: wrap;
       justify-content: space-between;
-      font-size: 8px;
-      text-transform: uppercase;
       border-top: 1px solid #1A1A1A;
-      padding-top: 5px;
+      padding-top: 4px;
       margin-top: 6px;
-      gap: 2px 0;
-      color: #1A1A1A;
+      gap: 2px;
     }
-    .footer-schools span {
-      white-space: nowrap;
-      padding: 0 4px 2px 0;
+    .footer-school-item {
+      flex: 1;
+      text-align: center;
+      min-width: 0;
     }
-    .footer-schools strong {
-      color: #1a3a6b;
+    .footer-school-acronym {
+      display: block;
+      font-size: 6.5px;
       font-weight: bold;
+      color: #1a3a6b;
+      text-transform: uppercase;
+      letter-spacing: 0.2px;
+      margin-bottom: 1px;
+    }
+    .footer-school-name {
+      display: block;
+      font-size: 5px;
+      color: #1A1A1A;
+      text-transform: uppercase;
+      line-height: 1.3;
+      word-break: break-word;
     }
     .footer-contacts {
       display: flex;
       justify-content: space-between;
-      font-size: 6px;
-      color: #444;
-      border-top: 0.5px solid #ccc;
+      align-items: flex-start;
+      font-size: 5.5px;
+      color: #333;
+      border-top: 0.5px solid #aaa;
       padding-top: 3px;
-      margin-top: 3px;
+      margin-top: 4px;
+      gap: 8px;
+    }
+    .footer-contacts-group {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
     }
 
     /* ── Print ── */
@@ -762,12 +779,35 @@ export function generateBulletinHTML(data: BulletinData): string {
 
     <!-- ═══ FOOTER ═══ -->
     <div class="footer-schools">
-      ${schools.map(s => `<span><strong>${s.acronym}</strong> : ${s.name}</span>`).join("")}
+      ${schools.map(s => `
+        <div class="footer-school-item">
+          <span class="footer-school-acronym">${s.acronym}</span>
+          <span class="footer-school-name">${s.name}</span>
+        </div>`).join("")}
     </div>
     <div class="footer-contacts">
-      <span>&#127968; 1093 Yamoussoukro (RCI) &nbsp;|&nbsp; V79 Abidjan (RCI)</span>
-      <span>&#127760; www.inphb.ci &nbsp;|&nbsp; @inphb.polytech</span>
-      <span>&#128222; (225) 27 30 64 66 66 &nbsp;|&nbsp; (225) 05 01 80 00 24</span>
+      <div class="footer-contacts-group">
+        <span>&#127968; 1093 Yamoussoukro (RCI)</span>
+        <span>&#127968; V 79 Abidjan (RCI)</span>
+        <span>&#9654; @inp-hbpageoffficielle6975</span>
+      </div>
+      <div class="footer-contacts-group">
+        <span>&#127760; www.inphb.ci</span>
+        <span>&#9993; polytec@inphb.ci</span>
+      </div>
+      <div class="footer-contacts-group">
+        <span>&#9410; @inphb.polytech</span>
+        <span>&#10005; @inphbpolytech</span>
+      </div>
+      <div class="footer-contacts-group">
+        <span>in Linkedin.com</span>
+        <span>&#9432; inphb2021</span>
+      </div>
+      <div class="footer-contacts-group" style="text-align:right;">
+        <span>&#128222; (225) 27 30 64 66 66</span>
+        <span>&#128222; (225) 05 01 80 00 24</span>
+        <span>&#128222; (225) 05 01 80 00 19</span>
+      </div>
     </div>
 
   </div><!-- /content -->
