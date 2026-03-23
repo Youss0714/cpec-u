@@ -20,6 +20,7 @@ export const usersTable = pgTable("users", {
 export const studentProfilesTable = pgTable("student_profiles", {
   id: serial("id").primaryKey(),
   studentId: integer("student_id").notNull().unique().references(() => usersTable.id, { onDelete: "cascade" }),
+  matricule: varchar("matricule", { length: 100 }),
   phone: varchar("phone", { length: 50 }),
   address: text("address"),
   parentName: varchar("parent_name", { length: 255 }),

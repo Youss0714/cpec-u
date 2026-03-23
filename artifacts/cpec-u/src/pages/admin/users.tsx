@@ -686,12 +686,12 @@ export default function AdminUsers() {
   const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
   const [editUser, setEditUser] = useState<any | null>(null);
   const [editForm, setEditForm] = useState({ name: "", email: "", password: "" });
-  const [editProfileForm, setEditProfileForm] = useState({ phone: "", address: "", parentName: "", parentPhone: "", parentEmail: "", parentAddress: "" });
+  const [editProfileForm, setEditProfileForm] = useState({ matricule: "", phone: "", address: "", parentName: "", parentPhone: "", parentEmail: "", parentAddress: "" });
   const [editProfileLoading, setEditProfileLoading] = useState(false);
   const [editSaving, setEditSaving] = useState(false);
   const [teacherAssignmentRows, setTeacherAssignmentRows] = useState<{ subjectId: string; classId: string; semesterId: string }[]>([]);
-  const [createProfileForm, setCreateProfileForm] = useState({ phone: "", address: "", parentName: "", parentPhone: "", parentEmail: "", parentAddress: "" });
-  const emptyCreateProfile = { phone: "", address: "", parentName: "", parentPhone: "", parentEmail: "", parentAddress: "" };
+  const [createProfileForm, setCreateProfileForm] = useState({ matricule: "", phone: "", address: "", parentName: "", parentPhone: "", parentEmail: "", parentAddress: "" });
+  const emptyCreateProfile = { matricule: "", phone: "", address: "", parentName: "", parentPhone: "", parentEmail: "", parentAddress: "" };
   const [viewUser, setViewUser] = useState<any | null>(null);
   const [viewProfile, setViewProfile] = useState<any | null>(null);
   const [viewProfileLoading, setViewProfileLoading] = useState(false);
@@ -732,6 +732,7 @@ export default function AdminUsers() {
           classId: role === "student" && classIdStr ? parseInt(classIdStr) : undefined,
           adminSubRole: role === "admin" ? adminSubRole : undefined,
           phone: role === "teacher" && phone ? phone : undefined,
+          matricule: role === "student" && createProfileForm.matricule ? createProfileForm.matricule.trim() : undefined,
         } as any,
       });
 
@@ -754,13 +755,13 @@ export default function AdminUsers() {
 
       if (role === "student") {
         const p = createProfileForm;
-        const hasProfile = p.phone || p.address || p.parentName || p.parentPhone || p.parentEmail || p.parentAddress;
+        const hasProfile = p.matricule || p.phone || p.address || p.parentName || p.parentPhone || p.parentEmail || p.parentAddress;
         if (hasProfile) {
           await fetch(`/api/admin/students/${(newUser as any).id}/profile`, {
             method: "PUT",
             credentials: "include",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ phone: p.phone || null, address: p.address || null, parentName: p.parentName || null, parentPhone: p.parentPhone || null, parentEmail: p.parentEmail || null, parentAddress: p.parentAddress || null }),
+            body: JSON.stringify({ matricule: p.matricule || null, phone: p.phone || null, address: p.address || null, parentName: p.parentName || null, parentPhone: p.parentPhone || null, parentEmail: p.parentEmail || null, parentAddress: p.parentAddress || null }),
           });
         }
       }
@@ -821,6 +822,7 @@ export default function AdminUsers() {
         if (res.ok) {
           const p = await res.json();
           setEditProfileForm({
+            matricule: p.matricule ?? "",
             phone: p.phone ?? "",
             address: p.address ?? "",
             parentName: p.parentName ?? "",
@@ -854,6 +856,7 @@ export default function AdminUsers() {
           headers: { "Content-Type": "application/json" },
           credentials: "include",
           body: JSON.stringify({
+            matricule: editProfileForm.matricule.trim() || null,
             phone: editProfileForm.phone.trim() || null,
             address: editProfileForm.address.trim() || null,
             parentName: editProfileForm.parentName.trim() || null,
@@ -942,12 +945,18 @@ export default function AdminUsers() {
                     </Select>
                   </div>
                   {selectedRole === "student" && (
-                    <div className="space-y-1">
-                      <Label>Classe</Label>
-                      <Select name="classId">
-                        <SelectTrigger><SelectValue placeholder="Choisir une classe..." /></SelectTrigger>
-                        <SelectContent>{classes?.map((c: any) => <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>)}</SelectContent>
-                      </Select>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <Label>Classe</Label>
+                        <Select name="classId">
+                          <SelectTrigger><SelectValue placeholder="Choisir une classe..." /></SelectTrigger>
+                          <SelectContent>{classes?.map((c: any) => <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>)}</SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="flex items-center gap-1.5"><School className="w-3.5 h-3.5 text-muted-foreground" /> N° Matricule</Label>
+                        <Input value={createProfileForm.matricule} onChange={e => setCreateProfileForm(f => ({ ...f, matricule: e.target.value }))} placeholder="Ex: INP-HB/2024/001" />
+                      </div>
                     </div>
                   )}
                   {selectedRole === "student" && (
@@ -1226,6 +1235,12 @@ export default function AdminUsers() {
                     <Label>Email</Label>
                     <Input type="email" value={editForm.email} onChange={e => setEditForm(f => ({ ...f, email: e.target.value }))} />
                   </div>
+                  {editUser?.role === "student" && (
+                    <div className="space-y-1">
+                      <Label className="flex items-center gap-1.5"><School className="w-3.5 h-3.5 text-muted-foreground" /> N° Matricule</Label>
+                      <Input value={editProfileForm.matricule} onChange={e => setEditProfileForm(f => ({ ...f, matricule: e.target.value }))} placeholder="Ex: INP-HB/2024/001" />
+                    </div>
+                  )}
                   <div className="space-y-1">
                     <Label>Nouveau mot de passe <span className="text-muted-foreground text-xs">(laisser vide pour ne pas changer)</span></Label>
                     <Input type="password" value={editForm.password} onChange={e => setEditForm(f => ({ ...f, password: e.target.value }))} placeholder="••••••" />

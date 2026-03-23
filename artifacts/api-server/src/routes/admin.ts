@@ -55,17 +55,18 @@ async function applyClassFeeToStudent(studentId: number, classId: number) {
 router.get("/users", requireRole("admin"), async (req, res) => {
   try {
     const { role } = req.query;
-    let usersQuery = db.select().from(usersTable);
     const users = role
       ? await db.select().from(usersTable).where(eq(usersTable.role, role as any))
-      : await usersQuery;
+      : await db.select().from(usersTable);
 
     const enrollments = await db
       .select({ studentId: classEnrollmentsTable.studentId, classId: classEnrollmentsTable.classId, className: classesTable.name })
       .from(classEnrollmentsTable)
       .innerJoin(classesTable, eq(classesTable.id, classEnrollmentsTable.classId));
-
     const enrollmentMap = new Map(enrollments.map((e) => [e.studentId, { classId: e.classId, className: e.className }]));
+
+    const profiles = await db.select({ studentId: studentProfilesTable.studentId, matricule: studentProfilesTable.matricule }).from(studentProfilesTable);
+    const profileMap = new Map(profiles.map((p) => [p.studentId, p.matricule]));
 
     const result = users.map((u) => {
       const enroll = enrollmentMap.get(u.id);
@@ -77,7 +78,7 @@ router.get("/users", requireRole("admin"), async (req, res) => {
         adminSubRole: u.adminSubRole ?? null,
         classId: enroll?.classId ?? null,
         className: enroll?.className ?? null,
-        phone: u.phone ?? null,
+        matricule: profileMap.get(u.id) ?? null,
         createdAt: u.createdAt,
       };
     });
@@ -92,7 +93,7 @@ router.get("/users", requireRole("admin"), async (req, res) => {
 router.post("/users", requireRole("admin"), async (req, res) => {
   try {
     const cu = req.session?.user as any;
-    const { email, name, password, role, adminSubRole, classId, phone } = req.body;
+    const { email, name, password, role, adminSubRole, classId, phone, matricule } = req.body;
     if (!email || !name || !password || !role) {
       res.status(400).json({ error: "Bad Request", message: "Missing required fields" });
       return;
@@ -109,7 +110,6 @@ router.post("/users", requireRole("admin"), async (req, res) => {
     const [user] = await db.insert(usersTable).values({
       email, name, passwordHash, role,
       adminSubRole: role === "admin" ? (adminSubRole ?? null) : null,
-      phone: phone?.trim() || null,
       mustChangePassword: true,
     }).returning();
 
@@ -118,11 +118,20 @@ router.post("/users", requireRole("admin"), async (req, res) => {
       await applyClassFeeToStudent(user.id, classId);
     }
 
+    if (role === "student") {
+      await db.insert(studentProfilesTable).values({
+        studentId: user.id,
+        matricule: matricule?.trim() || null,
+      }).onConflictDoNothing();
+    }
+
     const enroll = classId ? await db.select({ className: classesTable.name }).from(classesTable).where(eq(classesTable.id, classId)).limit(1) : [];
     res.status(201).json({
       id: user.id, email: user.email, name: user.name, role: user.role,
       adminSubRole: user.adminSubRole ?? null,
-      classId: classId ?? null, className: enroll[0]?.className ?? null, createdAt: user.createdAt,
+      classId: classId ?? null, className: enroll[0]?.className ?? null,
+      matricule: matricule?.trim() || null,
+      createdAt: user.createdAt,
     });
   } catch (err: any) {
     if (err?.code === "23505") {
@@ -229,9 +238,15 @@ router.get("/students/:id/profile", requireRole("admin"), async (req, res) => {
 router.put("/students/:id/profile", requireRole("admin"), async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    const { phone, address, parentName, parentPhone, parentEmail, parentAddress } = req.body;
+    const { phone, address, parentName, parentPhone, parentEmail, parentAddress, matricule } = req.body;
     const [existing] = await db.select().from(studentProfilesTable).where(eq(studentProfilesTable.studentId, id)).limit(1);
-    const data: any = { phone: phone ?? null, address: address ?? null, parentName: parentName ?? null, parentPhone: parentPhone ?? null, parentEmail: parentEmail ?? null, parentAddress: parentAddress ?? null, updatedAt: new Date() };
+    const data: any = {
+      matricule: matricule?.trim() || null,
+      phone: phone ?? null, address: address ?? null,
+      parentName: parentName ?? null, parentPhone: parentPhone ?? null,
+      parentEmail: parentEmail ?? null, parentAddress: parentAddress ?? null,
+      updatedAt: new Date(),
+    };
     let profile;
     if (existing) {
       [profile] = await db.update(studentProfilesTable).set(data).where(eq(studentProfilesTable.studentId, id)).returning();
@@ -1402,9 +1417,17 @@ router.get("/bulletin/:studentId/:semesterId", requireRole("admin"), async (req,
       .from(ecolesInphbTable)
       .orderBy(ecolesInphbTable.displayOrder);
 
+    // Fetch real matricule from student profile
+    const [studentProfile] = await db
+      .select({ matricule: studentProfilesTable.matricule })
+      .from(studentProfilesTable)
+      .where(eq(studentProfilesTable.studentId, studentId))
+      .limit(1);
+    const studentMatricule = studentProfile?.matricule?.trim() || String(studentId).padStart(6, "0");
+
     const html = generateBulletinHTML({
       studentName: result.studentName,
-      studentMatricule: String(studentId).padStart(6, "0"),
+      studentMatricule,
       filiere,
       className: result.className,
       semesterName: result.semesterName,
