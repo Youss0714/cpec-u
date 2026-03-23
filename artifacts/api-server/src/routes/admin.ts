@@ -789,7 +789,21 @@ async function computeStudentResult(studentId: number, semesterId: number) {
     average = Math.max(0, Math.round((average - absenceDeduction) * 100) / 100);
   }
 
-  if (average !== null) {
+  if (ues.length > 0) {
+    // Semester validated only if ALL UEs are validated (average >= 10)
+    const uesWithGrades = ueResults.filter(u => u.average !== null);
+    if (uesWithGrades.length === 0) {
+      decision = "En attente";
+    } else if (uesWithGrades.length < ueResults.length) {
+      // Some UEs still have no grades — partial results
+      const allAcquisSoFar = uesWithGrades.every(u => u.acquis);
+      decision = allAcquisSoFar ? "En attente" : "Ajourné";
+    } else {
+      // All UEs have grades — validate only if every UE is acquis
+      decision = ueResults.every(u => u.acquis) ? "Admis" : "Ajourné";
+    }
+  } else if (average !== null) {
+    // No UE structure: fall back to overall average threshold
     decision = average >= 12 ? "Admis" : "Ajourné";
   }
 

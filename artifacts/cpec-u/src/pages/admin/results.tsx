@@ -324,7 +324,7 @@ export default function AdminResults() {
                     </h3>
                     <p className="text-xs text-muted-foreground mt-0.5">
                       {canPromote
-                        ? `Les étudiants admis (≥ 12/20) seront transférés vers la classe supérieure.`
+                        ? `Les étudiants admis (toutes UEs validées) seront transférés vers la classe supérieure.`
                         : `Aucune classe supérieure configurée. Configurez-la depuis la page Classes.`}
                     </p>
                   </div>
