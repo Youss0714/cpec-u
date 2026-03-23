@@ -744,7 +744,6 @@ export function generateBulletinHTML(data: BulletinData): string {
         <strong>N° Matricule :</strong> ${data.studentMatricule}
       </div>
       <div class="student-right">
-        <div class="sname">${data.studentName}</div>
         <div><strong>FILIÈRE :</strong> ${data.className.toUpperCase()}</div>
         <div><strong>CLASSE :</strong> ${data.className.toUpperCase()}</div>
         <div><strong>Année Scolaire :</strong> ${data.academicYear}</div>
