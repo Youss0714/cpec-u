@@ -19,7 +19,7 @@ import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
-import { Download, Search, CheckCircle, Lock, Unlock, FileEdit, Globe, GlobeLock, TrendingUp, Users, GraduationCap, ChevronDown, ChevronUp, AlertTriangle, XCircle } from "lucide-react";
+import { Download, Search, CheckCircle, Lock, Unlock, FileEdit, Globe, GlobeLock, TrendingUp, Users, GraduationCap, ChevronDown, ChevronUp, AlertTriangle, XCircle, Eye } from "lucide-react";
 
 export default function AdminResults() {
   const { toast } = useToast();
@@ -63,6 +63,21 @@ export default function AdminResults() {
   } | null>(null);
   const [derogationValue, setDerogationValue] = useState("");
   const [derogationJustification, setDerogationJustification] = useState("");
+
+  const [previewSubject, setPreviewSubject] = useState<{
+    subjectId: number; subjectName: string; classId: number; className: string;
+  } | null>(null);
+
+  const previewGrades = useMemo(() => {
+    if (!previewSubject) return [];
+    return (results as any[])
+      .filter((r) => r.classId === previewSubject.classId)
+      .map((r) => {
+        const grade = (r.grades ?? []).find((g: any) => g.subjectId === previewSubject.subjectId);
+        return { studentName: r.studentName, value: grade?.value ?? null, rank: r.rank };
+      })
+      .sort((a, b) => a.studentName.localeCompare(b.studentName, "fr"));
+  }, [previewSubject, results]);
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["/api/admin/results"] });
@@ -271,8 +286,8 @@ export default function AdminResults() {
                     const approved = approvedSet.has(key);
                     const approval = (approvals as any[]).find((a) => a.subjectId === subjectId && a.classId === classId);
                     return (
-                      <div key={key} className="flex items-center justify-between px-6 py-3 hover:bg-muted/30 transition-colors">
-                        <div>
+                      <div key={key} className="flex items-center justify-between px-6 py-3 hover:bg-muted/30 transition-colors gap-4">
+                        <div className="min-w-0">
                           <span className="font-medium text-sm text-foreground">{subjectName}</span>
                           <span className="text-xs text-muted-foreground ml-2">— {className}</span>
                           {approved && (
@@ -281,17 +296,27 @@ export default function AdminResults() {
                             </p>
                           )}
                         </div>
-                        <Button
-                          size="sm"
-                          variant={approved ? "outline" : "default"}
-                          className={approved ? "border-emerald-300 text-emerald-700 hover:bg-emerald-50" : ""}
-                          onClick={() => approved ? handleUnapprove(subjectId, classId) : handleApprove(subjectId, classId)}
-                          disabled={approveSubject.isPending || unapproveSubject.isPending}
-                        >
-                          {approved
-                            ? <><Unlock className="w-3 h-3 mr-1.5" />Déverrouiller</>
-                            : <><Lock className="w-3 h-3 mr-1.5" />Approuver</>}
-                        </Button>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="text-muted-foreground hover:text-foreground"
+                            onClick={() => setPreviewSubject({ subjectId, subjectName, classId, className })}
+                          >
+                            <Eye className="w-3.5 h-3.5 mr-1.5" />Voir les notes
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant={approved ? "outline" : "default"}
+                            className={approved ? "border-emerald-300 text-emerald-700 hover:bg-emerald-50" : ""}
+                            onClick={() => approved ? handleUnapprove(subjectId, classId) : handleApprove(subjectId, classId)}
+                            disabled={approveSubject.isPending || unapproveSubject.isPending}
+                          >
+                            {approved
+                              ? <><Unlock className="w-3 h-3 mr-1.5" />Déverrouiller</>
+                              : <><Lock className="w-3 h-3 mr-1.5" />Approuver</>}
+                          </Button>
+                        </div>
                       </div>
                     );
                   })}
@@ -585,6 +610,76 @@ export default function AdminResults() {
               </Button>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Preview grades modal */}
+      <Dialog open={!!previewSubject} onOpenChange={(o) => { if (!o) setPreviewSubject(null); }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Eye className="w-4 h-4 text-primary" />
+              {previewSubject?.subjectName}
+              <span className="text-muted-foreground font-normal text-sm">— {previewSubject?.className}</span>
+            </DialogTitle>
+          </DialogHeader>
+          <div className="mt-2">
+            {previewGrades.length === 0 ? (
+              <div className="flex flex-col items-center py-10 text-muted-foreground">
+                <Search className="w-8 h-8 mb-2 opacity-30" />
+                <p className="text-sm">Aucune note saisie pour cette matière.</p>
+              </div>
+            ) : (
+              <div className="border rounded-xl overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-secondary/40 text-xs uppercase tracking-wide text-muted-foreground">
+                    <tr>
+                      <th className="px-4 py-2.5 text-left font-semibold">Étudiant</th>
+                      <th className="px-4 py-2.5 text-center font-semibold w-28">Note /20</th>
+                      <th className="px-4 py-2.5 text-center font-semibold w-20">Statut</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {previewGrades.map((g, i) => {
+                      const hasGrade = g.value !== null;
+                      const passing = hasGrade && g.value! >= 10;
+                      return (
+                        <tr key={i} className="hover:bg-muted/40">
+                          <td className="px-4 py-2.5 font-medium">{g.studentName}</td>
+                          <td className="px-4 py-2.5 text-center">
+                            {hasGrade ? (
+                              <span className={`font-mono font-bold ${passing ? "text-emerald-600" : "text-destructive"}`}>
+                                {g.value!.toFixed(2)}
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground italic text-xs">Non saisie</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-2.5 text-center">
+                            {!hasGrade ? (
+                              <span className="inline-block text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full">—</span>
+                            ) : passing ? (
+                              <span className="inline-block text-xs bg-emerald-100 text-emerald-700 font-semibold px-2 py-0.5 rounded-full">Validée</span>
+                            ) : (
+                              <span className="inline-block text-xs bg-red-100 text-red-700 font-semibold px-2 py-0.5 rounded-full">Échec</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                  <tfoot className="bg-secondary/20 border-t">
+                    <tr>
+                      <td className="px-4 py-2 text-xs text-muted-foreground" colSpan={3}>
+                        {previewGrades.filter((g) => g.value !== null).length} / {previewGrades.length} notes saisies ·{" "}
+                        {previewGrades.filter((g) => g.value !== null && g.value >= 10).length} ≥ 10/20
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </AppLayout>
