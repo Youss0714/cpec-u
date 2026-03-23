@@ -281,23 +281,32 @@ export default function AnnualPromotionPage() {
 
         {/* Steps indicator */}
         <div className="flex items-center gap-2">
-          {[
+          {([ 
             { key: "select", label: "Sélection" },
             { key: "preview", label: "Délibération" },
             { key: "done", label: "Résultats" },
-          ].map((s, i, arr) => (
-            <div key={s.key} className="flex items-center gap-2">
-              <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${
-                step === s.key
-                  ? "bg-blue-600 text-white"
-                  : (arr.findIndex(x => x.key === step) > i ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-400")
-              }`}>
-                <span>{i + 1}</span>
-                <span>{s.label}</span>
+          ] as const).map((s, i, arr) => {
+            const currentIdx = arr.findIndex(x => x.key === step);
+            const isPast = currentIdx > i;
+            const isCurrent = step === s.key;
+            return (
+              <div key={s.key} className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => isPast ? setStep(s.key) : undefined}
+                  disabled={!isPast && !isCurrent}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors select-none
+                    ${isCurrent ? "bg-blue-600 text-white cursor-default" :
+                      isPast ? "bg-green-100 text-green-700 hover:bg-green-200 cursor-pointer" :
+                      "bg-gray-100 text-gray-400 cursor-default"}`}
+                >
+                  <span>{i + 1}</span>
+                  <span>{s.label}</span>
+                </button>
+                {i < arr.length - 1 && <ArrowRight className="w-3.5 h-3.5 text-gray-300" />}
               </div>
-              {i < arr.length - 1 && <ArrowRight className="w-3.5 h-3.5 text-gray-300" />}
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         {/* Step 1: Select academic year */}
