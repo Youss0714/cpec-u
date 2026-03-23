@@ -6,6 +6,7 @@ import { db } from "@workspace/db";
 import { messagesTable, usersTable, classesTable, classEnrollmentsTable, notificationsTable } from "@workspace/db";
 import { eq, and, or, desc, isNull, sql } from "drizzle-orm";
 import { requireAuth } from "../lib/auth.js";
+import { sendPushToUsers, sendPushToUser } from "./push.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const UPLOADS_DIR = path.join(__dirname, "../../uploads");
@@ -202,6 +203,9 @@ router.post("/messages/class/:classId", requireAuth, async (req, res) => {
     }));
     await db.insert(notificationsTable).values(notifValues);
 
+    const studentIds = enrollments.map(e => e.studentId);
+    sendPushToUsers(studentIds, { title: `Nouveau message de ${senderName}`, body: preview, type: "message" }).catch(() => {});
+
     res.json({ sent: enrollments.length });
   } catch (err) {
     console.error(err);
@@ -319,12 +323,15 @@ router.post("/messages", requireAuth, async (req, res) => {
     // Create notification for recipient
     const contentStr = content?.trim() || "";
     const preview = (contentStr.length > 80 ? contentStr.slice(0, 80) + "…" : contentStr) || `📎 ${fileName}`;
+    const msgTitle = `Nouveau message de ${sender?.name ?? "l'administration"}`;
     await db.insert(notificationsTable).values({
       userId: recipientId,
       type: "message",
-      title: `Nouveau message de ${sender?.name ?? "l'administration"}`,
+      title: msgTitle,
       message: preview,
     });
+
+    sendPushToUser(recipientId, { title: msgTitle, body: preview, type: "message" }).catch(() => {});
 
     res.json(msg);
   } catch (err) {

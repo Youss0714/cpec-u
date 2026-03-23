@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
 import { fr } from "date-fns/locale";
 import { useLocation } from "wouter";
+import { PushNotificationToggle } from "@/components/push-notification-toggle";
 
 function NotifIcon({ type }: { type: string }) {
   if (type === "schedule_published") return <Calendar className="w-5 h-5 text-blue-500" />;
@@ -51,7 +52,7 @@ export default function NotificationsPage() {
   return (
     <AppLayout allowedRoles={["student"]}>
       <div className="max-w-2xl mx-auto space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-4 flex-wrap">
           <div>
             <h1 className="text-3xl font-serif font-bold">Notifications</h1>
             {unreadCount > 0 && (
@@ -60,18 +61,21 @@ export default function NotificationsPage() {
               </p>
             )}
           </div>
-          {unreadCount > 0 && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleMarkAll}
-              disabled={markAll.isPending}
-              className="gap-2"
-            >
-              {markAll.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCheck className="w-4 h-4" />}
-              Tout marquer lu
-            </Button>
-          )}
+          <div className="flex items-center gap-2 flex-wrap">
+            <PushNotificationToggle />
+            {unreadCount > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleMarkAll}
+                disabled={markAll.isPending}
+                className="gap-2"
+              >
+                {markAll.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCheck className="w-4 h-4" />}
+                Tout marquer lu
+              </Button>
+            )}
+          </div>
         </div>
 
         {isLoading ? (

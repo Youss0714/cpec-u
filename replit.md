@@ -115,7 +115,20 @@ artifacts-monorepo/
 ## UI Features
 
 - **Mode sombre** : toggle Sun/Moon in sidebar bottom → adds/removes `dark` class on `document.documentElement`, persisted in localStorage (`cpec-dark-mode`). Detects system preference on first load.
-- **Dark mode CSS**: Tailwind's `darkMode: "class"` must be set in tailwind.config.
+- **Dark mode CSS**: Uses `@custom-variant dark (&:is(.dark *))` in index.css (Tailwind v4 config-less approach).
+
+## PWA Push Notifications (#17)
+
+- **Service Worker** (`public/sw.js`): handles `push` events (shows native browser notifications) and `notificationclick` (focuses existing window or opens new one).
+- **Service Worker Registration**: `main.tsx` registers `sw.js` at app startup.
+- **VAPID keys**: stored as env vars `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_EMAIL` (shared environment).
+- **DB table**: `push_subscriptions` (userId, endpoint, p256dh, auth) — unique on endpoint.
+- **API endpoints**:
+  - `GET /api/push/vapid-public-key` — public key for frontend subscription
+  - `POST /api/push/subscribe` — upserts a subscription for the authenticated user
+  - `DELETE /api/push/unsubscribe` — removes a subscription
+- **Backend helper**: `sendPushToUser(userId, payload)` and `sendPushToUsers(userIds, payload)` in `push.ts`; called fire-and-forget from `notifyStudentsOfClasses`, `notifyAllStudents`, messages, and justification decisions.
+- **Frontend component**: `PushNotificationToggle` in `/student/notifications` header — requests permission, subscribes via Push API, saves subscription to backend, provides unsubscribe toggle.
 
 ## Business Logic
 

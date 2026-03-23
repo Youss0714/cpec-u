@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import { notificationsTable, classEnrollmentsTable, scheduleEntriesTable, usersTable } from "@workspace/db";
 import { eq, and, desc, inArray } from "drizzle-orm";
 import { requireRole } from "../lib/auth.js";
+import { sendPushToUsers } from "./push.js";
 
 const router = Router();
 
@@ -90,6 +91,9 @@ export async function notifyStudentsOfClasses(
   await db.insert(notificationsTable).values(
     studentIds.map(userId => ({ userId, type, title, message }))
   );
+
+  // Also send push notifications (fire and forget)
+  sendPushToUsers(studentIds, { title, body: message, type }).catch(() => {});
 }
 
 // ─── Helper: notify all students (no filter) ──────────────────────────────────
@@ -102,6 +106,9 @@ export async function notifyAllStudents(type: string, title: string, message: st
   await db.insert(notificationsTable).values(
     students.map(s => ({ userId: s.id, type, title, message }))
   );
+
+  const studentIds = students.map(s => s.id);
+  sendPushToUsers(studentIds, { title, body: message, type }).catch(() => {});
 }
 
 // ─── Helper: notify students enrolled in classes that have entries for a semester ─

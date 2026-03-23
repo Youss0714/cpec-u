@@ -20,3 +20,4 @@ export * from "./grade_submissions";
 export * from "./archives";
 export * from "./ecoles_inphb";
 export * from "./absence_justifications";
+export * from "./push_subscriptions";

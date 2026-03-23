@@ -3,6 +3,7 @@ import crypto from "crypto";
 import { db } from "@workspace/db";
 import { generateBulletinHTML } from "../lib/bulletin-html.js";
 import { notifyStudentsOfClasses } from "./notifications.js";
+import { sendPushToUser } from "./push.js";
 import {
   usersTable,
   classesTable,
@@ -1859,6 +1860,8 @@ router.put("/justifications/:id", requireRole("admin"), async (req, res) => {
       title: notifTitle,
       message: notifMessage,
     });
+
+    sendPushToUser(just.studentId, { title: notifTitle, body: notifMessage, type: status === "approved" ? "justification_approved" : "justification_rejected" }).catch(() => {});
 
     res.json(updated);
   } catch (err) {
