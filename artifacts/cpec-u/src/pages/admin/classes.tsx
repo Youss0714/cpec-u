@@ -427,7 +427,7 @@ export default function AdminClasses() {
 
       {selectedClass && (
         <ClassStudentsSheet
-          cls={selectedClass}
+          cls={(classes as unknown as ClassItem[])?.find(c => c.id === selectedClass.id) ?? selectedClass}
           open={!!selectedClass}
           onClose={() => setSelectedClass(null)}
           allClasses={(classes as unknown as ClassItem[]) ?? []}
