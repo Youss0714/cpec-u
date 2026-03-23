@@ -303,6 +303,7 @@ export function generateBulletinHTML(data: BulletinData): string {
     body {
       font-family: Arial, Helvetica, sans-serif;
       font-size: 9pt;
+      color: #1A1A1A;
       background: #b0b0b0;
     }
 
@@ -339,7 +340,7 @@ export function generateBulletinHTML(data: BulletinData): string {
       width: 210mm;
       min-height: 297mm;
       margin: 16px auto;
-      background: white;
+      background: #FDFCF0;
       padding: 8mm 10mm 6mm;
       position: relative;
       overflow: hidden;
@@ -398,7 +399,7 @@ export function generateBulletinHTML(data: BulletinData): string {
     /* ── Title bar ── */
     .title-bar {
       background: #dce6f1;
-      border: 1px solid #333;
+      border: 1px solid #1A1A1A;
       padding: 4px 8px;
       display: flex;
       justify-content: space-between;
@@ -418,7 +419,7 @@ export function generateBulletinHTML(data: BulletinData): string {
     .student-left { font-size: 7.5pt; line-height: 1.65; }
     .student-left strong { font-size: 8pt; }
     .student-right {
-      border: 1px solid #555;
+      border: 1px solid #1A1A1A;
       padding: 5px 8px;
       font-size: 7.5pt;
       line-height: 1.7;
@@ -437,7 +438,7 @@ export function generateBulletinHTML(data: BulletinData): string {
       font-size: 8pt;
     }
     .notes-table th, .notes-table td {
-      border: 1px solid #333;
+      border: 1px solid #1A1A1A;
       padding: 0;
     }
     /* Column widths */
@@ -449,7 +450,7 @@ export function generateBulletinHTML(data: BulletinData): string {
 
     /* Header row */
     .notes-table thead th {
-      background: #e8e8e8;
+      background: #E8ECEF;
       font-size: 7.5pt;
       text-align: center;
       padding: 3px 3px;
@@ -460,7 +461,7 @@ export function generateBulletinHTML(data: BulletinData): string {
 
     /* Bloc title row */
     .bloc-title {
-      background: #e8e8e8;
+      background: #E8ECEF;
       font-weight: bold;
       font-size: 7.5pt;
       text-transform: uppercase;
@@ -469,7 +470,7 @@ export function generateBulletinHTML(data: BulletinData): string {
     }
 
     /* UE row */
-    .ue-row td { background: #dce6f1; }
+    .ue-row td { background: #E8ECEF; }
     .ue-label {
       font-weight: bold;
       font-style: italic;
@@ -482,7 +483,7 @@ export function generateBulletinHTML(data: BulletinData): string {
     }
 
     /* Subject row */
-    .subject-row td { background: white; }
+    .subject-row td { background: #FDFCF0; }
     .subject-name {
       padding: 2px 4px 2px 14px !important;
       font-size: 7.5pt;
@@ -492,8 +493,8 @@ export function generateBulletinHTML(data: BulletinData): string {
     .num { text-align: center; padding: 2px 3px !important; }
 
     /* Result rows */
-    .result-row td { background: #f5f5f5; }
-    .result-row.result-bold td { background: #eaf4eb; }
+    .result-row td { background: #F0EFE8; }
+    .result-row.result-bold td { background: #E8F2E9; }
     .result-label {
       font-size: 7.5pt;
       padding: 3px 6px !important;
@@ -507,7 +508,7 @@ export function generateBulletinHTML(data: BulletinData): string {
     .jury-cell {
       vertical-align: top;
       padding: 0 !important;
-      border: 1px solid #333;
+      border: 1px solid #1A1A1A;
     }
     .jury-inner {
       display: flex;
@@ -516,12 +517,12 @@ export function generateBulletinHTML(data: BulletinData): string {
       min-height: 120px;
     }
     .jury-header {
-      background: #d9d9d9;
+      background: #E8ECEF;
       font-weight: bold;
       font-size: 6.5pt;
       text-align: center;
       padding: 4px 4px;
-      border-bottom: 1px solid #333;
+      border-bottom: 1px solid #1A1A1A;
       text-transform: uppercase;
       letter-spacing: 0.3px;
       line-height: 1.4;
@@ -591,7 +592,7 @@ export function generateBulletinHTML(data: BulletinData): string {
     /* ── Footer ── */
     .footer-sep {
       border: none;
-      border-top: 1.5px solid #1a3a6b;
+      border-top: 1.5px solid #1A1A1A;
       margin: 6px 0 3px;
     }
     .footer-campuses {
@@ -611,7 +612,7 @@ export function generateBulletinHTML(data: BulletinData): string {
 
     /* ── Print ── */
     @media print {
-      body { background: white; font-size: 9pt; }
+      body { background: #FDFCF0; color: #1A1A1A; font-size: 9pt; }
       .no-print { display: none !important; }
       .page {
         margin: 0;
@@ -619,6 +620,7 @@ export function generateBulletinHTML(data: BulletinData): string {
         box-shadow: none;
         width: 210mm;
         min-height: 297mm;
+        background: #FDFCF0;
       }
       @page { size: A4 portrait; margin: 0; }
     }
