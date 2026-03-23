@@ -1169,14 +1169,15 @@ export default function AdminUsers() {
                   <TableHead>Email</TableHead>
                   <TableHead>Rôle</TableHead>
                   <TableHead>Sous-rôle / Classe</TableHead>
+                  {activeTab === "students" && <TableHead>Matricule</TableHead>}
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading ? (
-                  <TableRow><TableCell colSpan={5} className="text-center py-10 text-muted-foreground">Chargement...</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={activeTab === "students" ? 6 : 5} className="text-center py-10 text-muted-foreground">Chargement...</TableCell></TableRow>
                 ) : listToShow.length === 0 ? (
-                  <TableRow><TableCell colSpan={5} className="text-center py-10 text-muted-foreground">Aucun utilisateur</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={activeTab === "students" ? 6 : 5} className="text-center py-10 text-muted-foreground">Aucun utilisateur</TableCell></TableRow>
                 ) : listToShow.map((u: any) => (
                   <TableRow key={u.id} className="hover:bg-muted/30">
                     <TableCell className="font-semibold">{u.name}</TableCell>
@@ -1200,6 +1201,13 @@ export default function AdminUsers() {
                         ? <span className="text-sm text-muted-foreground">{u.className}</span>
                         : <span className="text-muted-foreground">—</span>}
                     </TableCell>
+                    {activeTab === "students" && (
+                      <TableCell>
+                        {u.matricule
+                          ? <span className="font-mono text-xs bg-muted px-2 py-0.5 rounded border border-border text-foreground">{u.matricule}</span>
+                          : <span className="text-muted-foreground text-xs italic">—</span>}
+                      </TableCell>
+                    )}
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1">
                         {(u.role === "student" || u.role === "teacher") && (
