@@ -4,6 +4,7 @@ import {
   useListSemesters,
   useGetAnnualPromotionPreview,
   useLaunchAnnualPromotion,
+  useRollbackAnnualPromotion,
   type AnnualPromotionClassPreview,
   type AnnualPromotionResponse,
 } from "@workspace/api-client-react";
@@ -41,6 +42,7 @@ import {
   Search,
   Users,
   AlertTriangle,
+  Undo2,
 } from "lucide-react";
 
 type Step = "select" | "preview" | "done";
@@ -202,7 +204,9 @@ export default function AnnualPromotionPage() {
   const [step, setStep] = useState<Step>("select");
   const [selectedYear, setSelectedYear] = useState("");
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [rollbackConfirmOpen, setRollbackConfirmOpen] = useState(false);
   const [launchResult, setLaunchResult] = useState<AnnualPromotionResponse | null>(null);
+  const [reverted, setReverted] = useState(false);
 
   const { data: semesters } = useListSemesters();
   const academicYears = useMemo(() => {
@@ -219,12 +223,29 @@ export default function AnnualPromotionPage() {
     onSuccess: (data) => {
       setLaunchResult(data);
       setConfirmOpen(false);
+      setReverted(false);
       setStep("done");
       qc.invalidateQueries({ queryKey: ["/api/admin/semesters"] });
     },
     onError: (err: any) => {
       toast({ title: "Erreur", description: err?.message ?? "Une erreur est survenue.", variant: "destructive" });
       setConfirmOpen(false);
+    },
+  });
+
+  const rollbackMutation = useRollbackAnnualPromotion({
+    onSuccess: (data) => {
+      setReverted(true);
+      setRollbackConfirmOpen(false);
+      qc.invalidateQueries({ queryKey: ["/api/admin/semesters"] });
+      toast({
+        title: "Promotion révoquée",
+        description: `${data.totalReverted} étudiant${data.totalReverted > 1 ? "s remis" : " remis"} dans leur classe d'origine.`,
+      });
+    },
+    onError: (err: any) => {
+      toast({ title: "Erreur", description: err?.message ?? "Échec de la révocation.", variant: "destructive" });
+      setRollbackConfirmOpen(false);
     },
   });
 
@@ -398,20 +419,51 @@ export default function AnnualPromotionPage() {
         {/* Step 3: Done */}
         {step === "done" && launchResult && (
           <div className="space-y-5">
-            <div className="bg-white rounded-2xl border border-green-200 shadow-sm p-6">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-green-100 rounded-xl">
-                  <CheckCircle2 className="w-6 h-6 text-green-600" />
-                </div>
-                <div>
-                  <h2 className="text-base font-semibold text-gray-900">Promotion annuelle terminée</h2>
-                  <p className="text-sm text-gray-500 mt-0.5">
-                    Année <span className="font-semibold text-blue-600">{launchResult.academicYear}</span> ·{" "}
-                    <span className="font-semibold text-green-600">{launchResult.totalPromoted} étudiant{launchResult.totalPromoted > 1 ? "s" : ""}</span> promu{launchResult.totalPromoted > 1 ? "s" : ""}
-                  </p>
+            {/* Result summary banner */}
+            {reverted ? (
+              <div className="bg-white rounded-2xl border border-orange-200 shadow-sm p-5">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-orange-100 rounded-xl">
+                    <Undo2 className="w-5 h-5 text-orange-600" />
+                  </div>
+                  <div>
+                    <h2 className="text-base font-semibold text-gray-900">Promotion révoquée</h2>
+                    <p className="text-sm text-gray-500 mt-0.5">
+                      Les étudiants promus en <span className="font-semibold text-blue-600">{launchResult.academicYear}</span> ont été remis dans leur classe d'origine.
+                    </p>
+                  </div>
                 </div>
               </div>
-            </div>
+            ) : (
+              <div className="bg-white rounded-2xl border border-green-200 shadow-sm p-5">
+                <div className="flex items-center justify-between flex-wrap gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-green-100 rounded-xl">
+                      <CheckCircle2 className="w-5 h-5 text-green-600" />
+                    </div>
+                    <div>
+                      <h2 className="text-base font-semibold text-gray-900">Promotion annuelle terminée</h2>
+                      <p className="text-sm text-gray-500 mt-0.5">
+                        Année <span className="font-semibold text-blue-600">{launchResult.academicYear}</span> ·{" "}
+                        <span className="font-semibold text-green-600">{launchResult.totalPromoted} étudiant{launchResult.totalPromoted > 1 ? "s" : ""}</span> promu{launchResult.totalPromoted > 1 ? "s" : ""}
+                      </p>
+                    </div>
+                  </div>
+                  {launchResult.totalPromoted > 0 && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setRollbackConfirmOpen(true)}
+                      disabled={rollbackMutation.isPending}
+                      className="gap-2 text-orange-600 border-orange-300 hover:bg-orange-50 hover:border-orange-400"
+                    >
+                      <Undo2 className="w-4 h-4" />
+                      Révoquer cette promotion
+                    </Button>
+                  )}
+                </div>
+              </div>
+            )}
 
             <div className="space-y-3">
               {launchResult.results.map(r => (
@@ -422,7 +474,7 @@ export default function AnnualPromotionPage() {
             <div className="flex justify-end">
               <Button
                 variant="outline"
-                onClick={() => { setStep("select"); setSelectedYear(""); setLaunchResult(null); }}
+                onClick={() => { setStep("select"); setSelectedYear(""); setLaunchResult(null); setReverted(false); }}
               >
                 Nouvelle promotion
               </Button>
@@ -451,7 +503,7 @@ export default function AnnualPromotionPage() {
                   Les étudiants avec des notes manquantes ne seront pas promus.
                 </p>
               )}
-              <p className="text-gray-500">Cette opération ne peut pas être annulée. Confirmez-vous ?</p>
+              <p className="text-gray-500 text-xs">Une révocation sera possible immédiatement après si nécessaire.</p>
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -465,6 +517,40 @@ export default function AnnualPromotionPage() {
             >
               <Rocket className="w-4 h-4" />
               {launchMutation.isPending ? "En cours…" : "Confirmer la promotion"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Rollback Confirmation Dialog */}
+      <Dialog open={rollbackConfirmOpen} onOpenChange={setRollbackConfirmOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Undo2 className="w-5 h-5 text-orange-500" />
+              Révoquer la promotion
+            </DialogTitle>
+            <DialogDescription className="space-y-2 text-sm pt-1">
+              <p>
+                Vous allez <strong>révoquer la promotion annuelle {launchResult?.academicYear}</strong>.
+              </p>
+              <p>
+                Les <strong className="text-orange-700">{launchResult?.totalPromoted} étudiant{(launchResult?.totalPromoted ?? 0) > 1 ? "s" : ""}</strong> promus seront remis dans leur classe d'origine.
+              </p>
+              <p className="text-gray-500">Cette action remet le système dans l'état avant la promotion. Confirmez-vous ?</p>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRollbackConfirmOpen(false)} disabled={rollbackMutation.isPending}>
+              Annuler
+            </Button>
+            <Button
+              onClick={() => launchResult && rollbackMutation.mutate({ academicYear: launchResult.academicYear, results: launchResult.results })}
+              disabled={rollbackMutation.isPending}
+              className="gap-2 bg-orange-500 hover:bg-orange-600 text-white"
+            >
+              <Undo2 className="w-4 h-4" />
+              {rollbackMutation.isPending ? "Révocation…" : "Confirmer la révocation"}
             </Button>
           </DialogFooter>
         </DialogContent>

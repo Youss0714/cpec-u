@@ -794,6 +794,7 @@ router.post("/annual-promotion", requireRole("admin"), async (req, res) => {
       results.push({
         classId: cls.id,
         className: cls.name,
+        nextClassId: cls.nextClassId!,
         nextClassName: nextCls?.name ?? "—",
         promoted,
         notPromoted,
@@ -807,6 +808,51 @@ router.post("/annual-promotion", requireRole("admin"), async (req, res) => {
     });
 
     res.json({ academicYear, results, totalPromoted });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// POST /admin/annual-promotion/rollback — reverse a previously launched promotion
+router.post("/annual-promotion/rollback", requireRole("admin"), async (req, res) => {
+  try {
+    const cu = req.session.user!;
+    if (cu.adminSubRole !== "scolarite" && cu.adminSubRole !== "directeur") {
+      res.status(403).json({ error: "Réservé au Assistant(e) de Direction." }); return;
+    }
+
+    // Expects: { academicYear, results: [{classId, nextClassId, promoted: [{id}]}] }
+    const { academicYear, results } = req.body as {
+      academicYear: string;
+      results: { classId: number; nextClassId: number; promoted: { id: number; name: string }[] }[];
+    };
+
+    if (!academicYear || !Array.isArray(results)) {
+      res.status(400).json({ error: "Données de révocation invalides." }); return;
+    }
+
+    let totalReverted = 0;
+
+    for (const entry of results) {
+      for (const student of entry.promoted) {
+        // Remove from promoted class
+        await db.delete(classEnrollmentsTable).where(
+          and(eq(classEnrollmentsTable.studentId, student.id), eq(classEnrollmentsTable.classId, entry.nextClassId))
+        );
+        // Restore to original class
+        await db.insert(classEnrollmentsTable).values({ studentId: student.id, classId: entry.classId }).onConflictDoNothing();
+        totalReverted++;
+      }
+    }
+
+    await db.insert(activityLogTable).values({
+      userId: cu.id,
+      action: "revocation_promotion_annuelle",
+      details: `Révocation promotion annuelle ${academicYear} : ${totalReverted} étudiant(s) remis dans leur classe d'origine.`,
+    });
+
+    res.json({ ok: true, totalReverted, academicYear });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Internal Server Error" });

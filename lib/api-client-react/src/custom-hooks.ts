@@ -762,6 +762,7 @@ export type AnnualPromotionPreviewResponse = {
 export type AnnualPromotionResult = {
   classId: number;
   className: string;
+  nextClassId: number;
   nextClassName: string;
   promoted: { id: number; name: string }[];
   notPromoted: { name: string; reason: string }[];
@@ -785,6 +786,20 @@ export const useLaunchAnnualPromotion = (options?: UseMutationOptions<AnnualProm
   useMutation<AnnualPromotionResponse, Error, { academicYear: string }>({
     mutationFn: (body) =>
       customFetch<AnnualPromotionResponse>("/api/admin/annual-promotion", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      }),
+    ...options,
+  });
+
+export type RollbackRequest = { academicYear: string; results: AnnualPromotionResult[] };
+export type RollbackResponse = { ok: boolean; totalReverted: number; academicYear: string };
+
+export const useRollbackAnnualPromotion = (options?: UseMutationOptions<RollbackResponse, Error, RollbackRequest>) =>
+  useMutation<RollbackResponse, Error, RollbackRequest>({
+    mutationFn: (body) =>
+      customFetch<RollbackResponse>("/api/admin/annual-promotion/rollback", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
