@@ -293,12 +293,12 @@ router.post("/classes", requireRole("admin"), async (req, res) => {
       res.status(403).json({ error: "Forbidden", message: "L'Assistant(e) de Direction ne peut pas créer de classe." });
       return;
     }
-    const { name, description } = req.body;
+    const { name, description, filiere } = req.body;
     if (!name) { res.status(400).json({ error: "Bad Request", message: "Name is required" }); return; }
     // New class gets orderIndex = max + 1
     const existing = await db.select({ o: classesTable.orderIndex }).from(classesTable);
     const maxOrder = existing.length > 0 ? Math.max(...existing.map((c) => c.o)) : 0;
-    const [cls] = await db.insert(classesTable).values({ name, description, orderIndex: maxOrder + 1 }).returning();
+    const [cls] = await db.insert(classesTable).values({ name, description, filiere: filiere?.trim() || null, orderIndex: maxOrder + 1 }).returning();
     res.status(201).json({ ...cls, studentCount: 0 });
   } catch (err) {
     console.error(err);
@@ -339,8 +339,9 @@ router.post("/classes/:id/move", requireRole("admin"), async (req, res) => {
 router.put("/classes/:id", requireRole("admin"), async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    const { name, description, nextClassId, isTerminal } = req.body;
+    const { name, description, nextClassId, isTerminal, filiere } = req.body;
     const updateData: any = { name, description };
+    if (filiere !== undefined) updateData.filiere = filiere?.trim() || null;
     if (nextClassId !== undefined) {
       updateData.nextClassId = nextClassId === null || nextClassId === "" ? null : parseInt(nextClassId);
     }

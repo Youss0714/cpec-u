@@ -14,11 +14,11 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Trash2, Users, UserPlus, UserMinus, ChevronRight, BookOpen, ChevronUp, ChevronDown, GraduationCap } from "lucide-react";
+import { Plus, Trash2, Users, UserPlus, UserMinus, ChevronRight, BookOpen, ChevronUp, ChevronDown, GraduationCap, Pencil, Check, X } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Textarea } from "@/components/ui/textarea";
 
-type ClassItem = { id: number; name: string; description: string | null; studentCount: number; nextClassId: number | null; isTerminal: boolean };
+type ClassItem = { id: number; name: string; description: string | null; filiere: string | null; studentCount: number; nextClassId: number | null; isTerminal: boolean };
 
 function ClassStudentsSheet({
   cls, open, onClose, allClasses,
@@ -31,6 +31,9 @@ function ClassStudentsSheet({
   const [selectedStudentId, setSelectedStudentId] = useState<string>("");
   const [savingNextClass, setSavingNextClass] = useState(false);
   const [pendingRemoveStudent, setPendingRemoveStudent] = useState<{ id: number; name: string } | null>(null);
+  const [editingFiliere, setEditingFiliere] = useState(false);
+  const [filiereInput, setFiliereInput] = useState(cls.filiere ?? "");
+  const [savingFiliere, setSavingFiliere] = useState(false);
   const updateClassMutation = useUpdateClassConfig();
 
   const { data: students = [], isLoading } = useGetClassStudents(cls.id, {
@@ -48,6 +51,20 @@ function ClassStudentsSheet({
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: [`/api/admin/classes/${cls.id}/students`] });
     qc.invalidateQueries({ queryKey: ["/api/admin/classes"] });
+  };
+
+  const handleSaveFiliere = async () => {
+    setSavingFiliere(true);
+    try {
+      await updateClassMutation.mutateAsync({ id: cls.id, filiere: filiereInput.trim() || null });
+      toast({ title: "Filière mise à jour." });
+      qc.invalidateQueries({ queryKey: ["/api/admin/classes"] });
+      setEditingFiliere(false);
+    } catch {
+      toast({ title: "Erreur lors de la mise à jour.", variant: "destructive" });
+    } finally {
+      setSavingFiliere(false);
+    }
   };
 
   const handleSetNextClass = async (nextClassIdStr: string) => {
@@ -110,6 +127,38 @@ function ClassStudentsSheet({
         </SheetHeader>
 
         <div className="mt-6 space-y-6">
+          {/* Filière */}
+          <div className="space-y-2 pb-5 border-b">
+            <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">Filière</h3>
+            {editingFiliere ? (
+              <div className="flex gap-2 items-center">
+                <Input
+                  className="flex-1"
+                  value={filiereInput}
+                  onChange={e => setFiliereInput(e.target.value)}
+                  placeholder="Ex : Comptabilité et Gestion Financière"
+                  onKeyDown={e => { if (e.key === "Enter") handleSaveFiliere(); if (e.key === "Escape") { setEditingFiliere(false); setFiliereInput(cls.filiere ?? ""); } }}
+                  autoFocus
+                />
+                <Button size="icon" variant="default" onClick={handleSaveFiliere} disabled={savingFiliere} className="h-8 w-8 shrink-0">
+                  <Check className="w-4 h-4" />
+                </Button>
+                <Button size="icon" variant="ghost" onClick={() => { setEditingFiliere(false); setFiliereInput(cls.filiere ?? ""); }} className="h-8 w-8 shrink-0">
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between gap-2 p-3 bg-muted/40 rounded-lg border border-border/60">
+                <span className={`text-sm ${cls.filiere ? "font-semibold text-foreground" : "text-muted-foreground italic"}`}>
+                  {cls.filiere || "Aucune filière définie"}
+                </span>
+                <Button size="icon" variant="ghost" className="h-7 w-7 shrink-0 text-muted-foreground hover:text-foreground" onClick={() => { setFiliereInput(cls.filiere ?? ""); setEditingFiliere(true); }}>
+                  <Pencil className="w-3.5 h-3.5" />
+                </Button>
+              </div>
+            )}
+          </div>
+
           {/* Cycle config */}
           <div className="space-y-3 pb-5 border-b">
             <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">
@@ -287,8 +336,9 @@ export default function AdminClasses() {
       await createClass.mutateAsync({
         data: {
           name: formData.get("name") as string,
+          filiere: (formData.get("filiere") as string) || undefined,
           description: formData.get("description") as string || undefined,
-        }
+        } as any,
       });
       toast({ title: "Classe créée avec succès" });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/classes"] });
@@ -336,8 +386,12 @@ export default function AdminClasses() {
                   <Input id="name" name="name" required />
                 </div>
                 <div className="space-y-2">
+                  <Label htmlFor="filiere">Filière <span className="text-muted-foreground font-normal">(optionnel)</span></Label>
+                  <Input id="filiere" name="filiere" placeholder="Ex : Comptabilité et Gestion Financière" />
+                </div>
+                <div className="space-y-2">
                   <Label htmlFor="description">Description</Label>
-                  <Textarea id="description" name="description" rows={3} />
+                  <Textarea id="description" name="description" rows={2} />
                 </div>
                 <Button type="submit" className="w-full" disabled={createClass.isPending}>
                   {createClass.isPending ? "Création..." : "Enregistrer"}
@@ -407,7 +461,12 @@ export default function AdminClasses() {
                       </span>
                     )}
                   </div>
-                  <p className="text-sm text-muted-foreground mt-2 line-clamp-2 h-10">
+                  {cls.filiere && (
+                    <p className="text-xs font-semibold text-primary/80 uppercase tracking-wide mt-1">
+                      {cls.filiere}
+                    </p>
+                  )}
+                  <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
                     {cls.description || "Aucune description"}
                   </p>
                 </div>

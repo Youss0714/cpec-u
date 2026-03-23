@@ -434,7 +434,7 @@ export const usePromoteAdmitted = (options?: UseMutationOptions<PromoteResponse,
 
 // ─── Update Class Config (next class) ────────────────────────────────────────
 
-export type UpdateClassConfigRequest = { id: number; name?: string; description?: string; nextClassId?: number | null; isTerminal?: boolean };
+export type UpdateClassConfigRequest = { id: number; name?: string; description?: string; nextClassId?: number | null; isTerminal?: boolean; filiere?: string | null };
 
 export const updateClassConfig = ({ id, ...data }: UpdateClassConfigRequest): Promise<any> =>
   customFetch<any>(`/api/admin/classes/${id}`, {
