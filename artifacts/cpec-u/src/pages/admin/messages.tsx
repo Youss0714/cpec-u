@@ -7,7 +7,10 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { MessageSquare, Send, Search, UserCircle2, GraduationCap, BookOpen, Plus, Users, CheckCircle2 } from "lucide-react";
+import {
+  MessageSquare, Send, Search, UserCircle2, GraduationCap, BookOpen, Plus, Users,
+  CheckCircle2, Paperclip, X, FileText, Sheet, Presentation, FileArchive, Download,
+} from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 async function apiFetch(path: string, options?: RequestInit) {
@@ -41,6 +44,59 @@ function formatTime(dateStr: string) {
   return d.toLocaleDateString("fr-FR", { day: "2-digit", month: "short" });
 }
 
+function formatSize(bytes: number) {
+  if (bytes < 1024) return `${bytes} o`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} Ko`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} Mo`;
+}
+
+function FileIcon({ type, className = "w-5 h-5" }: { type: string; className?: string }) {
+  if (type?.includes("pdf")) return <FileText className={`${className} text-red-500`} />;
+  if (type?.includes("word") || type?.includes("document")) return <FileText className={`${className} text-blue-500`} />;
+  if (type?.includes("excel") || type?.includes("sheet")) return <Sheet className={`${className} text-green-600`} />;
+  if (type?.includes("powerpoint") || type?.includes("presentation")) return <Presentation className={`${className} text-orange-500`} />;
+  return <FileArchive className={`${className} text-muted-foreground`} />;
+}
+
+function FileAttachment({ fileUrl, fileName, fileType, fileSize, isMe }: {
+  fileUrl: string; fileName: string; fileType: string; fileSize: number; isMe: boolean;
+}) {
+  return (
+    <a
+      href={fileUrl}
+      download={fileName}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={`flex items-center gap-2.5 rounded-xl p-2.5 mt-1 transition-colors ${
+        isMe
+          ? "bg-primary-foreground/15 hover:bg-primary-foreground/25"
+          : "bg-background/60 hover:bg-background border border-border/50"
+      }`}
+    >
+      <FileIcon type={fileType} />
+      <div className="flex-1 min-w-0">
+        <p className={`text-xs font-semibold truncate ${isMe ? "text-primary-foreground" : "text-foreground"}`}>
+          {fileName}
+        </p>
+        <p className={`text-[10px] ${isMe ? "text-primary-foreground/60" : "text-muted-foreground"}`}>
+          {formatSize(fileSize)}
+        </p>
+      </div>
+      <Download className={`w-4 h-4 flex-shrink-0 ${isMe ? "text-primary-foreground/70" : "text-muted-foreground"}`} />
+    </a>
+  );
+}
+
+const ALLOWED_TYPES = [
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.ms-powerpoint",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+];
+
 export default function AdminMessages() {
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
   const [messageText, setMessageText] = useState("");
@@ -48,6 +104,8 @@ export default function AdminMessages() {
   const [search, setSearch] = useState("");
   const [showNewDialog, setShowNewDialog] = useState(false);
   const [contactSearch, setContactSearch] = useState("");
+  const [pendingFile, setPendingFile] = useState<{ name: string; size: number; type: string; file: File } | null>(null);
+  const [uploading, setUploading] = useState(false);
   // Broadcast state
   const [broadcastClassId, setBroadcastClassId] = useState<number | null>(null);
   const [broadcastText, setBroadcastText] = useState("");
@@ -55,6 +113,7 @@ export default function AdminMessages() {
   const [broadcastSent, setBroadcastSent] = useState<number | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -105,22 +164,63 @@ export default function AdminMessages() {
     c.name?.toLowerCase().includes(contactSearch.toLowerCase())
   );
 
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!ALLOWED_TYPES.includes(file.type)) {
+      toast({ title: "Type de fichier non supporté", description: "PDF, Word, Excel ou PowerPoint uniquement.", variant: "destructive" });
+      return;
+    }
+    if (file.size > 20 * 1024 * 1024) {
+      toast({ title: "Fichier trop volumineux", description: "Taille maximale : 20 Mo", variant: "destructive" });
+      return;
+    }
+    setPendingFile({ name: file.name, size: file.size, type: file.type, file });
+    e.target.value = "";
+  };
+
   const handleSend = async () => {
-    if (!messageText.trim() || !selectedUserId) return;
+    if ((!messageText.trim() && !pendingFile) || !selectedUserId) return;
     setSending(true);
     try {
+      let fileData: { fileUrl?: string; fileName?: string; fileType?: string; fileSize?: number } = {};
+
+      if (pendingFile) {
+        setUploading(true);
+        const fd = new FormData();
+        fd.append("file", pendingFile.file);
+        const uploadRes = await fetch("/api/messages/upload", {
+          method: "POST",
+          credentials: "include",
+          body: fd,
+        });
+        setUploading(false);
+        if (!uploadRes.ok) {
+          const err = await uploadRes.json();
+          toast({ title: "Erreur d'envoi du fichier", description: err.error, variant: "destructive" });
+          return;
+        }
+        fileData = await uploadRes.json();
+      }
+
       await apiFetch("/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ recipientId: selectedUserId, content: messageText.trim() }),
+        body: JSON.stringify({
+          recipientId: selectedUserId,
+          content: messageText.trim(),
+          ...fileData,
+        }),
       });
       setMessageText("");
+      setPendingFile(null);
       queryClient.invalidateQueries({ queryKey: ["/api/messages", selectedUserId] });
       queryClient.invalidateQueries({ queryKey: ["/api/messages"] });
     } catch {
       toast({ title: "Erreur lors de l'envoi", variant: "destructive" });
     } finally {
       setSending(false);
+      setUploading(false);
     }
   };
 
@@ -166,6 +266,8 @@ export default function AdminMessages() {
       setContactSearch("");
     }
   };
+
+  const canSend = !sending && !uploading && (!!messageText.trim() || !!pendingFile);
 
   return (
     <AppLayout allowedRoles={["admin"]}>
@@ -267,7 +369,21 @@ export default function AdminMessages() {
                             ? "bg-primary text-primary-foreground rounded-br-sm"
                             : "bg-muted text-foreground rounded-bl-sm"
                         }`}>
-                          <p className="leading-relaxed whitespace-pre-wrap">{m.content}</p>
+                          {m.content && !m.content.startsWith("📎") && (
+                            <p className="leading-relaxed whitespace-pre-wrap">{m.content}</p>
+                          )}
+                          {m.fileUrl && (
+                            <FileAttachment
+                              fileUrl={m.fileUrl}
+                              fileName={m.fileName}
+                              fileType={m.fileType}
+                              fileSize={m.fileSize}
+                              isMe={isMe}
+                            />
+                          )}
+                          {m.content && m.content.startsWith("📎") && !m.fileUrl && (
+                            <p className="leading-relaxed whitespace-pre-wrap">{m.content}</p>
+                          )}
                           <p className={`text-[10px] mt-1 ${isMe ? "text-primary-foreground/60" : "text-muted-foreground"}`}>
                             {formatTime(m.createdAt)}
                           </p>
@@ -278,18 +394,53 @@ export default function AdminMessages() {
                   <div ref={messagesEndRef} />
                 </div>
 
+                {/* Pending file preview */}
+                {pendingFile && (
+                  <div className="px-4 pt-2 flex-shrink-0">
+                    <div className="flex items-center gap-2 bg-muted/60 rounded-xl px-3 py-2 border border-border">
+                      <FileIcon type={pendingFile.type} className="w-4 h-4" />
+                      <span className="text-sm font-medium flex-1 truncate">{pendingFile.name}</span>
+                      <span className="text-xs text-muted-foreground">{formatSize(pendingFile.size)}</span>
+                      <button onClick={() => setPendingFile(null)} className="text-muted-foreground hover:text-foreground ml-1">
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 {/* Input */}
-                <div className="px-4 py-3 border-t border-border flex gap-2 flex-shrink-0">
+                <div className="px-4 py-3 border-t border-border flex gap-2 flex-shrink-0 items-center">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    className="hidden"
+                    accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
+                    onChange={handleFileSelect}
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="flex-shrink-0 text-muted-foreground hover:text-foreground"
+                    onClick={() => fileInputRef.current?.click()}
+                    title="Joindre un fichier (PDF, Word, Excel, PowerPoint)"
+                  >
+                    <Paperclip className="w-4 h-4" />
+                  </Button>
                   <Input
-                    placeholder="Écrire un message…"
+                    placeholder={pendingFile ? "Ajouter un message (optionnel)…" : "Écrire un message…"}
                     value={messageText}
                     onChange={(e) => setMessageText(e.target.value)}
                     onKeyDown={handleKeyDown}
                     className="flex-1"
-                    disabled={sending}
+                    disabled={sending || uploading}
                   />
-                  <Button onClick={handleSend} disabled={sending || !messageText.trim()} size="icon">
-                    <Send className="w-4 h-4" />
+                  <Button onClick={handleSend} disabled={!canSend} size="icon">
+                    {uploading ? (
+                      <span className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <Send className="w-4 h-4" />
+                    )}
                   </Button>
                 </div>
               </>

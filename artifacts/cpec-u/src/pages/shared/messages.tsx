@@ -92,7 +92,7 @@ export default function SharedMessages({ allowedRoles }: { allowedRoles: string[
   const queryClient = useQueryClient();
 
   const { data: currentUser } = useGetCurrentUser();
-  const isTeacher = (currentUser as any)?.role === "teacher";
+  void currentUser;
 
   const { data: conversations = [] } = useQuery({
     queryKey: ["/api/messages"],
@@ -321,28 +321,24 @@ export default function SharedMessages({ allowedRoles }: { allowedRoles: string[
                 )}
 
                 <div className="px-4 py-3 border-t border-border flex gap-2 flex-shrink-0 items-center">
-                  {/* File attachment button — teachers only */}
-                  {isTeacher && (
-                    <>
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        className="hidden"
-                        accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
-                        onChange={handleFileSelect}
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="flex-shrink-0 text-muted-foreground hover:text-foreground"
-                        onClick={() => fileInputRef.current?.click()}
-                        title="Joindre un cours (PDF, Word, Excel, PowerPoint)"
-                      >
-                        <Paperclip className="w-4 h-4" />
-                      </Button>
-                    </>
-                  )}
+                  {/* File attachment button — all users */}
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    className="hidden"
+                    accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
+                    onChange={handleFileSelect}
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="flex-shrink-0 text-muted-foreground hover:text-foreground"
+                    onClick={() => fileInputRef.current?.click()}
+                    title="Joindre un fichier (PDF, Word, Excel, PowerPoint)"
+                  >
+                    <Paperclip className="w-4 h-4" />
+                  </Button>
                   <Input
                     placeholder={pendingFile ? "Ajouter un message (optionnel)…" : "Répondre…"}
                     value={messageText}
