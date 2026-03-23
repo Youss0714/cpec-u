@@ -389,19 +389,31 @@ export function generateBulletinHTML(data: BulletinData): string {
 
     /* ── Header band ── */
     .header-band {
-      padding: 4px 2px 3px;
-      display: grid;
-      grid-template-columns: 1fr auto 1fr;
-      align-items: center;
-      gap: 4px;
+      padding: 4px 2px 4px;
       margin-bottom: 2px;
-      border-bottom: 1px solid #1A1A1A;
+      border-bottom: 1.5px solid #8B0000;
     }
-    .header-left  { font-size: 6.5pt; line-height: 1.6; color: #1A1A1A; }
-    .header-center { text-align: center; color: #1A1A1A; }
-    .header-center .inst-name { font-size: 13pt; font-weight: bold; letter-spacing: 0.3px; }
-    .header-center .inst-sub  { font-size: 8.5pt; font-style: italic; letter-spacing: 0.5px; }
-    .header-right { font-size: 6.5pt; line-height: 1.6; text-align: right; color: #1A1A1A; }
+    /* Rangée 1 : Ministère | République */
+    .header-row1 {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      font-size: 6.5pt;
+      line-height: 1.55;
+      color: #1A1A1A;
+      margin-bottom: 4px;
+    }
+    .header-row1-right { text-align: right; }
+    /* Rangée 2 : Logo (gauche) + Institut (centre-droite) */
+    .header-row2 {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .header-logo { flex-shrink: 0; }
+    .header-inst { flex: 1; text-align: center; color: #1A1A1A; }
+    .header-inst .inst-name { font-size: 15pt; font-weight: bold; letter-spacing: 0.2px; }
+    .header-inst .inst-sub  { font-size: 9pt; font-style: italic; letter-spacing: 1.5px; margin-top: 1px; }
 
     /* ── Info block (école + étudiant) ── */
     .info-block {
@@ -674,18 +686,20 @@ export function generateBulletinHTML(data: BulletinData): string {
 
     <!-- ═══ HEADER BAND ═══ -->
     <div class="header-band">
-      <div class="header-left">
-        Ministère de l'Enseignement Supérieur<br>
-        et de la Recherche Scientifique
+      <!-- Rangée 1 : Ministère | République -->
+      <div class="header-row1">
+        <div>Ministère de l'Enseignement Supérieur<br>et de la Recherche Scientifique</div>
+        <div class="header-row1-right">République de Côte d'Ivoire<br>Union &nbsp;-&nbsp; Discipline &nbsp;-&nbsp; Travail</div>
       </div>
-      <div class="header-center">
-        ${logo ? `<img src="${logo}" style="height:36px;display:block;margin:0 auto 3px;" alt="INP-HB">` : ""}
-        <div class="inst-name">Institut National Polytechnique</div>
-        <div class="inst-sub">Félix HOUPHOUËT-BOIGNY</div>
-      </div>
-      <div class="header-right">
-        République de Côte d'Ivoire<br>
-        Union &nbsp;·&nbsp; Discipline &nbsp;·&nbsp; Travail
+      <!-- Rangée 2 : Logo gauche + Institut centré -->
+      <div class="header-row2">
+        <div class="header-logo">
+          ${logo ? `<img src="${logo}" style="height:48px;" alt="INP-HB">` : ""}
+        </div>
+        <div class="header-inst">
+          <div class="inst-name">Institut National Polytechnique</div>
+          <div class="inst-sub">F&eacute;lix &nbsp;H O U P H O U &Euml; T - B O I G N Y</div>
+        </div>
       </div>
     </div>
 
