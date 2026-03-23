@@ -4,8 +4,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { useState, useRef } from "react";
 import { motion } from "framer-motion";
 import {
-  GraduationCap, Award, Book, Building2, CalendarDays, Camera, Upload,
-  CheckCircle2, XCircle, FileText, CalendarOff, MessageSquare, Bell, ArrowRight,
+  GraduationCap, Award, Building2, CalendarDays, Camera, Upload,
+  FileText, CalendarOff, MessageSquare, Bell, ArrowRight,
+  Hash, MapPin, Phone, User2, Mail, Home, BookOpen,
+  Calendar, BadgeCheck, ChevronDown, ChevronUp,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -30,6 +32,21 @@ const ROOM_TYPES: Record<string, string> = {
   double: "Double",
 };
 
+function InfoRow({ icon: Icon, label, value }: { icon: React.ElementType; label: string; value?: string | null }) {
+  if (!value) return null;
+  return (
+    <div className="flex items-start gap-3 py-2.5 border-b border-border/40 last:border-0">
+      <div className="w-7 h-7 rounded-lg bg-muted flex items-center justify-center flex-shrink-0 mt-0.5">
+        <Icon className="w-3.5 h-3.5 text-muted-foreground" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">{label}</p>
+        <p className="text-sm font-medium text-foreground mt-0.5 break-words">{value}</p>
+      </div>
+    </div>
+  );
+}
+
 export default function StudentDashboard() {
   const { data: profile } = useGetStudentProfile();
   const { data: semesters } = useListSemesters();
@@ -40,6 +57,9 @@ export default function StudentDashboard() {
   const [photoDialogOpen, setPhotoDialogOpen] = useState(false);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [photoUploading, setPhotoUploading] = useState(false);
+  const [parentExpanded, setParentExpanded] = useState(false);
+
+  const p = profile as any;
 
   const latestPublished = (semesters ?? [])
     .filter((s: any) => s.published)
@@ -93,15 +113,17 @@ export default function StudentDashboard() {
 
   const quickLinks = [
     { label: "Mes Résultats", href: "/student/grades", icon: FileText, color: "text-primary", bg: "bg-primary/10" },
-    { label: "Mon Emploi du Temps", href: "/student/schedule", icon: CalendarDays, color: "text-blue-600", bg: "bg-blue-50" },
+    { label: "Emploi du Temps", href: "/student/schedule", icon: CalendarDays, color: "text-blue-600", bg: "bg-blue-50" },
     { label: "Mes Absences", href: "/student/absences", icon: CalendarOff, color: "text-red-600", bg: "bg-red-50" },
     { label: "Messages", href: "/student/messages", icon: MessageSquare, color: "text-emerald-600", bg: "bg-emerald-50" },
     { label: "Notifications", href: "/student/notifications", icon: Bell, color: "text-amber-600", bg: "bg-amber-50" },
   ];
 
+  const hasParentInfo = !!(p?.parentName || p?.parentPhone || p?.parentEmail || p?.parentAddress);
+
   return (
     <AppLayout allowedRoles={["student"]}>
-      <div className="space-y-6 max-w-5xl mx-auto">
+      <div className="space-y-5 max-w-5xl mx-auto">
 
         {/* Photo Upload Dialog */}
         <Dialog open={photoDialogOpen} onOpenChange={open => { setPhotoDialogOpen(open); if (!open) setPhotoPreview(null); }}>
@@ -124,15 +146,15 @@ export default function StudentDashboard() {
         <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileSelect} />
 
         {/* Profile Hero */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="relative bg-primary rounded-3xl p-8 text-primary-foreground overflow-hidden shadow-2xl shadow-primary/20">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="relative bg-primary rounded-3xl p-6 sm:p-8 text-primary-foreground overflow-hidden shadow-2xl shadow-primary/20">
           <div className="absolute top-0 right-0 -mr-16 -mt-16 opacity-10">
             <GraduationCap className="w-64 h-64" />
           </div>
-          <div className="relative z-10 flex items-center gap-6">
+          <div className="relative z-10 flex flex-col sm:flex-row items-center sm:items-start gap-5">
             <div className="relative flex-shrink-0 group">
               <div className="w-24 h-24 rounded-full border-4 border-white/20 overflow-hidden bg-white/10 flex items-center justify-center shadow-xl">
-                {(profile as any)?.photoUrl ? (
-                  <img src={(profile as any).photoUrl} alt="Photo de profil" className="w-full h-full object-cover" />
+                {p?.photoUrl ? (
+                  <img src={p.photoUrl} alt="Photo de profil" className="w-full h-full object-cover" />
                 ) : (
                   <GraduationCap className="w-12 h-12 text-white/60" />
                 )}
@@ -145,21 +167,42 @@ export default function StudentDashboard() {
                 <Camera className="w-6 h-6 text-white" />
               </button>
             </div>
-            <div className="flex-1 min-w-0">
-              <h1 className="text-3xl sm:text-4xl font-serif font-bold mb-1 truncate">Bonjour, {profile?.name}</h1>
-              <p className="text-primary-foreground/80 text-lg flex items-center gap-2">
-                <Book className="w-5 h-5 flex-shrink-0" />
-                <span className="truncate">{(profile as any)?.className || "Classe non assignée"}</span>
-              </p>
-              {(profile as any)?.matricule && (
-                <p className="text-primary-foreground/60 text-sm mt-1 font-mono">{(profile as any).matricule}</p>
+            <div className="flex-1 min-w-0 text-center sm:text-left">
+              <h1 className="text-2xl sm:text-3xl font-serif font-bold mb-1 truncate">{p?.name ?? "—"}</h1>
+              <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 mt-2">
+                {p?.className && (
+                  <span className="flex items-center gap-1.5 text-sm text-white/90 bg-white/15 rounded-full px-3 py-1">
+                    <BookOpen className="w-3.5 h-3.5" />
+                    {p.className}
+                  </span>
+                )}
+                {p?.filiere && (
+                  <span className="flex items-center gap-1.5 text-sm text-white/90 bg-white/15 rounded-full px-3 py-1">
+                    {p.filiere}
+                  </span>
+                )}
+                {p?.isTerminal && (
+                  <span className="flex items-center gap-1.5 text-xs text-amber-200 bg-amber-500/30 border border-amber-300/30 rounded-full px-2.5 py-1 font-semibold">
+                    <GraduationCap className="w-3 h-3" />
+                    Fin de cycle
+                  </span>
+                )}
+              </div>
+              {p?.matricule && (
+                <p className="text-white/60 text-sm mt-2 font-mono tracking-wider">{p.matricule}</p>
+              )}
+              {p?.activeSemester && (
+                <p className="text-white/50 text-xs mt-1 flex items-center gap-1 justify-center sm:justify-start">
+                  <Calendar className="w-3 h-3" />
+                  Semestre en cours : {p.activeSemester.name}
+                </p>
               )}
               <button
                 onClick={() => fileInputRef.current?.click()}
-                className="mt-3 text-xs text-white/60 hover:text-white/90 underline underline-offset-2 transition-colors flex items-center gap-1"
+                className="mt-3 text-xs text-white/50 hover:text-white/80 underline underline-offset-2 transition-colors flex items-center gap-1 mx-auto sm:mx-0"
               >
                 <Camera className="w-3 h-3" />
-                {(profile as any)?.photoUrl ? "Modifier ma photo" : "Ajouter une photo de profil"}
+                {p?.photoUrl ? "Modifier ma photo" : "Ajouter une photo de profil"}
               </button>
             </div>
           </div>
@@ -167,7 +210,7 @@ export default function StudentDashboard() {
 
         {/* Quick links */}
         <motion.div
-          className="grid grid-cols-2 sm:grid-cols-5 gap-3"
+          className="grid grid-cols-3 sm:grid-cols-5 gap-3"
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.08 }}
@@ -175,20 +218,102 @@ export default function StudentDashboard() {
           {quickLinks.map((link) => (
             <Link key={link.href} href={link.href}>
               <Card className="border-border shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 cursor-pointer group">
-                <CardContent className="p-4 flex flex-col items-center gap-2 text-center">
-                  <div className={`w-10 h-10 rounded-xl ${link.bg} flex items-center justify-center`}>
-                    <link.icon className={`w-5 h-5 ${link.color}`} />
+                <CardContent className="p-3 sm:p-4 flex flex-col items-center gap-2 text-center">
+                  <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl ${link.bg} flex items-center justify-center`}>
+                    <link.icon className={`w-4 h-4 sm:w-5 sm:h-5 ${link.color}`} />
                   </div>
-                  <span className="text-xs font-semibold text-foreground leading-tight">{link.label}</span>
+                  <span className="text-[11px] sm:text-xs font-semibold text-foreground leading-tight">{link.label}</span>
                 </CardContent>
               </Card>
             </Link>
           ))}
         </motion.div>
 
+        {/* Academic + personal info grid */}
+        <motion.div
+          className="grid grid-cols-1 md:grid-cols-2 gap-4"
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.12 }}
+        >
+          {/* Academic info card */}
+          <Card className="border-border shadow-sm">
+            <CardContent className="p-5">
+              <div className="flex items-center gap-2 mb-3 pb-3 border-b border-border/50">
+                <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center">
+                  <GraduationCap className="w-4 h-4 text-primary" />
+                </div>
+                <h3 className="font-semibold text-sm text-foreground">Informations Académiques</h3>
+              </div>
+              <InfoRow icon={Hash} label="Matricule" value={p?.matricule} />
+              <InfoRow icon={BookOpen} label="Classe" value={p?.className} />
+              <InfoRow icon={BadgeCheck} label="Filière" value={p?.filiere} />
+              <InfoRow icon={Calendar} label="Semestre en cours" value={p?.activeSemester?.name} />
+              {!p?.matricule && !p?.className && !p?.filiere && !p?.activeSemester && (
+                <p className="text-sm text-muted-foreground text-center py-4">Aucune information académique disponible</p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Personal info card */}
+          <Card className="border-border shadow-sm">
+            <CardContent className="p-5">
+              <div className="flex items-center gap-2 mb-3 pb-3 border-b border-border/50">
+                <div className="w-8 h-8 rounded-xl bg-blue-100 flex items-center justify-center">
+                  <User2 className="w-4 h-4 text-blue-600" />
+                </div>
+                <h3 className="font-semibold text-sm text-foreground">Informations Personnelles</h3>
+              </div>
+              <InfoRow icon={CalendarDays} label="Date de naissance" value={p?.dateNaissance} />
+              <InfoRow icon={MapPin} label="Lieu de naissance" value={p?.lieuNaissance} />
+              <InfoRow icon={Phone} label="Téléphone" value={p?.phone} />
+              <InfoRow icon={Home} label="Adresse" value={p?.address} />
+              <InfoRow icon={Mail} label="Email" value={p?.email} />
+              {!p?.dateNaissance && !p?.lieuNaissance && !p?.phone && !p?.address && (
+                <p className="text-sm text-muted-foreground text-center py-4">Coordonnées non renseignées</p>
+              )}
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        {/* Parent / tuteur info */}
+        {hasParentInfo && (
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.16 }}>
+            <Card className="border-border shadow-sm">
+              <CardContent className="p-0">
+                <button
+                  className="w-full flex items-center justify-between px-5 py-4 hover:bg-muted/30 transition-colors rounded-xl"
+                  onClick={() => setParentExpanded(v => !v)}
+                >
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-xl bg-violet-100 flex items-center justify-center">
+                      <User2 className="w-4 h-4 text-violet-600" />
+                    </div>
+                    <span className="font-semibold text-sm text-foreground">Contact Parent / Tuteur</span>
+                    {p?.parentName && (
+                      <span className="text-sm text-muted-foreground ml-1">— {p.parentName}</span>
+                    )}
+                  </div>
+                  {parentExpanded ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+                </button>
+                {parentExpanded && (
+                  <div className="px-5 pb-4 border-t border-border/40">
+                    <div className="pt-3">
+                      <InfoRow icon={User2} label="Nom du parent / tuteur" value={p?.parentName} />
+                      <InfoRow icon={Phone} label="Téléphone" value={p?.parentPhone} />
+                      <InfoRow icon={Mail} label="Email" value={p?.parentEmail} />
+                      <InfoRow icon={Home} label="Adresse" value={p?.parentAddress} />
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
+
         {/* Housing Card */}
         {housing && (
-          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.12 }}>
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
             <Card className="border-border shadow-sm overflow-hidden">
               <CardContent className="p-0">
                 <div className="flex items-center gap-4 p-5">
@@ -211,7 +336,7 @@ export default function StudentDashboard() {
         )}
 
         {/* Latest results summary */}
-        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.16 }}>
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.24 }}>
           <Card className="border-border shadow-sm overflow-hidden">
             <CardContent className="p-0">
               <div className="flex items-center justify-between px-5 py-4 border-b border-border/50 bg-secondary/20">
@@ -238,7 +363,6 @@ export default function StudentDashboard() {
                 </div>
               ) : (
                 <div className="grid grid-cols-3 divide-x divide-border/60">
-                  {/* Average */}
                   <div className="px-5 py-5 text-center">
                     <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Moyenne</p>
                     <p className={`text-3xl font-bold font-mono ${
@@ -250,13 +374,11 @@ export default function StudentDashboard() {
                       <p className="text-xs text-red-500 mt-0.5">−{(latestResults as any).absenceDeduction.toFixed(2)} abs.</p>
                     )}
                   </div>
-                  {/* Rank */}
                   <div className="px-5 py-5 text-center">
                     <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Classement</p>
                     <p className="text-3xl font-bold font-mono text-foreground">{latestResults.rank ?? "—"}</p>
                     <p className="text-xs text-muted-foreground mt-0.5">/ {latestResults.totalStudents}</p>
                   </div>
-                  {/* Decision */}
                   <div className="px-5 py-5 text-center flex flex-col items-center justify-center gap-1">
                     <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Décision</p>
                     <Badge className={`text-sm font-bold px-3 py-1 ${

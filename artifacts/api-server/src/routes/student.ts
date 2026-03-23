@@ -23,7 +23,12 @@ router.get("/me", requireRole("student", "admin"), async (req, res) => {
     if (!user) { res.status(404).json({ error: "Not Found" }); return; }
 
     const [enroll] = await db
-      .select({ classId: classEnrollmentsTable.classId, className: classesTable.name })
+      .select({
+        classId: classEnrollmentsTable.classId,
+        className: classesTable.name,
+        filiere: classesTable.filiere,
+        isTerminal: classesTable.isTerminal,
+      })
       .from(classEnrollmentsTable)
       .innerJoin(classesTable, eq(classesTable.id, classEnrollmentsTable.classId))
       .where(eq(classEnrollmentsTable.studentId, studentId))
@@ -31,10 +36,36 @@ router.get("/me", requireRole("student", "admin"), async (req, res) => {
 
     const [profile] = await db.select().from(studentProfilesTable).where(eq(studentProfilesTable.studentId, studentId)).limit(1);
 
+    const activeSemester = await db
+      .select({ id: semestersTable.id, name: semestersTable.name, startDate: semestersTable.startDate, endDate: semestersTable.endDate })
+      .from(semestersTable)
+      .orderBy(semestersTable.id)
+      .then(rows => {
+        const now = new Date();
+        const active = rows.find(s => {
+          if (!s.startDate || !s.endDate) return false;
+          return new Date(s.startDate) <= now && now <= new Date(s.endDate);
+        });
+        return active ?? null;
+      });
+
     res.json({
       id: user.id, name: user.name, email: user.email,
-      classId: enroll?.classId ?? null, className: enroll?.className ?? null,
+      classId: enroll?.classId ?? null,
+      className: enroll?.className ?? null,
+      filiere: enroll?.filiere ?? null,
+      isTerminal: enroll?.isTerminal ?? false,
       photoUrl: profile?.photoUrl ?? null,
+      matricule: profile?.matricule ?? null,
+      dateNaissance: profile?.dateNaissance ?? null,
+      lieuNaissance: profile?.lieuNaissance ?? null,
+      phone: profile?.phone ?? null,
+      address: profile?.address ?? null,
+      parentName: profile?.parentName ?? null,
+      parentPhone: profile?.parentPhone ?? null,
+      parentEmail: profile?.parentEmail ?? null,
+      parentAddress: profile?.parentAddress ?? null,
+      activeSemester: activeSemester,
     });
   } catch (err) {
     console.error(err);
