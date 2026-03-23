@@ -5,8 +5,8 @@ export function SplashScreen({ onDone }: { onDone: () => void }) {
 
   useEffect(() => {
     const t1 = setTimeout(() => setPhase("hold"), 600);
-    const t2 = setTimeout(() => setPhase("out"), 2000);
-    const t3 = setTimeout(() => onDone(), 2600);
+    const t2 = setTimeout(() => setPhase("out"), 9000);
+    const t3 = setTimeout(() => onDone(), 10000);
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [onDone]);
 
@@ -45,7 +45,7 @@ export function SplashScreen({ onDone }: { onDone: () => void }) {
             className="h-full rounded-full bg-primary"
             style={{
               width: phase === "hold" ? "100%" : "0%",
-              transition: phase === "hold" ? "width 1.3s cubic-bezier(0.4,0,0.2,1)" : "none",
+              transition: phase === "hold" ? "width 8.3s cubic-bezier(0.4,0,0.2,1)" : "none",
             }}
           />
         </div>
