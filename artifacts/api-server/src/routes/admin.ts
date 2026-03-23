@@ -98,6 +98,10 @@ router.post("/users", requireRole("admin"), async (req, res) => {
       res.status(400).json({ error: "Bad Request", message: "Missing required fields" });
       return;
     }
+    if (role === "student" && !matricule?.trim()) {
+      res.status(400).json({ error: "Bad Request", message: "Le matricule est obligatoire pour un étudiant." });
+      return;
+    }
     if (role === "admin" && cu?.adminSubRole !== "directeur") {
       res.status(403).json({ error: "Forbidden", message: "Seul le Directeur du Centre peut créer un compte administrateur." });
       return;

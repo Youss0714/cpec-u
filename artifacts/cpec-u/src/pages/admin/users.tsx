@@ -954,8 +954,8 @@ export default function AdminUsers() {
                         </Select>
                       </div>
                       <div className="space-y-1">
-                        <Label className="flex items-center gap-1.5"><School className="w-3.5 h-3.5 text-muted-foreground" /> N° Matricule</Label>
-                        <Input value={createProfileForm.matricule} onChange={e => setCreateProfileForm(f => ({ ...f, matricule: e.target.value }))} placeholder="Ex: INP-HB/2024/001" />
+                        <Label className="flex items-center gap-1.5"><School className="w-3.5 h-3.5 text-muted-foreground" /> N° Matricule <span className="text-destructive">*</span></Label>
+                        <Input required value={createProfileForm.matricule} onChange={e => setCreateProfileForm(f => ({ ...f, matricule: e.target.value }))} placeholder="Ex: INP-HB/2024/001" />
                       </div>
                     </div>
                   )}
