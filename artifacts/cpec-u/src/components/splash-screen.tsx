@@ -27,16 +27,14 @@ export function SplashScreen({ onDone }: { onDone: () => void }) {
         }}
         className="flex flex-col items-center gap-4"
       >
-        <div className="relative flex items-center justify-center w-20 h-20 rounded-2xl bg-primary shadow-xl">
-          <span className="text-primary-foreground font-serif font-bold text-3xl tracking-tight select-none">C</span>
-          <span
-            className="absolute bottom-2 right-2 w-2.5 h-2.5 rounded-full bg-primary-foreground/70"
-            style={{ animation: "splash-pulse 1.2s ease-in-out infinite" }}
-          />
-        </div>
+        <img
+          src="/logo.png"
+          alt="CPEC-Digital"
+          className="w-56 h-auto select-none drop-shadow-lg"
+          draggable={false}
+        />
 
         <div className="text-center">
-          <h1 className="font-serif font-bold text-4xl tracking-tight text-foreground">CPEC-U</h1>
           <p className="text-muted-foreground text-sm mt-1 tracking-widest uppercase">Gestion Académique</p>
         </div>
 
@@ -51,12 +49,6 @@ export function SplashScreen({ onDone }: { onDone: () => void }) {
         </div>
       </div>
 
-      <style>{`
-        @keyframes splash-pulse {
-          0%, 100% { opacity: 0.4; transform: scale(1); }
-          50% { opacity: 1; transform: scale(1.3); }
-        }
-      `}</style>
     </div>
   );
 }
