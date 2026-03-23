@@ -610,34 +610,34 @@ export function generateBulletinHTML(data: BulletinData): string {
     }
 
     /* ── Footer ── */
-    .footer-sep {
-      border: none;
-      border-top: 1.5px solid #1A1A1A;
-      margin: 6px 0 3px;
-    }
-    .footer-legend {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 0px 12px;
-      margin-bottom: 4px;
-    }
-    .footer-legend-item {
-      font-size: 5.5pt;
-      line-height: 1.5;
+    .footer-schools {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      font-size: 8px;
+      text-transform: uppercase;
+      border-top: 1px solid #1A1A1A;
+      padding-top: 5px;
+      margin-top: 6px;
+      gap: 2px 0;
       color: #1A1A1A;
     }
-    .footer-legend-item strong {
+    .footer-schools span {
+      white-space: nowrap;
+      padding: 0 4px 2px 0;
+    }
+    .footer-schools strong {
       color: #1a3a6b;
-      font-size: 6pt;
+      font-weight: bold;
     }
     .footer-contacts {
       display: flex;
       justify-content: space-between;
-      font-size: 5.5pt;
+      font-size: 6px;
       color: #444;
       border-top: 0.5px solid #ccc;
       padding-top: 3px;
-      margin-top: 2px;
+      margin-top: 3px;
     }
 
     /* ── Print ── */
@@ -761,9 +761,8 @@ export function generateBulletinHTML(data: BulletinData): string {
     <div class="edition-date">${data.editionDate}</div>
 
     <!-- ═══ FOOTER ═══ -->
-    <hr class="footer-sep">
-    <div class="footer-legend">
-      ${schools.map(s => `<div class="footer-legend-item"><strong>${s.acronym}</strong> : ${s.name}</div>`).join("")}
+    <div class="footer-schools">
+      ${schools.map(s => `<span><strong>${s.acronym}</strong> : ${s.name}</span>`).join("")}
     </div>
     <div class="footer-contacts">
       <span>&#127968; 1093 Yamoussoukro (RCI) &nbsp;|&nbsp; V79 Abidjan (RCI)</span>
