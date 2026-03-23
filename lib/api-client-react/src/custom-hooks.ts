@@ -881,6 +881,15 @@ export const useInitializeYear = (options?: UseMutationOptions<InitializeYearRes
     ...options,
   });
 
+// ─── Teacher Attendance History ──────────────────────────────────────────────
+
+export const useTeacherAttendanceHistory = (options?: QueryOpts<any[]>) =>
+  useQuery<any[], Error>({
+    queryKey: ["/api/teacher/attendance/history"],
+    queryFn: () => customFetch<any[]>("/api/teacher/attendance/history"),
+    ...options,
+  });
+
 // ─── Absence Justifications (student) ────────────────────────────────────────
 
 export const useMyJustifications = (options?: QueryOpts<any[]>) =>

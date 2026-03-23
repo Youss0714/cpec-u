@@ -1,16 +1,18 @@
 import { AppLayout } from "@/components/layout";
 import { useGetStudentProfile, useListSemesters, useGetStudentResults } from "@workspace/api-client-react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState, useRef } from "react";
 import { motion } from "framer-motion";
-import { GraduationCap, Award, Book, AlertCircle, Building2, CalendarDays, Camera, Upload, CheckCircle2, XCircle } from "lucide-react";
+import {
+  GraduationCap, Award, Book, Building2, CalendarDays, Camera, Upload,
+  CheckCircle2, XCircle, FileText, CalendarOff, MessageSquare, Bell, ArrowRight,
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import { Link } from "wouter";
 
 function useMyHousing() {
   return useQuery({
@@ -38,10 +40,15 @@ export default function StudentDashboard() {
   const [photoDialogOpen, setPhotoDialogOpen] = useState(false);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [photoUploading, setPhotoUploading] = useState(false);
-  
-  const latestPublished = semesters?.filter(s => s.published).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
-  
-  const [selectedSemester, setSelectedSemester] = useState<string>("");
+
+  const latestPublished = (semesters ?? [])
+    .filter((s: any) => s.published)
+    .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
+
+  const { data: latestResults } = useGetStudentResults(
+    { semesterId: latestPublished?.id ?? 0 },
+    { query: { enabled: !!latestPublished, retry: false } as any }
+  );
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -84,24 +91,18 @@ export default function StudentDashboard() {
     }
   };
 
-  if (!selectedSemester && latestPublished) {
-    setSelectedSemester(latestPublished.id.toString());
-  }
-
-  const { data: results, isLoading, isError } = useGetStudentResults(
-    { semesterId: parseInt(selectedSemester) },
-    { query: { enabled: !!selectedSemester, retry: false } as any }
-  );
-
-  const ueResults: any[] = (results as any)?.ueResults ?? [];
-  const creditsValidated: number = (results as any)?.creditsValidated ?? 0;
-  const totalCredits: number = (results as any)?.totalCredits ?? 0;
-  const hasUEs = ueResults.length > 0;
+  const quickLinks = [
+    { label: "Mes Résultats", href: "/student/grades", icon: FileText, color: "text-primary", bg: "bg-primary/10" },
+    { label: "Mon Emploi du Temps", href: "/student/schedule", icon: CalendarDays, color: "text-blue-600", bg: "bg-blue-50" },
+    { label: "Mes Absences", href: "/student/absences", icon: CalendarOff, color: "text-red-600", bg: "bg-red-50" },
+    { label: "Messages", href: "/student/messages", icon: MessageSquare, color: "text-emerald-600", bg: "bg-emerald-50" },
+    { label: "Notifications", href: "/student/notifications", icon: Bell, color: "text-amber-600", bg: "bg-amber-50" },
+  ];
 
   return (
     <AppLayout allowedRoles={["student"]}>
-      <div className="space-y-8 max-w-5xl mx-auto">
-        
+      <div className="space-y-6 max-w-5xl mx-auto">
+
         {/* Photo Upload Dialog */}
         <Dialog open={photoDialogOpen} onOpenChange={open => { setPhotoDialogOpen(open); if (!open) setPhotoPreview(null); }}>
           <DialogContent className="max-w-sm">
@@ -128,7 +129,6 @@ export default function StudentDashboard() {
             <GraduationCap className="w-64 h-64" />
           </div>
           <div className="relative z-10 flex items-center gap-6">
-            {/* Avatar with upload button */}
             <div className="relative flex-shrink-0 group">
               <div className="w-24 h-24 rounded-full border-4 border-white/20 overflow-hidden bg-white/10 flex items-center justify-center shadow-xl">
                 {(profile as any)?.photoUrl ? (
@@ -145,12 +145,15 @@ export default function StudentDashboard() {
                 <Camera className="w-6 h-6 text-white" />
               </button>
             </div>
-            <div>
-              <h1 className="text-4xl font-serif font-bold mb-2">Bonjour, {profile?.name}</h1>
+            <div className="flex-1 min-w-0">
+              <h1 className="text-3xl sm:text-4xl font-serif font-bold mb-1 truncate">Bonjour, {profile?.name}</h1>
               <p className="text-primary-foreground/80 text-lg flex items-center gap-2">
-                <Book className="w-5 h-5" />
-                {profile?.className || "Classe non assignée"}
+                <Book className="w-5 h-5 flex-shrink-0" />
+                <span className="truncate">{(profile as any)?.className || "Classe non assignée"}</span>
               </p>
+              {(profile as any)?.matricule && (
+                <p className="text-primary-foreground/60 text-sm mt-1 font-mono">{(profile as any).matricule}</p>
+              )}
               <button
                 onClick={() => fileInputRef.current?.click()}
                 className="mt-3 text-xs text-white/60 hover:text-white/90 underline underline-offset-2 transition-colors flex items-center gap-1"
@@ -162,9 +165,30 @@ export default function StudentDashboard() {
           </div>
         </motion.div>
 
+        {/* Quick links */}
+        <motion.div
+          className="grid grid-cols-2 sm:grid-cols-5 gap-3"
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.08 }}
+        >
+          {quickLinks.map((link) => (
+            <Link key={link.href} href={link.href}>
+              <Card className="border-border shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 cursor-pointer group">
+                <CardContent className="p-4 flex flex-col items-center gap-2 text-center">
+                  <div className={`w-10 h-10 rounded-xl ${link.bg} flex items-center justify-center`}>
+                    <link.icon className={`w-5 h-5 ${link.color}`} />
+                  </div>
+                  <span className="text-xs font-semibold text-foreground leading-tight">{link.label}</span>
+                </CardContent>
+              </Card>
+            </Link>
+          ))}
+        </motion.div>
+
         {/* Housing Card */}
         {housing && (
-          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.12 }}>
             <Card className="border-border shadow-sm overflow-hidden">
               <CardContent className="p-0">
                 <div className="flex items-center gap-4 p-5">
@@ -186,206 +210,70 @@ export default function StudentDashboard() {
           </motion.div>
         )}
 
-        {/* Results Section */}
-        <div className="space-y-6">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <h2 className="text-2xl font-bold font-serif text-foreground">Mes Résultats</h2>
-            <Select value={selectedSemester} onValueChange={setSelectedSemester}>
-              <SelectTrigger className="w-[250px] bg-card border-border/50 shadow-sm h-12">
-                <SelectValue placeholder="Sélectionner un semestre" />
-              </SelectTrigger>
-              <SelectContent>
-                {semesters?.map(s => (
-                  <SelectItem key={s.id} value={s.id.toString()}>{s.name} ({s.academicYear})</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {isLoading ? (
-             <div className="py-24 flex justify-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div></div>
-          ) : isError || !results ? (
-            <Card className="border-dashed border-2 border-border bg-transparent shadow-none">
-              <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-                <AlertCircle className="w-12 h-12 text-muted-foreground opacity-50 mb-4" />
-                <h3 className="text-xl font-bold text-foreground">Résultats indisponibles</h3>
-                <p className="text-muted-foreground mt-2">Les résultats de ce semestre ne sont pas encore publiés ou vous n'avez pas de notes.</p>
-              </CardContent>
-            </Card>
-          ) : (
-            <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} className="space-y-6">
-              
-              {/* Highlight Cards */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <Card className="bg-card shadow-sm border-border">
-                  <CardContent className="p-6 text-center">
-                    <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-2">Moyenne Générale</p>
-                    <p className="text-5xl font-bold font-mono text-primary">{results.average?.toFixed(2) || "-"}</p>
-                    {(results as any).absenceDeduction > 0 && (
-                      <p className="text-xs text-red-500 font-medium mt-1">
-                        −{(results as any).absenceDeduction.toFixed(2)} ({(results as any).absenceDeductionHours}h d'absence)
-                      </p>
-                    )}
-                  </CardContent>
-                </Card>
-                {hasUEs ? (
-                  <Card className="bg-card shadow-sm border-border">
-                    <CardContent className="p-6 text-center">
-                      <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-2">Crédits ECTS</p>
-                      <p className="text-5xl font-bold font-mono text-foreground">
-                        <span className="text-emerald-600">{creditsValidated}</span>
-                        <span className="text-2xl text-muted-foreground">/{totalCredits}</span>
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-1">crédits validés</p>
-                    </CardContent>
-                  </Card>
-                ) : (
-                  <Card className="bg-card shadow-sm border-border">
-                    <CardContent className="p-6 text-center">
-                      <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-2">Rang</p>
-                      <p className="text-5xl font-bold font-mono text-foreground">{results.rank || "-"}</p>
-                      <p className="text-sm text-muted-foreground mt-1">sur {results.totalStudents}</p>
-                    </CardContent>
-                  </Card>
-                )}
-                <Card className={`shadow-sm border-none flex flex-col justify-center items-center p-6 ${
-                  results.decision === 'Admis' ? 'bg-emerald-500 text-white' : 
-                  results.decision === 'Ajourné' ? 'bg-destructive text-white' : 'bg-secondary text-foreground'
-                }`}>
-                  <p className="text-sm font-semibold opacity-80 uppercase tracking-wider mb-2">Décision</p>
-                  <p className="text-4xl font-bold flex items-center gap-2">
-                    {results.decision === 'Admis' && <Award className="w-8 h-8" />}
-                    {results.decision}
-                  </p>
-                </Card>
+        {/* Latest results summary */}
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.16 }}>
+          <Card className="border-border shadow-sm overflow-hidden">
+            <CardContent className="p-0">
+              <div className="flex items-center justify-between px-5 py-4 border-b border-border/50 bg-secondary/20">
+                <div className="flex items-center gap-2">
+                  <GraduationCap className="w-4 h-4 text-primary" />
+                  <span className="font-semibold text-foreground text-sm">
+                    {latestPublished ? `Résultats — ${latestPublished.name}` : "Résultats"}
+                  </span>
+                </div>
+                <Link href="/student/grades">
+                  <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 text-primary hover:text-primary">
+                    Voir tout <ArrowRight className="w-3 h-3" />
+                  </Button>
+                </Link>
               </div>
 
-              {/* LMD: UE-grouped grades */}
-              {hasUEs ? (
-                <div className="space-y-4">
-                  {ueResults.map((ue: any) => (
-                    <div key={ue.ueId} className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
-                      {/* UE Header */}
-                      <div className="flex items-center justify-between px-5 py-4 bg-secondary/20 border-b border-border/50">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
-                            <span className="text-primary font-bold text-sm">{ue.ueCode}</span>
-                          </div>
-                          <div>
-                            <p className="font-bold text-foreground">{ue.ueName}</p>
-                            <div className="flex items-center gap-2 mt-0.5">
-                              <Badge className="bg-primary/10 text-primary border-0 text-xs font-semibold">{ue.credits} crédits ECTS</Badge>
-                              {ue.acquis ? (
-                                <span className="flex items-center gap-1 text-xs font-semibold text-emerald-600">
-                                  <CheckCircle2 className="w-3 h-3" /> Acquis
-                                </span>
-                              ) : ue.average !== null ? (
-                                <span className="flex items-center gap-1 text-xs font-semibold text-destructive">
-                                  <XCircle className="w-3 h-3" /> Non acquis
-                                </span>
-                              ) : null}
-                            </div>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-xs text-muted-foreground uppercase tracking-wider mb-0.5">Moyenne UE</p>
-                          <p className={`text-2xl font-bold font-mono ${
-                            ue.average === null ? "text-muted-foreground" :
-                            ue.average >= 10 ? "text-emerald-600" : "text-destructive"
-                          }`}>
-                            {ue.average !== null ? ue.average.toFixed(2) : "—"}
-                          </p>
-                        </div>
-                      </div>
-                      {/* EC table */}
-                      {ue.subjects && ue.subjects.length > 0 && (
-                        <Table>
-                          <TableHeader className="bg-secondary/10">
-                            <TableRow>
-                              <TableHead className="pl-16">Élément Constitutif</TableHead>
-                              <TableHead className="text-center">Coef.</TableHead>
-                              <TableHead className="text-right pr-6">Note / 20</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {ue.subjects.map((g: any, i: number) => (
-                              <TableRow key={i} className="hover:bg-muted/30">
-                                <TableCell className="font-medium text-foreground pl-16 py-3">{g.subjectName}</TableCell>
-                                <TableCell className="text-center text-muted-foreground text-sm">{g.coefficient}</TableCell>
-                                <TableCell className="text-right pr-6 font-mono font-bold">
-                                  {g.value !== null && g.value !== undefined ? (
-                                    <span className={g.value < 10 ? 'text-destructive' : 'text-emerald-600'}>{g.value.toFixed(2)}</span>
-                                  ) : (
-                                    <span className="text-muted-foreground">-</span>
-                                  )}
-                                </TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      )}
-                    </div>
-                  ))}
-
-                  {/* Unassigned subjects (without UE) */}
-                  {((results.grades ?? []) as any[]).filter((g: any) => !g.ueId || !ueResults.find((u: any) => u.ueId === g.ueId)).length > 0 && (
-                    <div className="bg-card border border-dashed border-border rounded-2xl overflow-hidden shadow-sm">
-                      <div className="px-5 py-3 border-b border-border/50 bg-secondary/10">
-                        <p className="text-sm font-semibold text-muted-foreground">Autres matières</p>
-                      </div>
-                      <Table>
-                        <TableBody>
-                          {results.grades?.filter((g: any) => !g.ueId || !ueResults.find((u: any) => u.ueId === g.ueId)).map((g: any, i: number) => (
-                            <TableRow key={i} className="hover:bg-muted/30">
-                              <TableCell className="font-bold text-foreground py-4">{g.subjectName}</TableCell>
-                              <TableCell className="text-center text-muted-foreground font-semibold">{g.coefficient}</TableCell>
-                              <TableCell className="text-right font-mono font-bold text-lg">
-                                {g.value !== null && g.value !== undefined ? (
-                                  <span className={g.value < 10 ? 'text-destructive' : 'text-emerald-600'}>{g.value.toFixed(2)}</span>
-                                ) : (
-                                  <span className="text-muted-foreground">-</span>
-                                )}
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  )}
+              {!latestPublished ? (
+                <div className="px-5 py-8 text-center">
+                  <p className="text-sm text-muted-foreground">Aucun résultat publié pour le moment.</p>
+                </div>
+              ) : !latestResults ? (
+                <div className="px-5 py-8 text-center">
+                  <p className="text-sm text-muted-foreground">Résultats non disponibles pour ce semestre.</p>
                 </div>
               ) : (
-                /* Fallback: flat grades table when no UEs */
-                <Card className="overflow-hidden border-border shadow-sm">
-                  <Table>
-                    <TableHeader className="bg-secondary/30">
-                      <TableRow>
-                        <TableHead className="w-1/2">Matière</TableHead>
-                        <TableHead className="text-center">Coefficient</TableHead>
-                        <TableHead className="text-right">Note / 20</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {results.grades?.map((g: any, i: number) => (
-                        <TableRow key={i} className="hover:bg-muted/30">
-                          <TableCell className="font-bold text-foreground py-4">{g.subjectName}</TableCell>
-                          <TableCell className="text-center text-muted-foreground font-semibold">{g.coefficient}</TableCell>
-                          <TableCell className="text-right font-mono font-bold text-lg">
-                            {g.value !== null && g.value !== undefined ? (
-                              <span className={g.value < 12 ? 'text-destructive' : 'text-emerald-600'}>{g.value.toFixed(2)}</span>
-                            ) : (
-                              <span className="text-muted-foreground">-</span>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </Card>
+                <div className="grid grid-cols-3 divide-x divide-border/60">
+                  {/* Average */}
+                  <div className="px-5 py-5 text-center">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Moyenne</p>
+                    <p className={`text-3xl font-bold font-mono ${
+                      (latestResults.average ?? 0) >= 10 ? "text-emerald-600" : "text-destructive"
+                    }`}>
+                      {latestResults.average?.toFixed(2) ?? "—"}
+                    </p>
+                    {(latestResults as any).absenceDeduction > 0 && (
+                      <p className="text-xs text-red-500 mt-0.5">−{(latestResults as any).absenceDeduction.toFixed(2)} abs.</p>
+                    )}
+                  </div>
+                  {/* Rank */}
+                  <div className="px-5 py-5 text-center">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Classement</p>
+                    <p className="text-3xl font-bold font-mono text-foreground">{latestResults.rank ?? "—"}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">/ {latestResults.totalStudents}</p>
+                  </div>
+                  {/* Decision */}
+                  <div className="px-5 py-5 text-center flex flex-col items-center justify-center gap-1">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Décision</p>
+                    <Badge className={`text-sm font-bold px-3 py-1 ${
+                      latestResults.decision === "Admis" ? "bg-emerald-100 text-emerald-700 border-emerald-200" :
+                      latestResults.decision === "Ajourné" ? "bg-red-100 text-red-700 border-red-200" :
+                      "bg-secondary text-muted-foreground"
+                    } border`}>
+                      {latestResults.decision === "Admis" && <Award className="w-3.5 h-3.5 mr-1" />}
+                      {latestResults.decision ?? "En attente"}
+                    </Badge>
+                  </div>
+                </div>
               )}
+            </CardContent>
+          </Card>
+        </motion.div>
 
-            </motion.div>
-          )}
-        </div>
       </div>
     </AppLayout>
   );

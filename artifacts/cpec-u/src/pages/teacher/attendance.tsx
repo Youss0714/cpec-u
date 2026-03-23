@@ -1,13 +1,17 @@
 import { useState, useEffect, useMemo } from "react";
 import { AppLayout } from "@/components/layout";
-import { useGetTeacherAssignments, useGetClassStudents } from "@workspace/api-client-react";
+import { useGetTeacherAssignments, useGetClassStudents, useTeacherAttendanceHistory } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ClipboardCheck, Send, Save, CheckCircle2, XCircle, Clock } from "lucide-react";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  ClipboardCheck, Send, Save, CheckCircle2, XCircle, Clock,
+  History, CalendarDays, Users, TrendingUp,
+} from "lucide-react";
 
 const STATUS_CONFIG = {
   present: { label: "Présent(e)", icon: CheckCircle2, color: "bg-emerald-100 text-emerald-700 border-emerald-300", dot: "bg-emerald-500" },
@@ -36,7 +40,7 @@ async function apiFetch(path: string, options?: RequestInit) {
   return res.json();
 }
 
-export default function TeacherAttendance() {
+function NewSessionTab() {
   const { data: assignments } = useGetTeacherAssignments();
   const [selectedAssignmentId, setSelectedAssignmentId] = useState("");
   const [sessionDate, setSessionDate] = useState(todayDate());
@@ -80,18 +84,10 @@ export default function TeacherAttendance() {
       .catch(() => {});
   }, [selectedAssignment, sessionDate, (enrolledStudents as any[]).length]);
 
-  const setStatus = (studentId: number, status: Status) => {
-    setRows(prev => prev.map(r => r.studentId === studentId ? { ...r, status } : r));
-  };
-  const setNote = (studentId: number, note: string) => {
-    setRows(prev => prev.map(r => r.studentId === studentId ? { ...r, note } : r));
-  };
-  const setStartTime = (studentId: number, startTime: string) => {
-    setRows(prev => prev.map(r => r.studentId === studentId ? { ...r, startTime } : r));
-  };
-  const setEndTime = (studentId: number, endTime: string) => {
-    setRows(prev => prev.map(r => r.studentId === studentId ? { ...r, endTime } : r));
-  };
+  const setStatus = (studentId: number, status: Status) => setRows(prev => prev.map(r => r.studentId === studentId ? { ...r, status } : r));
+  const setNote = (studentId: number, note: string) => setRows(prev => prev.map(r => r.studentId === studentId ? { ...r, note } : r));
+  const setStartTime = (studentId: number, startTime: string) => setRows(prev => prev.map(r => r.studentId === studentId ? { ...r, startTime } : r));
+  const setEndTime = (studentId: number, endTime: string) => setRows(prev => prev.map(r => r.studentId === studentId ? { ...r, endTime } : r));
 
   const buildPayload = () => ({
     subjectId: selectedAssignment!.subjectId,
@@ -111,11 +107,7 @@ export default function TeacherAttendance() {
     if (!selectedAssignment) return;
     setIsSaving(true);
     try {
-      await apiFetch("/teacher/attendance/save", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(buildPayload()),
-      });
+      await apiFetch("/teacher/attendance/save", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(buildPayload()) });
       toast({ title: "Présences sauvegardées" });
     } catch {
       toast({ title: "Erreur lors de la sauvegarde", variant: "destructive" });
@@ -128,20 +120,11 @@ export default function TeacherAttendance() {
     if (!selectedAssignment) return;
     setIsSending(true);
     try {
-      await apiFetch("/teacher/attendance/save", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(buildPayload()),
-      });
+      await apiFetch("/teacher/attendance/save", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(buildPayload()) });
       const { sentAt: sa } = await apiFetch("/teacher/attendance/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          subjectId: selectedAssignment.subjectId,
-          classId: selectedAssignment.classId,
-          semesterId: selectedAssignment.semesterId,
-          sessionDate,
-        }),
+        body: JSON.stringify({ subjectId: selectedAssignment.subjectId, classId: selectedAssignment.classId, semesterId: selectedAssignment.semesterId, sessionDate }),
       });
       setSentAt(sa);
       toast({ title: "Feuille transmise à la scolarité ✓" });
@@ -157,6 +140,242 @@ export default function TeacherAttendance() {
   const presentCount = rows.filter(r => r.status === "present").length;
 
   return (
+    <div className="space-y-6">
+      <Card className="border-border">
+        <CardContent className="pt-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground">Cours</label>
+              <Select value={selectedAssignmentId} onValueChange={setSelectedAssignmentId}>
+                <SelectTrigger className="bg-background">
+                  <SelectValue placeholder="Sélectionner un cours…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(assignments as any[] ?? []).map((a: any) => (
+                    <SelectItem key={a.id} value={a.id.toString()}>
+                      {a.subjectName} — {a.className}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground">Date du cours</label>
+              <Input type="date" value={sessionDate} onChange={(e) => setSessionDate(e.target.value)} className="bg-background" />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {selectedAssignment && rows.length > 0 && (
+        <>
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="flex items-center gap-1.5 text-sm font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full">
+              <span className="w-2 h-2 rounded-full bg-emerald-500" />{presentCount} présent{presentCount > 1 ? "s" : ""}
+            </span>
+            <span className="flex items-center gap-1.5 text-sm font-medium text-red-700 bg-red-50 border border-red-200 px-3 py-1 rounded-full">
+              <span className="w-2 h-2 rounded-full bg-red-500" />{absentCount} absent{absentCount > 1 ? "s" : ""}
+            </span>
+            {lateCount > 0 && (
+              <span className="flex items-center gap-1.5 text-sm font-medium text-amber-700 bg-amber-50 border border-amber-200 px-3 py-1 rounded-full">
+                <span className="w-2 h-2 rounded-full bg-amber-500" />{lateCount} en retard
+              </span>
+            )}
+            {sentAt && (
+              <Badge variant="outline" className="border-primary/40 text-primary bg-primary/5 ml-auto">
+                <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
+                Transmis le {new Date(sentAt).toLocaleDateString("fr-FR")}
+              </Badge>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            {rows.map((row) => {
+              const cfg = STATUS_CONFIG[row.status];
+              const isAbsentOrLate = row.status !== "present";
+              return (
+                <div key={row.studentId} className="bg-card border border-border rounded-xl px-4 py-3 flex flex-col gap-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${cfg.dot}`} />
+                      <span className="font-medium text-foreground truncate">{row.studentName}</span>
+                    </div>
+                    <div className="flex flex-wrap gap-2 items-center">
+                      {(["present", "absent", "late"] as Status[]).map((s) => {
+                        const c = STATUS_CONFIG[s];
+                        const active = row.status === s;
+                        return (
+                          <button
+                            key={s}
+                            onClick={() => setStatus(row.studentId, s)}
+                            className={`text-xs font-semibold px-3 py-1.5 rounded-full border transition-all ${active ? c.color : "border-border text-muted-foreground hover:border-primary/40"}`}
+                          >
+                            {c.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  {isAbsentOrLate && (
+                    <div className="flex flex-wrap gap-2 items-center pl-5">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs text-muted-foreground font-medium">De</span>
+                        <Input type="time" value={row.startTime} onChange={(e) => setStartTime(row.studentId, e.target.value)} className="h-7 text-xs w-28 bg-background" />
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs text-muted-foreground font-medium">À</span>
+                        <Input type="time" value={row.endTime} onChange={(e) => setEndTime(row.studentId, e.target.value)} className="h-7 text-xs w-28 bg-background" />
+                      </div>
+                      <Input value={row.note} onChange={(e) => setNote(row.studentId, e.target.value)} placeholder="Motif (optionnel)" className="h-7 text-xs w-40 bg-background" />
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-3 pt-2">
+            <Button variant="outline" onClick={handleSave} disabled={isSaving} className="flex-1">
+              <Save className="w-4 h-4 mr-2" />{isSaving ? "Sauvegarde…" : "Sauvegarder le brouillon"}
+            </Button>
+            <Button onClick={handleSend} disabled={isSending || isSaving} className="flex-1 bg-primary hover:bg-primary/90">
+              <Send className="w-4 h-4 mr-2" />{isSending ? "Envoi…" : "Envoyer à l'Assistant de Direction"}
+            </Button>
+          </div>
+        </>
+      )}
+
+      {selectedAssignment && rows.length === 0 && (
+        <div className="text-center py-12 text-muted-foreground">Aucun étudiant inscrit dans cette classe.</div>
+      )}
+
+      {!selectedAssignment && (
+        <div className="text-center py-16 text-muted-foreground">
+          <ClipboardCheck className="w-12 h-12 mx-auto mb-3 opacity-20" />
+          <p>Sélectionnez un cours pour commencer la saisie des présences.</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function HistoryTab() {
+  const { data: history = [], isLoading } = useTeacherAttendanceHistory();
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center py-16">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+      </div>
+    );
+  }
+
+  if ((history as any[]).length === 0) {
+    return (
+      <div className="text-center py-16 text-muted-foreground">
+        <History className="w-12 h-12 mx-auto mb-3 opacity-20" />
+        <p>Aucune feuille de présence envoyée pour le moment.</p>
+        <p className="text-sm mt-1">Les feuilles transmises à la scolarité apparaîtront ici.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Summary stats */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        <Card className="border-border shadow-sm">
+          <CardContent className="p-4 text-center">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Séances totales</p>
+            <p className="text-3xl font-bold text-foreground">{(history as any[]).length}</p>
+          </CardContent>
+        </Card>
+        <Card className="border-border shadow-sm">
+          <CardContent className="p-4 text-center">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Transmises</p>
+            <p className="text-3xl font-bold text-primary">{(history as any[]).filter((h: any) => h.sentAt).length}</p>
+          </CardContent>
+        </Card>
+        <Card className="border-border shadow-sm col-span-2 sm:col-span-1">
+          <CardContent className="p-4 text-center">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Cours différents</p>
+            <p className="text-3xl font-bold text-foreground">
+              {new Set((history as any[]).map((h: any) => `${h.subjectId}-${h.classId}`)).size}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* History table */}
+      <Card className="overflow-hidden border-border shadow-sm">
+        <Table>
+          <TableHeader className="bg-secondary/30">
+            <TableRow>
+              <TableHead className="pl-5"><CalendarDays className="w-3.5 h-3.5 inline mr-1" />Date</TableHead>
+              <TableHead>Matière</TableHead>
+              <TableHead>Classe</TableHead>
+              <TableHead className="text-center"><Users className="w-3.5 h-3.5 inline mr-1" />Présents</TableHead>
+              <TableHead className="text-center">Absents</TableHead>
+              <TableHead className="text-center">Retards</TableHead>
+              <TableHead className="text-right pr-5">Statut</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {(history as any[]).map((session: any) => (
+              <TableRow key={session.id} className="hover:bg-muted/30">
+                <TableCell className="pl-5 font-medium text-foreground">
+                  {new Date(session.sessionDate).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" })}
+                </TableCell>
+                <TableCell className="text-muted-foreground">{session.subjectName}</TableCell>
+                <TableCell>
+                  <Badge variant="outline" className="text-xs font-semibold">{session.className}</Badge>
+                </TableCell>
+                <TableCell className="text-center">
+                  <span className="inline-flex items-center gap-1 text-emerald-700 font-semibold">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />{session.presentCount}
+                  </span>
+                </TableCell>
+                <TableCell className="text-center">
+                  {session.absentCount > 0 ? (
+                    <span className="inline-flex items-center gap-1 text-red-700 font-semibold">
+                      <span className="w-1.5 h-1.5 rounded-full bg-red-500" />{session.absentCount}
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground">0</span>
+                  )}
+                </TableCell>
+                <TableCell className="text-center">
+                  {session.lateCount > 0 ? (
+                    <span className="inline-flex items-center gap-1 text-amber-700 font-semibold">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />{session.lateCount}
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground">0</span>
+                  )}
+                </TableCell>
+                <TableCell className="text-right pr-5">
+                  {session.sentAt ? (
+                    <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 border text-xs font-semibold">
+                      <CheckCircle2 className="w-3 h-3 mr-1" />
+                      Transmise
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="text-muted-foreground text-xs">Brouillon</Badge>
+                  )}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </Card>
+    </div>
+  );
+}
+
+export default function TeacherAttendance() {
+  const [tab, setTab] = useState<"new" | "history">("new");
+
+  return (
     <AppLayout allowedRoles={["teacher", "admin"]}>
       <div className="space-y-6">
         {/* Header */}
@@ -168,158 +387,29 @@ export default function TeacherAttendance() {
           <p className="text-muted-foreground">Enregistrez les présences et absences de vos cours.</p>
         </div>
 
-        {/* Session selector */}
-        <Card className="border-border">
-          <CardContent className="pt-5">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium text-foreground">Cours</label>
-                <Select value={selectedAssignmentId} onValueChange={setSelectedAssignmentId}>
-                  <SelectTrigger className="bg-background">
-                    <SelectValue placeholder="Sélectionner un cours…" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(assignments as any[] ?? []).map((a: any) => (
-                      <SelectItem key={a.id} value={a.id.toString()}>
-                        {a.subjectName} — {a.className}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium text-foreground">Date du cours</label>
-                <Input
-                  type="date"
-                  value={sessionDate}
-                  onChange={(e) => setSessionDate(e.target.value)}
-                  className="bg-background"
-                />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        {/* Tabs */}
+        <div className="flex border-b border-border gap-1">
+          <button
+            onClick={() => setTab("new")}
+            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors -mb-px ${
+              tab === "new" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <ClipboardCheck className="w-4 h-4" />
+            Nouvelle Feuille
+          </button>
+          <button
+            onClick={() => setTab("history")}
+            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors -mb-px ${
+              tab === "history" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <History className="w-4 h-4" />
+            Historique
+          </button>
+        </div>
 
-        {/* Student list */}
-        {selectedAssignment && rows.length > 0 && (
-          <>
-            {/* Stats + sent badge */}
-            <div className="flex flex-wrap items-center gap-3">
-              <span className="flex items-center gap-1.5 text-sm font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full">
-                <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                {presentCount} présent{presentCount > 1 ? "s" : ""}
-              </span>
-              <span className="flex items-center gap-1.5 text-sm font-medium text-red-700 bg-red-50 border border-red-200 px-3 py-1 rounded-full">
-                <span className="w-2 h-2 rounded-full bg-red-500" />
-                {absentCount} absent{absentCount > 1 ? "s" : ""}
-              </span>
-              {lateCount > 0 && (
-                <span className="flex items-center gap-1.5 text-sm font-medium text-amber-700 bg-amber-50 border border-amber-200 px-3 py-1 rounded-full">
-                  <span className="w-2 h-2 rounded-full bg-amber-500" />
-                  {lateCount} en retard
-                </span>
-              )}
-              {sentAt && (
-                <Badge variant="outline" className="border-primary/40 text-primary bg-primary/5 ml-auto">
-                  <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
-                  Transmis le {new Date(sentAt).toLocaleDateString("fr-FR")}
-                </Badge>
-              )}
-            </div>
-
-            {/* Student cards */}
-            <div className="space-y-2">
-              {rows.map((row) => {
-                const cfg = STATUS_CONFIG[row.status];
-                const isAbsentOrLate = row.status !== "present";
-                return (
-                  <div
-                    key={row.studentId}
-                    className="bg-card border border-border rounded-xl px-4 py-3 flex flex-col gap-3"
-                  >
-                    {/* Top row: name + status buttons */}
-                    <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                      <div className="flex items-center gap-3 flex-1 min-w-0">
-                        <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${cfg.dot}`} />
-                        <span className="font-medium text-foreground truncate">{row.studentName}</span>
-                      </div>
-                      <div className="flex flex-wrap gap-2 items-center">
-                        {(["present", "absent", "late"] as Status[]).map((s) => {
-                          const c = STATUS_CONFIG[s];
-                          const active = row.status === s;
-                          return (
-                            <button
-                              key={s}
-                              onClick={() => setStatus(row.studentId, s)}
-                              className={`text-xs font-semibold px-3 py-1.5 rounded-full border transition-all ${
-                                active ? c.color : "border-border text-muted-foreground hover:border-primary/40"
-                              }`}
-                            >
-                              {c.label}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    {/* Bottom row: time range + note (only for absent/late) */}
-                    {isAbsentOrLate && (
-                      <div className="flex flex-wrap gap-2 items-center pl-5">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-xs text-muted-foreground font-medium">De</span>
-                          <Input
-                            type="time"
-                            value={row.startTime}
-                            onChange={(e) => setStartTime(row.studentId, e.target.value)}
-                            className="h-7 text-xs w-28 bg-background"
-                          />
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-xs text-muted-foreground font-medium">À</span>
-                          <Input
-                            type="time"
-                            value={row.endTime}
-                            onChange={(e) => setEndTime(row.studentId, e.target.value)}
-                            className="h-7 text-xs w-28 bg-background"
-                          />
-                        </div>
-                        <Input
-                          value={row.note}
-                          onChange={(e) => setNote(row.studentId, e.target.value)}
-                          placeholder="Motif (optionnel)"
-                          className="h-7 text-xs w-40 bg-background"
-                        />
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Actions */}
-            <div className="flex flex-col sm:flex-row gap-3 pt-2">
-              <Button variant="outline" onClick={handleSave} disabled={isSaving} className="flex-1">
-                <Save className="w-4 h-4 mr-2" />
-                {isSaving ? "Sauvegarde…" : "Sauvegarder le brouillon"}
-              </Button>
-              <Button onClick={handleSend} disabled={isSending || isSaving} className="flex-1 bg-primary hover:bg-primary/90">
-                <Send className="w-4 h-4 mr-2" />
-                {isSending ? "Envoi…" : "Envoyer à l'Assistant de Direction"}
-              </Button>
-            </div>
-          </>
-        )}
-
-        {selectedAssignment && rows.length === 0 && (
-          <div className="text-center py-12 text-muted-foreground">Aucun étudiant inscrit dans cette classe.</div>
-        )}
-
-        {!selectedAssignment && (
-          <div className="text-center py-16 text-muted-foreground">
-            <ClipboardCheck className="w-12 h-12 mx-auto mb-3 opacity-20" />
-            <p>Sélectionnez un cours pour commencer la saisie des présences.</p>
-          </div>
-        )}
+        {tab === "new" ? <NewSessionTab /> : <HistoryTab />}
       </div>
     </AppLayout>
   );

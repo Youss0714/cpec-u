@@ -66,6 +66,56 @@ router.get("/teacher/attendance", requireRole("teacher", "admin"), async (req, r
   }
 });
 
+// ─── Teacher: history of submitted sessions ───────────────────────────────────
+router.get("/teacher/attendance/history", requireRole("teacher", "admin"), async (req, res) => {
+  try {
+    const teacherId = req.session!.userId!;
+
+    const sessions = await db
+      .select({
+        id: attendanceSessionsTable.id,
+        sessionDate: attendanceSessionsTable.sessionDate,
+        sentAt: attendanceSessionsTable.sentAt,
+        subjectId: attendanceSessionsTable.subjectId,
+        subjectName: subjectsTable.name,
+        classId: attendanceSessionsTable.classId,
+        className: classesTable.name,
+        semesterId: attendanceSessionsTable.semesterId,
+        semesterName: semestersTable.name,
+      })
+      .from(attendanceSessionsTable)
+      .innerJoin(subjectsTable, eq(subjectsTable.id, attendanceSessionsTable.subjectId))
+      .innerJoin(classesTable, eq(classesTable.id, attendanceSessionsTable.classId))
+      .innerJoin(semestersTable, eq(semestersTable.id, attendanceSessionsTable.semesterId))
+      .where(eq(attendanceSessionsTable.teacherId, teacherId))
+      .orderBy(desc(attendanceSessionsTable.sessionDate));
+
+    // For each session, compute attendance stats
+    const result = await Promise.all(sessions.map(async (s) => {
+      const records = await db
+        .select({ status: attendanceTable.status })
+        .from(attendanceTable)
+        .where(
+          and(
+            eq(attendanceTable.teacherId, teacherId),
+            eq(attendanceTable.subjectId, s.subjectId),
+            eq(attendanceTable.classId, s.classId),
+            eq(attendanceTable.sessionDate, s.sessionDate),
+          )
+        );
+      const presentCount = records.filter(r => r.status === "present").length;
+      const absentCount = records.filter(r => r.status === "absent").length;
+      const lateCount = records.filter(r => r.status === "late").length;
+      return { ...s, presentCount, absentCount, lateCount, totalCount: records.length };
+    }));
+
+    res.json(result);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
 // ─── Teacher: save attendance for a session ───────────────────────────────────
 router.post("/teacher/attendance/save", requireRole("teacher", "admin"), async (req, res) => {
   try {

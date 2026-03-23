@@ -16,6 +16,7 @@ import {
   activityLogTable,
   attendanceTable,
   absenceJustificationsTable,
+  notificationsTable,
   teachingUnitsTable,
   classFeesTable,
   studentFeesTable,
@@ -1846,6 +1847,18 @@ router.put("/justifications/:id", requireRole("admin"), async (req, res) => {
     } else if (status === "rejected") {
       await db.update(attendanceTable).set({ justified: false }).where(eq(attendanceTable.id, just.attendanceId));
     }
+
+    // Notify the student
+    const notifTitle = status === "approved" ? "Justificatif approuvé" : "Justificatif refusé";
+    const notifMessage = status === "approved"
+      ? "Votre justificatif d'absence a été approuvé par la scolarité. L'absence est désormais marquée comme justifiée."
+      : `Votre justificatif d'absence a été refusé.${reviewNote?.trim() ? ` Motif : ${reviewNote.trim()}` : ""}`;
+    await db.insert(notificationsTable).values({
+      userId: just.studentId,
+      type: status === "approved" ? "justification_approved" : "justification_rejected",
+      title: notifTitle,
+      message: notifMessage,
+    });
 
     res.json(updated);
   } catch (err) {

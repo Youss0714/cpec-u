@@ -99,9 +99,12 @@ artifacts-monorepo/
 
 ### Teacher
 - Enter grades for assigned subjects only. Offline mode via localStorage.
+- **Attendance history tab**: `/teacher/attendance` has "Nouvelle Feuille" + "Historique" tabs. History shows all sent sessions with stats.
 
 ### Student
-- View own grades + average + rank. Only visible when semester.published = true. NO PDF.
+- View own grades + average + rank at `/student/grades` (dedicated page). Only visible when semester.published = true. NO PDF.
+- Dashboard simplified: compact results summary card + quick navigation links.
+- **Justification notifications**: student receives a notification (in the notifications table) when admin approves or rejects their absence justification.
 
 ## Business Logic
 
