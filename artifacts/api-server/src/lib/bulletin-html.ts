@@ -56,6 +56,8 @@ export interface BulletinSchool {
 export interface BulletinData {
   studentName: string;
   studentMatricule: string;
+  dateNaissance: string | null;
+  lieuNaissance: string | null;
   filiere: string;
   className: string;
   semesterName: string;
@@ -767,9 +769,13 @@ export function generateBulletinHTML(data: BulletinData): string {
         <div class="student-card-body">
           <div class="student-card-row">
             <span class="student-card-label">Né(e) le</span>
-            <span class="student-card-dotline">&nbsp;</span>
-            <span class="student-card-label">à</span>
-            <span class="student-card-dotline">&nbsp;</span>
+            ${data.dateNaissance
+              ? `<span>${data.dateNaissance}</span>`
+              : `<span class="student-card-dotline">&nbsp;</span>`}
+            <span class="student-card-label" style="margin-left:4px;">à</span>
+            ${data.lieuNaissance
+              ? `<span>${data.lieuNaissance}</span>`
+              : `<span class="student-card-dotline">&nbsp;</span>`}
           </div>
           <div class="student-card-row">
             <span class="student-card-label">Redoublant(e) :</span>

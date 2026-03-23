@@ -93,7 +93,7 @@ router.get("/users", requireRole("admin"), async (req, res) => {
 router.post("/users", requireRole("admin"), async (req, res) => {
   try {
     const cu = req.session?.user as any;
-    const { email, name, password, role, adminSubRole, classId, phone, matricule } = req.body;
+    const { email, name, password, role, adminSubRole, classId, phone, matricule, dateNaissance, lieuNaissance } = req.body;
     if (!email || !name || !password || !role) {
       res.status(400).json({ error: "Bad Request", message: "Missing required fields" });
       return;
@@ -126,6 +126,8 @@ router.post("/users", requireRole("admin"), async (req, res) => {
       await db.insert(studentProfilesTable).values({
         studentId: user.id,
         matricule: matricule?.trim() || null,
+        dateNaissance: dateNaissance?.trim() || null,
+        lieuNaissance: lieuNaissance?.trim() || null,
       }).onConflictDoNothing();
     }
 
@@ -242,10 +244,12 @@ router.get("/students/:id/profile", requireRole("admin"), async (req, res) => {
 router.put("/students/:id/profile", requireRole("admin"), async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    const { phone, address, parentName, parentPhone, parentEmail, parentAddress, matricule } = req.body;
+    const { phone, address, parentName, parentPhone, parentEmail, parentAddress, matricule, dateNaissance, lieuNaissance } = req.body;
     const [existing] = await db.select().from(studentProfilesTable).where(eq(studentProfilesTable.studentId, id)).limit(1);
     const data: any = {
       matricule: matricule?.trim() || null,
+      dateNaissance: dateNaissance?.trim() || null,
+      lieuNaissance: lieuNaissance?.trim() || null,
       phone: phone ?? null, address: address ?? null,
       parentName: parentName ?? null, parentPhone: parentPhone ?? null,
       parentEmail: parentEmail ?? null, parentAddress: parentAddress ?? null,
@@ -1421,9 +1425,13 @@ router.get("/bulletin/:studentId/:semesterId", requireRole("admin"), async (req,
       .from(ecolesInphbTable)
       .orderBy(ecolesInphbTable.displayOrder);
 
-    // Fetch real matricule from student profile
+    // Fetch real matricule + naissance from student profile
     const [studentProfile] = await db
-      .select({ matricule: studentProfilesTable.matricule })
+      .select({
+        matricule: studentProfilesTable.matricule,
+        dateNaissance: studentProfilesTable.dateNaissance,
+        lieuNaissance: studentProfilesTable.lieuNaissance,
+      })
       .from(studentProfilesTable)
       .where(eq(studentProfilesTable.studentId, studentId))
       .limit(1);
@@ -1432,6 +1440,8 @@ router.get("/bulletin/:studentId/:semesterId", requireRole("admin"), async (req,
     const html = generateBulletinHTML({
       studentName: result.studentName,
       studentMatricule,
+      dateNaissance: studentProfile?.dateNaissance ?? null,
+      lieuNaissance: studentProfile?.lieuNaissance ?? null,
       filiere,
       className: result.className,
       semesterName: result.semesterName,

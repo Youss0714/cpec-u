@@ -686,12 +686,12 @@ export default function AdminUsers() {
   const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
   const [editUser, setEditUser] = useState<any | null>(null);
   const [editForm, setEditForm] = useState({ name: "", email: "", password: "" });
-  const [editProfileForm, setEditProfileForm] = useState({ matricule: "", phone: "", address: "", parentName: "", parentPhone: "", parentEmail: "", parentAddress: "" });
+  const [editProfileForm, setEditProfileForm] = useState({ matricule: "", dateNaissance: "", lieuNaissance: "", phone: "", address: "", parentName: "", parentPhone: "", parentEmail: "", parentAddress: "" });
   const [editProfileLoading, setEditProfileLoading] = useState(false);
   const [editSaving, setEditSaving] = useState(false);
   const [teacherAssignmentRows, setTeacherAssignmentRows] = useState<{ subjectId: string; classId: string; semesterId: string }[]>([]);
-  const [createProfileForm, setCreateProfileForm] = useState({ matricule: "", phone: "", address: "", parentName: "", parentPhone: "", parentEmail: "", parentAddress: "" });
-  const emptyCreateProfile = { matricule: "", phone: "", address: "", parentName: "", parentPhone: "", parentEmail: "", parentAddress: "" };
+  const [createProfileForm, setCreateProfileForm] = useState({ matricule: "", dateNaissance: "", lieuNaissance: "", phone: "", address: "", parentName: "", parentPhone: "", parentEmail: "", parentAddress: "" });
+  const emptyCreateProfile = { matricule: "", dateNaissance: "", lieuNaissance: "", phone: "", address: "", parentName: "", parentPhone: "", parentEmail: "", parentAddress: "" };
   const [viewUser, setViewUser] = useState<any | null>(null);
   const [viewProfile, setViewProfile] = useState<any | null>(null);
   const [viewProfileLoading, setViewProfileLoading] = useState(false);
@@ -733,6 +733,8 @@ export default function AdminUsers() {
           adminSubRole: role === "admin" ? adminSubRole : undefined,
           phone: role === "teacher" && phone ? phone : undefined,
           matricule: role === "student" && createProfileForm.matricule ? createProfileForm.matricule.trim() : undefined,
+          dateNaissance: role === "student" && createProfileForm.dateNaissance ? createProfileForm.dateNaissance.trim() : undefined,
+          lieuNaissance: role === "student" && createProfileForm.lieuNaissance ? createProfileForm.lieuNaissance.trim() : undefined,
         } as any,
       });
 
@@ -823,6 +825,8 @@ export default function AdminUsers() {
           const p = await res.json();
           setEditProfileForm({
             matricule: p.matricule ?? "",
+            dateNaissance: p.dateNaissance ?? "",
+            lieuNaissance: p.lieuNaissance ?? "",
             phone: p.phone ?? "",
             address: p.address ?? "",
             parentName: p.parentName ?? "",
@@ -857,6 +861,8 @@ export default function AdminUsers() {
           credentials: "include",
           body: JSON.stringify({
             matricule: editProfileForm.matricule.trim() || null,
+            dateNaissance: editProfileForm.dateNaissance.trim() || null,
+            lieuNaissance: editProfileForm.lieuNaissance.trim() || null,
             phone: editProfileForm.phone.trim() || null,
             address: editProfileForm.address.trim() || null,
             parentName: editProfileForm.parentName.trim() || null,
@@ -956,6 +962,16 @@ export default function AdminUsers() {
                       <div className="space-y-1">
                         <Label className="flex items-center gap-1.5"><School className="w-3.5 h-3.5 text-muted-foreground" /> N° Matricule <span className="text-destructive">*</span></Label>
                         <Input required value={createProfileForm.matricule} onChange={e => setCreateProfileForm(f => ({ ...f, matricule: e.target.value }))} placeholder="Ex: INP-HB/2024/001" />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 mt-2">
+                      <div className="space-y-1">
+                        <Label className="flex items-center gap-1.5 text-sm">Date de naissance</Label>
+                        <Input value={createProfileForm.dateNaissance} onChange={e => setCreateProfileForm(f => ({ ...f, dateNaissance: e.target.value }))} placeholder="Ex: 25/10/2001" />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="flex items-center gap-1.5 text-sm">Lieu de naissance</Label>
+                        <Input value={createProfileForm.lieuNaissance} onChange={e => setCreateProfileForm(f => ({ ...f, lieuNaissance: e.target.value }))} placeholder="Ex: Abidjan" />
                       </div>
                     </div>
                   )}
@@ -1236,10 +1252,22 @@ export default function AdminUsers() {
                     <Input type="email" value={editForm.email} onChange={e => setEditForm(f => ({ ...f, email: e.target.value }))} />
                   </div>
                   {editUser?.role === "student" && (
-                    <div className="space-y-1">
-                      <Label className="flex items-center gap-1.5"><School className="w-3.5 h-3.5 text-muted-foreground" /> N° Matricule</Label>
-                      <Input value={editProfileForm.matricule} onChange={e => setEditProfileForm(f => ({ ...f, matricule: e.target.value }))} placeholder="Ex: INP-HB/2024/001" />
-                    </div>
+                    <>
+                      <div className="space-y-1">
+                        <Label className="flex items-center gap-1.5"><School className="w-3.5 h-3.5 text-muted-foreground" /> N° Matricule</Label>
+                        <Input value={editProfileForm.matricule} onChange={e => setEditProfileForm(f => ({ ...f, matricule: e.target.value }))} placeholder="Ex: INP-HB/2024/001" />
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <Label className="text-sm">Date de naissance</Label>
+                          <Input value={editProfileForm.dateNaissance} onChange={e => setEditProfileForm(f => ({ ...f, dateNaissance: e.target.value }))} placeholder="Ex: 25/10/2001" />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-sm">Lieu de naissance</Label>
+                          <Input value={editProfileForm.lieuNaissance} onChange={e => setEditProfileForm(f => ({ ...f, lieuNaissance: e.target.value }))} placeholder="Ex: Abidjan" />
+                        </div>
+                      </div>
+                    </>
                   )}
                   <div className="space-y-1">
                     <Label>Nouveau mot de passe <span className="text-muted-foreground text-xs">(laisser vide pour ne pas changer)</span></Label>
