@@ -48,6 +48,11 @@ export interface BulletinUE {
   }>;
 }
 
+export interface BulletinSchool {
+  acronym: string;
+  name: string;
+}
+
 export interface BulletinData {
   studentName: string;
   studentMatricule: string;
@@ -69,6 +74,7 @@ export interface BulletinData {
     value: number | null;
   }>;
   editionDate: string;
+  schools?: BulletinSchool[];
 }
 
 export function generateBulletinHTML(data: BulletinData): string {
@@ -289,7 +295,21 @@ export function generateBulletinHTML(data: BulletinData): string {
     </tr>`;
   }
 
-  const campusNames = ["EDSAPT", "EDSTI", "EFSPC", "EPGE", "ESA", "ESAS", "ESCAE", "ESCPE", "ESI", "ESMG", "ESTP"];
+  const schools = data.schools && data.schools.length > 0
+    ? data.schools
+    : [
+        { acronym: "EDSAPT", name: "École de Formation Spécialisée en Agriculture et Production Tropicale" },
+        { acronym: "EDSTI",  name: "École Doctorale des Sciences, Technologies et Innovation" },
+        { acronym: "EFSPC",  name: "École de Formation Spécialisée en Physico-Chimie" },
+        { acronym: "EPGE",   name: "École Préparatoire aux Grandes Écoles" },
+        { acronym: "ESA",    name: "École Supérieure d'Agronomie" },
+        { acronym: "ESAS",   name: "École Supérieure d'Aménagement et de Santé" },
+        { acronym: "ESCAE",  name: "École Supérieure de Commerce et d'Administration des Entreprises" },
+        { acronym: "ESCPE",  name: "École Supérieure de Chimie, Pétrole et Énergie" },
+        { acronym: "ESI",    name: "École Supérieure d'Industrie" },
+        { acronym: "ESMG",   name: "École Supérieure des Mines et de Géologie" },
+        { acronym: "ESTP",   name: "École Supérieure des Travaux Publics" },
+      ];
 
   return `<!DOCTYPE html>
 <html lang="fr">
@@ -733,12 +753,12 @@ export function generateBulletinHTML(data: BulletinData): string {
     <!-- ═══ FOOTER ═══ -->
     <hr class="footer-sep">
     <div class="footer-campuses">
-      ${campusNames.map(c => `<span>${c}</span>`).join("")}
+      ${schools.map(s => `<span title="${s.name}">${s.acronym}</span>`).join("")}
     </div>
     <div class="footer-contacts">
-      <span>🏠 1093 Yamoussoukro (RCI) &nbsp;|&nbsp; V79 Abidjan (RCI)</span>
-      <span>🌐 www.inphb.ci &nbsp;|&nbsp; @inphb.polytech</span>
-      <span>📞 (225) 27 30 64 66 66 &nbsp;|&nbsp; (225) 05 01 80 00 24</span>
+      <span>&#127968; 1093 Yamoussoukro (RCI) &nbsp;|&nbsp; V79 Abidjan (RCI)</span>
+      <span>&#127760; www.inphb.ci &nbsp;|&nbsp; @inphb.polytech</span>
+      <span>&#128222; (225) 27 30 64 66 66 &nbsp;|&nbsp; (225) 05 01 80 00 24</span>
     </div>
 
   </div><!-- /content -->

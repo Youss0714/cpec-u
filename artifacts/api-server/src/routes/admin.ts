@@ -20,6 +20,7 @@ import {
   studentFeesTable,
   studentProfilesTable,
   academicYearArchivesTable,
+  ecolesInphbTable,
 } from "@workspace/db";
 import { eq, and, sql, count, inArray, desc, ne, isNotNull } from "drizzle-orm";
 import { requireRole } from "../lib/auth.js";
@@ -1389,6 +1390,12 @@ router.get("/bulletin/:studentId/:semesterId", requireRole("admin"), async (req,
       ? Math.round((result.average + result.absenceDeduction) * 100) / 100
       : null;
 
+    // Fetch schools from DB for dynamic footer
+    const schoolRows = await db
+      .select({ acronym: ecolesInphbTable.acronym, name: ecolesInphbTable.name })
+      .from(ecolesInphbTable)
+      .orderBy(ecolesInphbTable.displayOrder);
+
     const html = generateBulletinHTML({
       studentName: result.studentName,
       studentMatricule: String(studentId).padStart(6, "0"),
@@ -1405,6 +1412,7 @@ router.get("/bulletin/:studentId/:semesterId", requireRole("admin"), async (req,
       ueResults,
       unassignedSubjects: result.grades.filter((g: any) => !g.ueId || !ueResults.find(u => u.ueId === g.ueId)),
       editionDate,
+      schools: schoolRows,
     });
 
     res.setHeader("Content-Type", "text/html; charset=utf-8");
