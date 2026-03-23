@@ -6,6 +6,7 @@ import { usersTable } from "./users";
 export const classesTable = pgTable("classes", {
   id: serial("id").primaryKey(),
   name: varchar("name", { length: 255 }).notNull(),
+  filiere: varchar("filiere", { length: 255 }),
   description: text("description"),
   nextClassId: integer("next_class_id").references((): any => classesTable.id, { onDelete: "set null" }),
   orderIndex: integer("order_index").notNull().default(0),

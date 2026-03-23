@@ -56,6 +56,7 @@ export interface BulletinSchool {
 export interface BulletinData {
   studentName: string;
   studentMatricule: string;
+  filiere: string;
   className: string;
   semesterName: string;
   academicYear: string;
@@ -784,7 +785,7 @@ export function generateBulletinHTML(data: BulletinData): string {
 
     <!-- ═══ TITLE BAR ═══ -->
     <div class="title-bar">
-      <div class="title-bar-left">${data.className.toUpperCase()}</div>
+      <div class="title-bar-left">${data.filiere.toUpperCase()}</div>
       <div class="title-bar-right">BULLETIN ${data.semesterName.toUpperCase()}</div>
     </div>
 

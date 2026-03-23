@@ -1390,6 +1390,12 @@ router.get("/bulletin/:studentId/:semesterId", requireRole("admin"), async (req,
       ? Math.round((result.average + result.absenceDeduction) * 100) / 100
       : null;
 
+    // Fetch filière from classes table
+    const [clsRow] = result.classId
+      ? await db.select({ filiere: classesTable.filiere }).from(classesTable).where(eq(classesTable.id, result.classId)).limit(1)
+      : [];
+    const filiere = clsRow?.filiere ?? result.className ?? "";
+
     // Fetch schools from DB for dynamic footer
     const schoolRows = await db
       .select({ acronym: ecolesInphbTable.acronym, name: ecolesInphbTable.name })
@@ -1399,6 +1405,7 @@ router.get("/bulletin/:studentId/:semesterId", requireRole("admin"), async (req,
     const html = generateBulletinHTML({
       studentName: result.studentName,
       studentMatricule: String(studentId).padStart(6, "0"),
+      filiere,
       className: result.className,
       semesterName: result.semesterName,
       academicYear: semester?.academicYear ?? "",
