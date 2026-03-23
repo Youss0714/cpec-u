@@ -29,18 +29,16 @@ export function SplashScreen({ onDone }: { onDone: () => void }) {
         }}
       >
         <div
-          className="rounded-3xl bg-white p-8 flex items-center justify-center"
           style={{
-            boxShadow: "0 8px 48px 0 rgba(30,80,160,0.13), 0 2px 12px 0 rgba(60,140,60,0.08)",
             animation: phase === "hold" ? "splash-float 3.5s ease-in-out infinite" : "none",
           }}
         >
           <img
             src="/logo.png"
             alt="CPEC-Digital"
-            className="w-64 h-auto select-none"
+            className="w-72 h-auto select-none"
             draggable={false}
-            style={{ display: "block" }}
+            style={{ display: "block", mixBlendMode: "multiply" }}
           />
         </div>
 
