@@ -1,6 +1,7 @@
 import { Router } from "express";
 import crypto from "crypto";
 import { db } from "@workspace/db";
+import { generateBulletinHTML } from "../lib/bulletin-html.js";
 import { notifyStudentsOfClasses } from "./notifications.js";
 import {
   usersTable,
@@ -1296,86 +1297,118 @@ router.get("/results/:semesterId", requireRole("admin"), async (req, res) => {
   }
 });
 
-// ─── PDF Bulletin ─────────────────────────────────────────────────────────────
+// ─── HTML Bulletin ────────────────────────────────────────────────────────────
 router.get("/bulletin/:studentId/:semesterId", requireRole("admin"), async (req, res) => {
   try {
     const cu = req.session.user!;
     if (cu.adminSubRole !== "scolarite" && cu.adminSubRole !== "directeur") {
-      res.status(403).json({ error: "Réservé au Assistant(e) de Direction." });
+      res.status(403).json({ error: "Réservé à la Scolarité et au Directeur." });
       return;
     }
     const studentId = parseInt(req.params.studentId);
     const semesterId = parseInt(req.params.semesterId);
 
     const result = await computeStudentResult(studentId, semesterId);
-    if (!result) { res.status(404).json({ error: "Not Found" }); return; }
+    if (!result) { res.status(404).json({ error: "Étudiant ou semestre introuvable." }); return; }
 
     const [semester] = await db.select().from(semestersTable).where(eq(semestersTable.id, semesterId)).limit(1);
 
-    // Generate simple text-based PDF content using raw PDF syntax
-    const lines = [
-      `CPEC-U — Bulletin de Notes`,
-      ``,
-      `Étudiant: ${result.studentName}`,
-      `Classe: ${result.className}`,
-      `Semestre: ${result.semesterName} — Année: ${semester?.academicYear ?? ""}`,
-      ``,
-      `MATIÈRES ET NOTES:`,
-      ...result.grades.map((g: any) => `  ${g.subjectName.padEnd(30)} Coeff: ${g.coefficient}   Note: ${g.value ?? "N/A"}/20`),
-      ``,
-      `Moyenne Générale: ${result.average ?? "N/A"}/20`,
-      `Décision: ${result.decision}`,
-      ``,
-      `Date d'édition: ${new Date().toLocaleDateString("fr-FR")}`,
-    ];
+    // Fetch UEs with categories for this class/semester (computeStudentResult doesn't expose category)
+    const uesWithCategory = result.classId
+      ? await db.select().from(teachingUnitsTable).where(
+          and(
+            eq(teachingUnitsTable.classId, result.classId),
+            eq(teachingUnitsTable.semesterId, semesterId)
+          )
+        )
+      : [];
+    const ueCategMap = new Map(uesWithCategory.map(u => [u.id, u.category]));
 
-    const textContent = lines.join("\n");
+    // Enrich ueResults with category
+    const ueResults = result.ueResults.map(ue => ({
+      ...ue,
+      category: ueCategMap.get(ue.ueId) ?? null,
+    }));
 
-    // Build minimal PDF
-    const now = new Date().toISOString().replace(/[:-]/g, "").slice(0, 15);
-    const studentName = result.studentName.replace(/[^a-zA-Z0-9]/g, "_");
+    // Compute rank in class
+    let rank: number | null = null;
+    let totalStudents: number | null = null;
+    if (result.classId && result.average !== null) {
+      const classStudents = await db
+        .select({ studentId: classEnrollmentsTable.studentId })
+        .from(classEnrollmentsTable)
+        .where(eq(classEnrollmentsTable.classId, result.classId));
 
-    // Minimal valid PDF
-    const pdfLines = [
-      "%PDF-1.4",
-      "1 0 obj",
-      "<< /Type /Catalog /Pages 2 0 R >>",
-      "endobj",
-      "2 0 obj",
-      "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
-      "endobj",
-      "3 0 obj",
-      "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
-      "endobj",
-    ];
+      const studentIds = classStudents.map(s => s.studentId);
+      if (studentIds.length > 1) {
+        const allGrades = await db
+          .select({
+            studentId: gradesTable.studentId,
+            value: gradesTable.value,
+            coefficient: subjectsTable.coefficient,
+          })
+          .from(gradesTable)
+          .innerJoin(subjectsTable, eq(subjectsTable.id, gradesTable.subjectId))
+          .where(
+            and(
+              inArray(gradesTable.studentId, studentIds),
+              eq(gradesTable.semesterId, semesterId)
+            )
+          );
 
-    // Build stream content
-    let streamContent = "BT\n/F1 12 Tf\n";
-    let y = 800;
-    for (const line of lines) {
-      const escaped = line.replace(/\(/g, "\\(").replace(/\)/g, "\\)").replace(/[^\x20-\x7E]/g, "?");
-      streamContent += `50 ${y} Td\n(${escaped}) Tj\n0 -18 Td\n`;
-      y -= 18;
-      if (y < 50) break;
+        const studentSums = new Map<number, { sum: number; totalCoef: number }>();
+        for (const g of allGrades) {
+          const e = studentSums.get(g.studentId) ?? { sum: 0, totalCoef: 0 };
+          e.sum += (g.value ?? 0) * g.coefficient;
+          e.totalCoef += g.coefficient;
+          studentSums.set(g.studentId, e);
+        }
+        const avgs = [...studentSums.entries()]
+          .filter(([, e]) => e.totalCoef > 0)
+          .map(([id, e]) => ({ id, avg: e.sum / e.totalCoef }))
+          .sort((a, b) => b.avg - a.avg);
+
+        totalStudents = avgs.length;
+        const pos = avgs.findIndex(a => a.id === studentId);
+        rank = pos >= 0 ? pos + 1 : null;
+      } else {
+        rank = 1;
+        totalStudents = 1;
+      }
     }
-    streamContent += "ET";
 
-    const streamBytes = Buffer.from(streamContent, "utf-8");
-    pdfLines.push(
-      "4 0 obj",
-      `<< /Length ${streamBytes.length} >>`,
-      "stream",
-    );
+    const editionDate = new Date().toLocaleDateString("fr-FR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
 
-    const headerStr = pdfLines.join("\n") + "\nstream\n";
-    const headerBuf = Buffer.from(headerStr, "utf-8");
-    const footerStr = "\nendstream\nendobj\n5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n";
-    const crossRef = "xref\n0 6\n0000000000 65535 f\r\n0000000009 00000 n\r\n0000000058 00000 n\r\n0000000115 00000 n\r\n0000000266 00000 n\r\n0000000350 00000 n\r\n";
-    const trailerStr = `trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${headerBuf.length + streamBytes.length + footerStr.length}\n%%EOF`;
+    // result.average is already the *nette* average (absence deduction already applied)
+    // Brute average = nette + deduction
+    const averageBrute = result.average !== null
+      ? Math.round((result.average + result.absenceDeduction) * 100) / 100
+      : null;
 
-    res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Content-Disposition", `attachment; filename="bulletin_${studentName}_S${semesterId}_${now}.pdf"`);
-    res.send(Buffer.concat([headerBuf, streamBytes, Buffer.from(footerStr + crossRef + trailerStr, "utf-8")]));
+    const html = generateBulletinHTML({
+      studentName: result.studentName,
+      studentMatricule: String(studentId).padStart(6, "0"),
+      className: result.className,
+      semesterName: result.semesterName,
+      academicYear: semester?.academicYear ?? "",
+      average: averageBrute,
+      averageNette: result.average,
+      decision: result.decision,
+      rank,
+      totalStudents,
+      absenceDeductionHours: result.absenceDeductionHours,
+      absenceDeduction: result.absenceDeduction,
+      ueResults,
+      unassignedSubjects: result.grades.filter((g: any) => !g.ueId || !ueResults.find(u => u.ueId === g.ueId)),
+      editionDate,
+    });
+
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.send(html);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Internal Server Error" });

@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { AppLayout } from "@/components/layout";
 import {
-  useListSemesters, useListClasses, useGetSemesterResults, generateBulletin,
+  useListSemesters, useListClasses, useGetSemesterResults,
   useGetCurrentUser, usePublishSemesterResults,
 } from "@workspace/api-client-react";
 import {
@@ -171,20 +171,8 @@ export default function AdminResults() {
     }
   };
 
-  const handleDownloadPDF = async (studentId: number, semesterId: number, studentName: string) => {
-    try {
-      const blob = await generateBulletin(studentId, semesterId);
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `Bulletin_${studentName.replace(/\s+/g, "_")}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
-    } catch {
-      toast({ title: "Erreur de génération du PDF", variant: "destructive" });
-    }
+  const handleDownloadPDF = (studentId: number, semesterId: number, _studentName: string) => {
+    window.open(`/api/admin/bulletin/${studentId}/${semesterId}`, "_blank", "noopener");
   };
 
   return (
