@@ -296,6 +296,20 @@ export const useSubmitGradesForReview = (options?: UseMutationOptions<{ message:
     ...options,
   });
 
+export const sendGradesToStudents = (data: SubmitGradesRequest): Promise<{ message: string; notifiedCount: number }> =>
+  customFetch<{ message: string; notifiedCount: number }>("/api/teacher/grade-submissions/notify-students", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+
+export const useSendGradesToStudents = (options?: UseMutationOptions<{ message: string; notifiedCount: number }, unknown, SubmitGradesRequest>) =>
+  useMutation<{ message: string; notifiedCount: number }, unknown, SubmitGradesRequest>({
+    mutationKey: ["sendGradesToStudents"],
+    mutationFn: sendGradesToStudents,
+    ...options,
+  });
+
 export const getGradeSubmissionStatus = (params: SubmitGradesRequest): Promise<{ submitted: boolean; submittedAt: string | null }> => {
   const qs = new URLSearchParams({
     subjectId: String(params.subjectId),

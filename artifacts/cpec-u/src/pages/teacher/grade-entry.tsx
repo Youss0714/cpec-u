@@ -1,12 +1,12 @@
 import { useState, useEffect, useMemo } from "react";
 import { AppLayout } from "@/components/layout";
 import { useGetTeacherAssignments, useGetTeacherGrades, useSubmitGradesBulk } from "@workspace/api-client-react";
-import { useListSubjectApprovals, useGetClassStudents, useSubmitGradesForReview, useGetGradeSubmissionStatus } from "@workspace/api-client-react";
+import { useListSubjectApprovals, useGetClassStudents, useSubmitGradesForReview, useGetGradeSubmissionStatus, useSendGradesToStudents } from "@workspace/api-client-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { WifiOff, Save, CheckCircle2, Lock, Send, Clock } from "lucide-react";
+import { WifiOff, Save, CheckCircle2, Lock, Send, Clock, BellRing } from "lucide-react";
 import { Card } from "@/components/ui/card";
 
 const EVAL_LABELS = ["Éval 1", "Éval 2", "Éval 3", "Éval 4"] as const;
@@ -61,6 +61,7 @@ export default function GradeEntry() {
   const { toast } = useToast();
   const submitBulk = useSubmitGradesBulk();
   const submitForReview = useSubmitGradesForReview();
+  const sendGrades = useSendGradesToStudents();
 
   // Online detection
   const [isOnline, setIsOnline] = useState(navigator.onLine);
@@ -101,6 +102,20 @@ export default function GradeEntry() {
       toast({ title: "Notes soumises pour validation — l'admin sera notifié." });
     } catch (e: any) {
       toast({ title: e?.message ?? "Erreur lors de la soumission.", variant: "destructive" });
+    }
+  };
+
+  const handleSendToStudents = async () => {
+    if (!selectedAssignment) return;
+    try {
+      const result = await sendGrades.mutateAsync({
+        subjectId: selectedAssignment.subjectId,
+        classId: selectedAssignment.classId,
+        semesterId: selectedAssignment.semesterId,
+      });
+      toast({ title: `Notes envoyées à ${result.notifiedCount} étudiant${result.notifiedCount > 1 ? "s" : ""}.` });
+    } catch (e: any) {
+      toast({ title: e?.message ?? "Erreur lors de l'envoi.", variant: "destructive" });
     }
   };
 
@@ -323,6 +338,21 @@ export default function GradeEntry() {
                 })}
               </div>
             )}
+          </div>
+        )}
+
+        {/* Send to students button — always available when grades exist */}
+        {selectedAssignment && filledCount > 0 && (
+          <div className="flex justify-end">
+            <Button
+              variant="outline"
+              className="border-violet-300 text-violet-700 hover:bg-violet-50 hover:border-violet-400"
+              onClick={handleSendToStudents}
+              disabled={sendGrades.isPending}
+            >
+              <BellRing className="w-4 h-4 mr-2" />
+              {sendGrades.isPending ? "Envoi en cours..." : "Envoyer les notes aux étudiants"}
+            </Button>
           </div>
         )}
 

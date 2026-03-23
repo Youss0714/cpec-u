@@ -12,6 +12,7 @@ import {
   scheduleEntriesTable,
   roomsTable,
   gradeSubmissionsTable,
+  notificationsTable,
 } from "@workspace/db";
 import { eq, and, sql } from "drizzle-orm";
 import { requireRole } from "../lib/auth.js";
@@ -384,6 +385,102 @@ router.get("/grade-submissions/status", requireRole("teacher"), async (req, res)
       )
       .limit(1);
     res.json({ submitted: submission.length > 0, submittedAt: submission[0]?.submittedAt ?? null });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// POST /teacher/grade-submissions/notify-students — send personalized grade notifications to each student
+router.post("/grade-submissions/notify-students", requireRole("teacher"), async (req, res) => {
+  try {
+    const teacherId = req.session!.userId!;
+    const teacherName = (req.session as any).name as string;
+    const { subjectId, classId, semesterId } = req.body;
+    if (!subjectId || !classId || !semesterId) {
+      return res.status(400).json({ error: "subjectId, classId et semesterId sont requis." });
+    }
+    const sId = parseInt(subjectId);
+    const cId = parseInt(classId);
+    const smId = parseInt(semesterId);
+
+    // Verify teacher assignment
+    const assignment = await db
+      .select()
+      .from(teacherAssignmentsTable)
+      .where(
+        and(
+          eq(teacherAssignmentsTable.teacherId, teacherId),
+          eq(teacherAssignmentsTable.subjectId, sId),
+          eq(teacherAssignmentsTable.classId, cId),
+          eq(teacherAssignmentsTable.semesterId, smId),
+        )
+      )
+      .limit(1);
+    if (assignment.length === 0) {
+      return res.status(403).json({ error: "Affectation non trouvée." });
+    }
+
+    // Get subject and semester names
+    const [subjectRow] = await db.select({ name: subjectsTable.name }).from(subjectsTable).where(eq(subjectsTable.id, sId)).limit(1);
+    const [semesterRow] = await db.select({ name: semestersTable.name }).from(semestersTable).where(eq(semestersTable.id, smId)).limit(1);
+    const subjectName = subjectRow?.name ?? "Matière";
+    const semesterName = semesterRow?.name ?? "Semestre";
+
+    // Get all students enrolled in this class
+    const enrollments = await db
+      .select({ studentId: classEnrollmentsTable.studentId })
+      .from(classEnrollmentsTable)
+      .where(eq(classEnrollmentsTable.classId, cId));
+
+    if (enrollments.length === 0) {
+      return res.json({ message: "Aucun étudiant inscrit dans cette classe.", notifiedCount: 0 });
+    }
+
+    const studentIds = enrollments.map(e => e.studentId);
+
+    // Get all grades for these students for this subject/semester
+    const grades = await db
+      .select()
+      .from(gradesTable)
+      .where(
+        and(
+          eq(gradesTable.subjectId, sId),
+          eq(gradesTable.semesterId, smId),
+        )
+      );
+
+    // Build a map: studentId → evalNumber → value
+    const gradeMap = new Map<number, Map<number, number>>();
+    for (const g of grades) {
+      if (!studentIds.includes(g.studentId)) continue;
+      if (!gradeMap.has(g.studentId)) gradeMap.set(g.studentId, new Map());
+      gradeMap.get(g.studentId)!.set(g.evalNumber, parseFloat(g.value as any));
+    }
+
+    // Insert one notification per student
+    const EVAL_COUNT = 4;
+    const notifications = studentIds.map(studentId => {
+      const evals = gradeMap.get(studentId) ?? new Map();
+      const evalParts = Array.from({ length: EVAL_COUNT }, (_, i) => {
+        const v = evals.get(i + 1);
+        return `Éval${i + 1}: ${v !== undefined ? `${v}/20` : "—"}`;
+      });
+      const values = Array.from(evals.values());
+      const avg = values.length > 0
+        ? (values.reduce((a, b) => a + b, 0) / values.length).toFixed(2)
+        : null;
+      const message = `${evalParts.join(" | ")}${avg !== null ? ` — Moyenne: ${avg}/20` : ""}\nTransmis par ${teacherName}.`;
+      return {
+        userId: studentId,
+        type: "grades",
+        title: `Notes en ${subjectName} (${semesterName})`,
+        message,
+      };
+    });
+
+    await db.insert(notificationsTable).values(notifications);
+    res.json({ message: "Notes envoyées aux étudiants.", notifiedCount: notifications.length });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Internal Server Error" });
