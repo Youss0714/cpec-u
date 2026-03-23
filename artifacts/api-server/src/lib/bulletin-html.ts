@@ -615,19 +615,29 @@ export function generateBulletinHTML(data: BulletinData): string {
       border-top: 1.5px solid #1A1A1A;
       margin: 6px 0 3px;
     }
-    .footer-campuses {
-      display: flex;
-      justify-content: space-between;
-      font-size: 6pt;
-      font-weight: bold;
+    .footer-legend {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0px 12px;
+      margin-bottom: 4px;
+    }
+    .footer-legend-item {
+      font-size: 5.5pt;
+      line-height: 1.5;
+      color: #1A1A1A;
+    }
+    .footer-legend-item strong {
       color: #1a3a6b;
-      margin-bottom: 3px;
+      font-size: 6pt;
     }
     .footer-contacts {
       display: flex;
       justify-content: space-between;
-      font-size: 6pt;
-      color: #333;
+      font-size: 5.5pt;
+      color: #444;
+      border-top: 0.5px solid #ccc;
+      padding-top: 3px;
+      margin-top: 2px;
     }
 
     /* ── Print ── */
@@ -752,8 +762,8 @@ export function generateBulletinHTML(data: BulletinData): string {
 
     <!-- ═══ FOOTER ═══ -->
     <hr class="footer-sep">
-    <div class="footer-campuses">
-      ${schools.map(s => `<span title="${s.name}">${s.acronym}</span>`).join("")}
+    <div class="footer-legend">
+      ${schools.map(s => `<div class="footer-legend-item"><strong>${s.acronym}</strong> : ${s.name}</div>`).join("")}
     </div>
     <div class="footer-contacts">
       <span>&#127968; 1093 Yamoussoukro (RCI) &nbsp;|&nbsp; V79 Abidjan (RCI)</span>
