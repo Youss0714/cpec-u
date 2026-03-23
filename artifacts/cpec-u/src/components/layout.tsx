@@ -1,6 +1,6 @@
 import { ReactNode, useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
-import { useGetCurrentUser, useLogout, useGetUnreadNotificationCount } from "@workspace/api-client-react";
+import { useGetCurrentUser, useLogout, useGetUnreadNotificationCount, useGetPendingGradeSubmissionsCount } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import {
   LayoutDashboard,
@@ -50,6 +50,12 @@ export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
   const { data: unreadData } = useGetUnreadNotificationCount({
     enabled: !!(user && user.role === "student"),
   } as any);
+
+  const isResultsAdmin = !!(user && user.role === "admin" && ((user as any).adminSubRole === "scolarite" || (user as any).adminSubRole === "directeur"));
+  const { data: pendingCountData } = useGetPendingGradeSubmissionsCount(
+    { enabled: isResultsAdmin } as any
+  );
+  const pendingCount = (pendingCountData as any)?.count ?? 0;
 
   const logoutMutation = useLogout({
     mutation: {
@@ -114,7 +120,7 @@ export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
     { name: "Semestres", href: "/admin/semesters", icon: Calendar },
     { name: "Feuilles de Présence", href: "/admin/attendance", icon: ClipboardList },
     { name: "Bilan des Absences", href: "/admin/attendance/summary", icon: BarChart3 },
-    { name: "Résultats & Bulletins", href: "/admin/results", icon: GraduationCap },
+    { name: "Résultats & Bulletins", href: "/admin/results", icon: GraduationCap, badge: pendingCount > 0 ? pendingCount : undefined },
     { name: "Journal d'Activité", href: "/admin/activity-log", icon: ScrollText },
     { name: "Messages", href: "/admin/messages", icon: MessageSquare },
   ];
@@ -142,7 +148,7 @@ export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
     { name: "Emplois du temps", href: "/admin/schedules", icon: CalendarDays },
     { name: "Salles", href: "/admin/rooms", icon: DoorOpen },
     { name: "Affectations", href: "/admin/assignments", icon: ClipboardList },
-    { name: "Résultats & Bulletins", href: "/admin/results", icon: GraduationCap },
+    { name: "Résultats & Bulletins", href: "/admin/results", icon: GraduationCap, badge: pendingCount > 0 ? pendingCount : undefined },
     { name: "Journal d'Activité", href: "/admin/activity-log", icon: ScrollText },
     { name: "Hébergement", href: "/admin/housing", icon: Building2 },
     { name: "Messages", href: "/admin/messages", icon: MessageSquare },

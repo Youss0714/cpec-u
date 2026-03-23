@@ -11,6 +11,7 @@ import {
   gradesTable,
   teacherAssignmentsTable,
   subjectApprovalsTable,
+  gradeSubmissionsTable,
   activityLogTable,
   attendanceTable,
   teachingUnitsTable,
@@ -1144,6 +1145,41 @@ router.delete("/subject-approvals/:id", requireRole("admin"), async (req, res) =
     const id = parseInt(req.params.id);
     await db.delete(subjectApprovalsTable).where(eq(subjectApprovalsTable.id, id));
     res.json({ message: "Approval removed" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// ─── Grade Submissions (pending teacher submissions for review) ────────────────
+
+router.get("/grade-submissions/pending", requireRole("admin"), async (req, res) => {
+  try {
+    const { semesterId } = req.query;
+    const submissions = await db
+      .select()
+      .from(gradeSubmissionsTable)
+      .where(semesterId ? eq(gradeSubmissionsTable.semesterId, parseInt(semesterId as string)) : undefined);
+
+    // Filter out those already approved
+    const approvals = await db.select().from(subjectApprovalsTable);
+    const approvedKeys = new Set(approvals.map((a) => `${a.subjectId}-${a.classId}-${a.semesterId}`));
+    const pending = submissions.filter((s) => !approvedKeys.has(`${s.subjectId}-${s.classId}-${s.semesterId}`));
+
+    res.json(pending);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+router.get("/grade-submissions/pending-count", requireRole("admin"), async (req, res) => {
+  try {
+    const submissions = await db.select().from(gradeSubmissionsTable);
+    const approvals = await db.select().from(subjectApprovalsTable);
+    const approvedKeys = new Set(approvals.map((a) => `${a.subjectId}-${a.classId}-${a.semesterId}`));
+    const count = submissions.filter((s) => !approvedKeys.has(`${s.subjectId}-${s.classId}-${s.semesterId}`)).length;
+    res.json({ count });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Internal Server Error" });

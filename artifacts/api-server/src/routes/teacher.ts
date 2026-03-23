@@ -11,8 +11,9 @@ import {
   subjectApprovalsTable,
   scheduleEntriesTable,
   roomsTable,
+  gradeSubmissionsTable,
 } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { requireRole } from "../lib/auth.js";
 
 const router = Router();
@@ -284,6 +285,105 @@ router.get("/schedule", requireRole("teacher"), async (req, res) => {
 
     const sorted = rows.sort((a, b) => (a.sessionDate as string).localeCompare(b.sessionDate as string) || a.startTime.localeCompare(b.startTime));
     res.json(sorted);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// POST /teacher/grade-submissions — teacher submits grades for admin review
+router.post("/grade-submissions", requireRole("teacher"), async (req, res) => {
+  try {
+    const teacherId = req.session!.userId!;
+    const teacherName = (req.session as any).name as string;
+    const { subjectId, classId, semesterId } = req.body;
+    if (!subjectId || !classId || !semesterId) {
+      return res.status(400).json({ error: "subjectId, classId et semesterId sont requis." });
+    }
+
+    // Verify the teacher is assigned to this subject/class/semester
+    const assignment = await db
+      .select()
+      .from(teacherAssignmentsTable)
+      .where(
+        and(
+          eq(teacherAssignmentsTable.teacherId, teacherId),
+          eq(teacherAssignmentsTable.subjectId, parseInt(subjectId)),
+          eq(teacherAssignmentsTable.classId, parseInt(classId)),
+          eq(teacherAssignmentsTable.semesterId, parseInt(semesterId)),
+        )
+      )
+      .limit(1);
+    if (assignment.length === 0) {
+      return res.status(403).json({ error: "Affectation non trouvée pour cet enseignant." });
+    }
+
+    // Check if already approved (locked)
+    const approval = await db
+      .select()
+      .from(subjectApprovalsTable)
+      .where(
+        and(
+          eq(subjectApprovalsTable.subjectId, parseInt(subjectId)),
+          eq(subjectApprovalsTable.classId, parseInt(classId)),
+          eq(subjectApprovalsTable.semesterId, parseInt(semesterId)),
+        )
+      )
+      .limit(1);
+    if (approval.length > 0) {
+      return res.status(403).json({ error: "Ces notes sont déjà approuvées et verrouillées." });
+    }
+
+    // Fetch names for denormalization
+    const subjectRow = await db.select({ name: subjectsTable.name }).from(subjectsTable).where(eq(subjectsTable.id, parseInt(subjectId))).limit(1);
+    const classRow = await db.select({ name: classesTable.name }).from(classesTable).where(eq(classesTable.id, parseInt(classId))).limit(1);
+
+    // Upsert grade submission (re-submit updates the timestamp)
+    await db
+      .insert(gradeSubmissionsTable)
+      .values({
+        teacherId,
+        teacherName,
+        subjectId: parseInt(subjectId),
+        subjectName: subjectRow[0]?.name ?? "—",
+        classId: parseInt(classId),
+        className: classRow[0]?.name ?? "—",
+        semesterId: parseInt(semesterId),
+        submittedAt: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: [gradeSubmissionsTable.teacherId, gradeSubmissionsTable.subjectId, gradeSubmissionsTable.classId, gradeSubmissionsTable.semesterId],
+        set: { submittedAt: new Date() },
+      });
+
+    res.json({ message: "Notes soumises pour validation." });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// GET /teacher/grade-submissions/status — get submission status for current teacher
+router.get("/grade-submissions/status", requireRole("teacher"), async (req, res) => {
+  try {
+    const teacherId = req.session!.userId!;
+    const { subjectId, classId, semesterId } = req.query;
+    if (!subjectId || !classId || !semesterId) {
+      return res.status(400).json({ error: "subjectId, classId, semesterId sont requis." });
+    }
+    const submission = await db
+      .select()
+      .from(gradeSubmissionsTable)
+      .where(
+        and(
+          eq(gradeSubmissionsTable.teacherId, teacherId),
+          eq(gradeSubmissionsTable.subjectId, parseInt(subjectId as string)),
+          eq(gradeSubmissionsTable.classId, parseInt(classId as string)),
+          eq(gradeSubmissionsTable.semesterId, parseInt(semesterId as string)),
+        )
+      )
+      .limit(1);
+    res.json({ submitted: submission.length > 0, submittedAt: submission[0]?.submittedAt ?? null });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Internal Server Error" });

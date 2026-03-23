@@ -6,7 +6,7 @@ import {
 } from "@workspace/api-client-react";
 import {
   useListSubjectApprovals, useApproveSubject, useUnapproveSubject, useDerogateGrade,
-  usePromoteAdmitted,
+  usePromoteAdmitted, useGetPendingGradeSubmissions,
 } from "@workspace/api-client-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -19,7 +19,7 @@ import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
-import { Download, Search, CheckCircle, Lock, Unlock, FileEdit, Globe, GlobeLock, TrendingUp, Users, GraduationCap, ChevronDown, ChevronUp, AlertTriangle, XCircle, Eye } from "lucide-react";
+import { Download, Search, CheckCircle, Lock, Unlock, FileEdit, Globe, GlobeLock, TrendingUp, Users, GraduationCap, ChevronDown, ChevronUp, AlertTriangle, XCircle, Eye, Send } from "lucide-react";
 
 export default function AdminResults() {
   const { toast } = useToast();
@@ -40,6 +40,11 @@ export default function AdminResults() {
     selectedSemester ? parseInt(selectedSemester) : 0,
     { classId: selectedClass !== "all" ? parseInt(selectedClass) : undefined },
     { query: { enabled: !!selectedSemester } as any }
+  );
+
+  const { data: pendingSubmissions = [] } = useGetPendingGradeSubmissions(
+    selectedSemester ? { semesterId: parseInt(selectedSemester) } : undefined,
+    { enabled: !!selectedSemester && isScolarite } as any
   );
 
   const { data: approvals = [] } = useListSubjectApprovals(
@@ -268,28 +273,40 @@ export default function AdminResults() {
 
         {selectedSemester ? (
           <>
-            {/* Approval panel — scolarité only */}
-            {isScolarite && subjectCombos.length > 0 && (
-              <div className="bg-card border rounded-2xl shadow-sm overflow-hidden">
-                <div className="px-6 py-4 border-b bg-secondary/30">
-                  <h2 className="font-semibold text-foreground flex items-center gap-2">
-                    <CheckCircle className="w-4 h-4 text-emerald-500" />
-                    Validation des Notes par Matière
-                  </h2>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Approuver verrouille la saisie pour l'enseignant. Les dérogations restent possibles depuis ce panneau.
-                  </p>
+            {/* Approval panel — scolarité only, shown when pending submissions exist */}
+            {isScolarite && (pendingSubmissions as any[]).length > 0 && (
+              <div className="bg-card border border-amber-200 rounded-2xl shadow-sm overflow-hidden">
+                <div className="px-6 py-4 border-b bg-amber-50/60 flex items-center justify-between">
+                  <div>
+                    <h2 className="font-semibold text-foreground flex items-center gap-2">
+                      <CheckCircle className="w-4 h-4 text-amber-500" />
+                      Validation des Notes par Matière
+                      <span className="ml-1 inline-flex items-center justify-center w-5 h-5 text-xs font-bold bg-amber-500 text-white rounded-full">
+                        {(pendingSubmissions as any[]).length}
+                      </span>
+                    </h2>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Un enseignant a soumis ses notes pour validation. Approuver verrouille la saisie.
+                    </p>
+                  </div>
                 </div>
                 <div className="divide-y">
-                  {subjectCombos.map(({ subjectId, subjectName, classId, className }) => {
+                  {(pendingSubmissions as any[]).map((submission: any) => {
+                    const { subjectId, subjectName, classId, className, teacherName, submittedAt } = submission;
                     const key = `${subjectId}-${classId}`;
                     const approved = approvedSet.has(key);
                     const approval = (approvals as any[]).find((a) => a.subjectId === subjectId && a.classId === classId);
                     return (
-                      <div key={key} className="flex items-center justify-between px-6 py-3 hover:bg-muted/30 transition-colors gap-4">
+                      <div key={key} className="flex items-start sm:items-center justify-between px-6 py-4 hover:bg-muted/30 transition-colors gap-4 flex-col sm:flex-row">
                         <div className="min-w-0">
-                          <span className="font-medium text-sm text-foreground">{subjectName}</span>
-                          <span className="text-xs text-muted-foreground ml-2">— {className}</span>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-semibold text-sm text-foreground">{subjectName}</span>
+                            <span className="text-xs text-muted-foreground">— {className}</span>
+                          </div>
+                          <p className="text-xs text-amber-700 mt-1 flex items-center gap-1">
+                            <Send className="w-3 h-3 inline shrink-0" />
+                            Soumis par <strong className="ml-0.5">{teacherName}</strong> le {new Date(submittedAt).toLocaleDateString("fr-FR", { dateStyle: "long" })}
+                          </p>
                           {approved && (
                             <p className="text-xs text-emerald-600 mt-0.5">
                               ✓ Approuvé par {approval?.approvedByName} · {new Date(approval?.approvedAt).toLocaleDateString("fr-FR")}
@@ -308,7 +325,7 @@ export default function AdminResults() {
                           <Button
                             size="sm"
                             variant={approved ? "outline" : "default"}
-                            className={approved ? "border-emerald-300 text-emerald-700 hover:bg-emerald-50" : ""}
+                            className={approved ? "border-emerald-300 text-emerald-700 hover:bg-emerald-50" : "bg-emerald-600 hover:bg-emerald-700 text-white"}
                             onClick={() => approved ? handleUnapprove(subjectId, classId) : handleApprove(subjectId, classId)}
                             disabled={approveSubject.isPending || unapproveSubject.isPending}
                           >

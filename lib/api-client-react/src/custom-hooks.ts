@@ -266,6 +266,78 @@ export const useUnapproveSubject = (options?: UseMutationOptions<{ message: stri
     ...options,
   });
 
+// ─── Grade Submissions ────────────────────────────────────────────────────────
+
+export type GradeSubmission = {
+  id: number;
+  teacherId: number;
+  teacherName: string;
+  subjectId: number;
+  subjectName: string;
+  classId: number;
+  className: string;
+  semesterId: number;
+  submittedAt: string;
+};
+
+export type SubmitGradesRequest = { subjectId: number; classId: number; semesterId: number };
+
+export const submitGradesForReview = (data: SubmitGradesRequest): Promise<{ message: string }> =>
+  customFetch<{ message: string }>("/api/teacher/grade-submissions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+
+export const useSubmitGradesForReview = (options?: UseMutationOptions<{ message: string }, unknown, SubmitGradesRequest>) =>
+  useMutation<{ message: string }, unknown, SubmitGradesRequest>({
+    mutationKey: ["submitGradesForReview"],
+    mutationFn: submitGradesForReview,
+    ...options,
+  });
+
+export const getGradeSubmissionStatus = (params: SubmitGradesRequest): Promise<{ submitted: boolean; submittedAt: string | null }> => {
+  const qs = new URLSearchParams({
+    subjectId: String(params.subjectId),
+    classId: String(params.classId),
+    semesterId: String(params.semesterId),
+  });
+  return customFetch(`/api/teacher/grade-submissions/status?${qs.toString()}`);
+};
+
+export const useGetGradeSubmissionStatus = (params: SubmitGradesRequest | null, options?: QueryOpts<{ submitted: boolean; submittedAt: string | null }>) =>
+  useQuery<{ submitted: boolean; submittedAt: string | null }>({
+    queryKey: ["/api/teacher/grade-submissions/status", params],
+    queryFn: () => getGradeSubmissionStatus(params!),
+    enabled: !!params,
+    ...options,
+  });
+
+export const getPendingGradeSubmissions = (params?: { semesterId?: number }): Promise<GradeSubmission[]> => {
+  const qs = new URLSearchParams();
+  if (params?.semesterId) qs.set("semesterId", String(params.semesterId));
+  return customFetch<GradeSubmission[]>(`/api/admin/grade-submissions/pending${qs.toString() ? "?" + qs.toString() : ""}`);
+};
+
+export const useGetPendingGradeSubmissions = (params?: { semesterId?: number }, options?: QueryOpts<GradeSubmission[]>) =>
+  useQuery<GradeSubmission[]>({
+    queryKey: ["/api/admin/grade-submissions/pending", params],
+    queryFn: () => getPendingGradeSubmissions(params),
+    refetchInterval: 30000,
+    ...options,
+  });
+
+export const getPendingGradeSubmissionsCount = (): Promise<{ count: number }> =>
+  customFetch<{ count: number }>("/api/admin/grade-submissions/pending-count");
+
+export const useGetPendingGradeSubmissionsCount = (options?: QueryOpts<{ count: number }>) =>
+  useQuery<{ count: number }>({
+    queryKey: ["/api/admin/grade-submissions/pending-count"],
+    queryFn: getPendingGradeSubmissionsCount,
+    refetchInterval: 30000,
+    ...options,
+  });
+
 // ─── Derogation ───────────────────────────────────────────────────────────────
 
 export type DerogateGradeRequest = {

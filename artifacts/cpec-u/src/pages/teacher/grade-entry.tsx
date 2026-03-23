@@ -1,12 +1,12 @@
 import { useState, useEffect, useMemo } from "react";
 import { AppLayout } from "@/components/layout";
 import { useGetTeacherAssignments, useGetTeacherGrades, useSubmitGradesBulk } from "@workspace/api-client-react";
-import { useListSubjectApprovals, useGetClassStudents } from "@workspace/api-client-react";
+import { useListSubjectApprovals, useGetClassStudents, useSubmitGradesForReview, useGetGradeSubmissionStatus } from "@workspace/api-client-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { WifiOff, Save, CheckCircle2, Lock } from "lucide-react";
+import { WifiOff, Save, CheckCircle2, Lock, Send, Clock } from "lucide-react";
 import { Card } from "@/components/ui/card";
 
 const EVAL_LABELS = ["Éval 1", "Éval 2", "Éval 3", "Éval 4"] as const;
@@ -60,6 +60,7 @@ export default function GradeEntry() {
 
   const { toast } = useToast();
   const submitBulk = useSubmitGradesBulk();
+  const submitForReview = useSubmitGradesForReview();
 
   // Online detection
   const [isOnline, setIsOnline] = useState(navigator.onLine);
@@ -81,6 +82,27 @@ export default function GradeEntry() {
   const isLocked = (approvals as any[]).some(
     (a) => a.subjectId === selectedAssignment?.subjectId && a.classId === selectedAssignment?.classId
   );
+
+  const submissionStatusParams = selectedAssignment && !isLocked
+    ? { subjectId: selectedAssignment.subjectId, classId: selectedAssignment.classId, semesterId: selectedAssignment.semesterId }
+    : null;
+  const { data: submissionStatus, refetch: refetchSubmissionStatus } = useGetGradeSubmissionStatus(submissionStatusParams);
+  const isSubmitted = !!submissionStatus?.submitted;
+
+  const handleSubmitForReview = async () => {
+    if (!selectedAssignment || isLocked) return;
+    try {
+      await submitForReview.mutateAsync({
+        subjectId: selectedAssignment.subjectId,
+        classId: selectedAssignment.classId,
+        semesterId: selectedAssignment.semesterId,
+      });
+      refetchSubmissionStatus();
+      toast({ title: "Notes soumises pour validation — l'admin sera notifié." });
+    } catch (e: any) {
+      toast({ title: e?.message ?? "Erreur lors de la soumission.", variant: "destructive" });
+    }
+  };
 
   // Populate localGrades from server data when studentRows change
   useEffect(() => {
@@ -304,17 +326,41 @@ export default function GradeEntry() {
           </div>
         )}
 
-        {/* Save button — hidden when locked */}
+        {/* Submission status banner */}
+        {selectedAssignment && !isLocked && isSubmitted && (
+          <div className="flex items-center gap-3 bg-blue-50 border border-blue-200 rounded-xl p-4">
+            <Clock className="w-5 h-5 text-blue-500 shrink-0" />
+            <div>
+              <p className="font-semibold text-blue-800 text-sm">Notes soumises — en attente de validation</p>
+              <p className="text-xs text-blue-600 mt-0.5">
+                Soumises le {submissionStatus?.submittedAt ? new Date(submissionStatus.submittedAt).toLocaleDateString("fr-FR", { dateStyle: "long" }) : "—"}.
+                Vous pouvez encore modifier et re-soumettre.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Save + Submit buttons — hidden when locked */}
         {selectedAssignment && !isLocked && (
-          <div className="fixed bottom-6 left-0 right-0 px-4 md:static md:px-0 md:mt-8 z-30">
+          <div className="fixed bottom-6 left-0 right-0 px-4 md:static md:px-0 md:mt-4 z-30 flex flex-col sm:flex-row gap-3">
             <Button
               size="lg"
-              className="w-full h-16 text-lg font-bold shadow-xl shadow-primary/30 md:shadow-none hover:-translate-y-1 transition-transform"
+              variant="outline"
+              className="flex-1 h-14 text-base font-semibold"
               onClick={handleSave}
               disabled={submitBulk.isPending}
             >
               <Save className="w-5 h-5 mr-2" />
-              {submitBulk.isPending ? "Enregistrement..." : `Tout Enregistrer (${filledCount}/${totalFields} notes)`}
+              {submitBulk.isPending ? "Enregistrement..." : `Enregistrer (${filledCount}/${totalFields} notes)`}
+            </Button>
+            <Button
+              size="lg"
+              className={`flex-1 h-14 text-base font-bold shadow-xl shadow-primary/30 md:shadow-none hover:-translate-y-1 transition-transform ${isSubmitted ? "bg-blue-600 hover:bg-blue-700" : "bg-primary"}`}
+              onClick={handleSubmitForReview}
+              disabled={submitForReview.isPending || filledCount === 0}
+            >
+              <Send className="w-5 h-5 mr-2" />
+              {submitForReview.isPending ? "Soumission..." : isSubmitted ? "Re-soumettre pour validation" : "Soumettre pour validation"}
             </Button>
           </div>
         )}
