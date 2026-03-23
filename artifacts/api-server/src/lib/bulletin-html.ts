@@ -90,12 +90,21 @@ export function generateBulletinHTML(data: BulletinData): string {
     ? "#c0392b"
     : "#b7860b";
 
-  // ── Build 4-column table rows (no jury column here) ───────────────────────
-  let tableBodyHtml = "";
+  // ── Build table rows HTML ─────────────────────────────────────────────────
+  // We need to know total row count ahead of time for rowspan.
+  // Collect rows as objects first, then render.
+  type Row =
+    | { kind: "bloc"; label: string }
+    | { kind: "ue"; label: string; note: number | null; coef: number }
+    | { kind: "subject"; name: string; note: number | null; coef: number }
+    | { kind: "result"; label: string; val: string; midLabel: string; midVal: string; bold?: boolean };
 
-  // Group by category
+  const rows: Row[] = [];
+
+  // ── Group by category ──────────────────────────────────────────────────────
   const grouped: Record<string, BulletinUE[]> = {};
   const uncategorized: BulletinUE[] = [];
+
   for (const ue of data.ueResults) {
     const cat = ue.category ?? "";
     if (CAT_ORDER.includes(cat)) {
@@ -110,76 +119,175 @@ export function generateBulletinHTML(data: BulletinData): string {
   for (const cat of CAT_ORDER) {
     const ues = grouped[cat];
     if (!ues || ues.length === 0) continue;
-    tableBodyHtml += `<tr><td colspan="4" class="bloc-title">${CAT_LABELS[cat]}</td></tr>`;
+    rows.push({ kind: "bloc", label: CAT_LABELS[cat] });
     for (const ue of ues) {
-      const pts = ue.average !== null ? fmt(ue.average * ue.coefficient) : "—";
-      tableBodyHtml += `
-        <tr class="ue-row">
-          <td class="ue-label">UE ${ueIndex}</td>
-          <td class="num ue-num">${fmt(ue.average)}</td>
-          <td class="num ue-num">${ue.coefficient}</td>
-          <td class="num ue-num">${pts}</td>
-        </tr>`;
+      rows.push({ kind: "ue", label: `UE ${ueIndex}`, note: ue.average, coef: ue.coefficient });
       ueIndex++;
       for (const sub of ue.subjects) {
-        const spts = sub.value !== null ? fmt(sub.value * sub.coefficient) : "—";
-        tableBodyHtml += `
-          <tr class="subject-row">
-            <td class="subject-name">${sub.subjectName}</td>
-            <td class="num">${sub.value !== null ? fmt(sub.value) : "—"}</td>
-            <td class="num">${sub.coefficient}</td>
-            <td class="num">${spts}</td>
-          </tr>`;
+        rows.push({ kind: "subject", name: sub.subjectName, note: sub.value, coef: sub.coefficient });
       }
     }
   }
   for (const ue of uncategorized) {
-    const pts = ue.average !== null ? fmt(ue.average * ue.coefficient) : "—";
-    tableBodyHtml += `
-      <tr class="ue-row">
-        <td class="ue-label">UE ${ueIndex}</td>
-        <td class="num ue-num">${fmt(ue.average)}</td>
-        <td class="num ue-num">${ue.coefficient}</td>
-        <td class="num ue-num">${pts}</td>
-      </tr>`;
+    rows.push({ kind: "ue", label: `UE ${ueIndex}`, note: ue.average, coef: ue.coefficient });
     ueIndex++;
     for (const sub of ue.subjects) {
-      const spts = sub.value !== null ? fmt(sub.value * sub.coefficient) : "—";
-      tableBodyHtml += `
-        <tr class="subject-row">
-          <td class="subject-name">${sub.subjectName}</td>
-          <td class="num">${sub.value !== null ? fmt(sub.value) : "—"}</td>
-          <td class="num">${sub.coefficient}</td>
-          <td class="num">${spts}</td>
-        </tr>`;
+      rows.push({ kind: "subject", name: sub.subjectName, note: sub.value, coef: sub.coefficient });
     }
   }
   for (const sub of data.unassignedSubjects) {
-    const pts = sub.value !== null ? fmt(sub.value * sub.coefficient) : "—";
-    tableBodyHtml += `
-      <tr class="subject-row">
-        <td class="subject-name">${sub.subjectName}</td>
-        <td class="num">${sub.value !== null ? fmt(sub.value) : "—"}</td>
-        <td class="num">${sub.coefficient}</td>
-        <td class="num">${pts}</td>
-      </tr>`;
+    rows.push({ kind: "subject", name: sub.subjectName, note: sub.value, coef: sub.coefficient });
   }
 
-  // Result rows
-  const abtLabel = `Abt. Absence ${data.absenceDeductionHours}h`;
-  tableBodyHtml += `
-    <tr class="result-row">
-      <td class="result-label">Moyenne ${data.semesterName} Brute</td>
-      <td class="num result-num">${fmt(data.average)}</td>
-      <td class="num result-mid">${abtLabel}</td>
-      <td class="num result-num">${fmt(data.absenceDeduction)}</td>
-    </tr>
-    <tr class="result-row result-bold">
-      <td class="result-label">Moyenne ${data.semesterName} Nette</td>
-      <td class="num result-num">${fmt(data.averageNette)}</td>
-      <td class="num result-mid">Rang</td>
-      <td class="num result-num">${rankStr}</td>
+  // Two result rows at the bottom
+  rows.push({
+    kind: "result",
+    label: `Moyenne ${data.semesterName} Brute`,
+    val: fmt(data.average),
+    midLabel: `Abt. Absence ${data.absenceDeductionHours}h`,
+    midVal: fmt(data.absenceDeduction),
+  });
+  rows.push({
+    kind: "result",
+    label: `Moyenne ${data.semesterName} Nette`,
+    val: fmt(data.averageNette),
+    midLabel: "Rang",
+    midVal: rankStr,
+    bold: true,
+  });
+
+  // Total rows for rowspan (we add 1 for the header row of the table)
+  const totalRowCount = rows.length;
+
+  // ── Render rows ────────────────────────────────────────────────────────────
+  let tableRowsHtml = "";
+  let firstRow = true;
+
+  for (const row of rows) {
+    if (row.kind === "bloc") {
+      tableRowsHtml += `
+        <tr>
+          <td colspan="4" class="bloc-title">${row.label}</td>
+          ${firstRow ? `<td rowspan="${totalRowCount}" class="jury-cell">
+            <div class="jury-inner">
+              <div class="jury-header">APPRÉCIATIONS DU JURY DU PROGRAMME</div>
+              <div class="jury-decision" style="color:${decisionColor};">${decisionLabel}</div>
+              <div class="jury-signataire">
+                <div class="jury-stamp-label">LE COORDONNATEUR DU CENTRE</div>
+                <div class="jury-stamp-sublabel">P.O LE RESPONSABLE D'ETUDE</div>
+                <div class="jury-stamp">
+                  <div class="stamp-circle">
+                    <span>ESCAE</span>
+                    <span>CPEC-UEMOA</span>
+                  </div>
+                </div>
+                <div class="jury-name">Dr. KPOLIE DEFFO CASIMIR</div>
+              </div>
+            </div>
+          </td>` : ""}
+        </tr>`;
+      firstRow = false;
+    } else if (row.kind === "ue") {
+      const pts = row.note !== null ? fmt(row.note * row.coef) : "—";
+      tableRowsHtml += `
+        <tr class="ue-row">
+          <td class="ue-label">${row.label}</td>
+          <td class="num ue-num">${fmt(row.note)}</td>
+          <td class="num ue-num">${row.coef}</td>
+          <td class="num ue-num">${pts}</td>
+          ${firstRow ? `<td rowspan="${totalRowCount}" class="jury-cell">
+            <div class="jury-inner">
+              <div class="jury-header">APPRÉCIATIONS DU JURY DU PROGRAMME</div>
+              <div class="jury-decision" style="color:${decisionColor};">${decisionLabel}</div>
+              <div class="jury-signataire">
+                <div class="jury-stamp-label">LE COORDONNATEUR DU CENTRE</div>
+                <div class="jury-stamp-sublabel">P.O LE RESPONSABLE D'ETUDE</div>
+                <div class="jury-stamp">
+                  <div class="stamp-circle">
+                    <span>ESCAE</span>
+                    <span>CPEC-UEMOA</span>
+                  </div>
+                </div>
+                <div class="jury-name">Dr. KPOLIE DEFFO CASIMIR</div>
+              </div>
+            </div>
+          </td>` : ""}
+        </tr>`;
+      firstRow = false;
+    } else if (row.kind === "subject") {
+      const pts = row.note !== null ? fmt(row.note * row.coef) : "—";
+      tableRowsHtml += `
+        <tr class="subject-row">
+          <td class="subject-name">${row.name}</td>
+          <td class="num">${row.note !== null ? fmt(row.note) : "—"}</td>
+          <td class="num">${row.coef}</td>
+          <td class="num">${pts}</td>
+          ${firstRow ? `<td rowspan="${totalRowCount}" class="jury-cell">
+            <div class="jury-inner">
+              <div class="jury-header">APPRÉCIATIONS DU JURY DU PROGRAMME</div>
+              <div class="jury-decision" style="color:${decisionColor};">${decisionLabel}</div>
+              <div class="jury-signataire">
+                <div class="jury-stamp-label">LE COORDONNATEUR DU CENTRE</div>
+                <div class="jury-stamp-sublabel">P.O LE RESPONSABLE D'ETUDE</div>
+                <div class="jury-stamp">
+                  <div class="stamp-circle">
+                    <span>ESCAE</span>
+                    <span>CPEC-UEMOA</span>
+                  </div>
+                </div>
+                <div class="jury-name">Dr. KPOLIE DEFFO CASIMIR</div>
+              </div>
+            </div>
+          </td>` : ""}
+        </tr>`;
+      firstRow = false;
+    } else if (row.kind === "result") {
+      tableRowsHtml += `
+        <tr class="result-row${row.bold ? " result-bold" : ""}">
+          <td class="result-label">${row.label}</td>
+          <td class="num result-num">${row.val}</td>
+          <td class="num result-mid">${row.midLabel}</td>
+          <td class="num result-num">${row.midVal}</td>
+          ${firstRow ? `<td rowspan="${totalRowCount}" class="jury-cell">
+            <div class="jury-inner">
+              <div class="jury-header">APPRÉCIATIONS DU JURY DU PROGRAMME</div>
+              <div class="jury-decision" style="color:${decisionColor};">${decisionLabel}</div>
+              <div class="jury-signataire">
+                <div class="jury-stamp-label">LE COORDONNATEUR DU CENTRE</div>
+                <div class="jury-stamp-sublabel">P.O LE RESPONSABLE D'ETUDE</div>
+                <div class="jury-stamp">
+                  <div class="stamp-circle">
+                    <span>ESCAE</span>
+                    <span>CPEC-UEMOA</span>
+                  </div>
+                </div>
+                <div class="jury-name">Dr. KPOLIE DEFFO CASIMIR</div>
+              </div>
+            </div>
+          </td>` : ""}
+        </tr>`;
+      firstRow = false;
+    }
+  }
+
+  // If no rows at all (empty), still render the jury cell
+  if (firstRow) {
+    tableRowsHtml = `<tr>
+      <td colspan="4" style="text-align:center;padding:8px;font-size:8pt;color:#888;">Aucune matière enregistrée.</td>
+      <td class="jury-cell">
+        <div class="jury-inner">
+          <div class="jury-header">APPRÉCIATIONS DU JURY DU PROGRAMME</div>
+          <div class="jury-decision" style="color:${decisionColor};">${decisionLabel}</div>
+          <div class="jury-signataire">
+            <div class="jury-stamp-label">LE COORDONNATEUR DU CENTRE</div>
+            <div class="jury-stamp-sublabel">P.O LE RESPONSABLE D'ETUDE</div>
+            <div class="jury-stamp"><div class="stamp-circle"><span>ESCAE</span><span>CPEC-UEMOA</span></div></div>
+            <div class="jury-name">Dr. KPOLIE DEFFO CASIMIR</div>
+          </div>
+        </div>
+      </td>
     </tr>`;
+  }
 
   const campusNames = ["EDSAPT", "EDSTI", "EFSPC", "EPGE", "ESA", "ESAS", "ESCAE", "ESCPE", "ESI", "ESMG", "ESTP"];
 
@@ -196,43 +304,47 @@ export function generateBulletinHTML(data: BulletinData): string {
       font-family: Arial, Helvetica, sans-serif;
       font-size: 9pt;
       color: #1A1A1A;
-      background: #909090;
+      background: #b0b0b0;
     }
 
     /* ── Toolbar ── */
-    .toolbar {
+    .no-print {
       position: sticky;
       top: 0;
       z-index: 100;
       background: #2c2c2c;
-      padding: 9px 18px;
+      padding: 10px 18px;
       display: flex;
       align-items: center;
       justify-content: center;
       gap: 10px;
+      border-bottom: 2px solid #444;
     }
-    .toolbar span { color: #aaa; font-size: 11px; }
-    .toolbar button {
-      padding: 6px 18px;
+    .no-print span { color: #aaa; font-size: 12px; }
+    .no-print button {
+      padding: 7px 20px;
       border: none;
-      border-radius: 4px;
+      border-radius: 5px;
       cursor: pointer;
-      font-size: 11px;
+      font-size: 12px;
       font-weight: bold;
+      letter-spacing: 0.3px;
     }
     .btn-print { background: #1a6cb5; color: white; }
+    .btn-print:hover { background: #155499; }
     .btn-close  { background: #555; color: #ddd; }
+    .btn-close:hover { background: #444; }
 
-    /* ── A4 Page ── */
+    /* ── Page container ── */
     .page {
       width: 210mm;
       min-height: 297mm;
-      margin: 14px auto;
+      margin: 16px auto;
       background: #FDFCF0;
-      padding: 7mm 9mm 5mm;
+      padding: 8mm 10mm 6mm;
       position: relative;
       overflow: hidden;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+      box-shadow: 0 4px 24px rgba(0,0,0,0.35);
     }
 
     /* ── Watermark ── */
@@ -243,7 +355,7 @@ export function generateBulletinHTML(data: BulletinData): string {
       z-index: 0;
       overflow: hidden;
     }
-    .wm-img {
+    .watermark-img {
       position: absolute;
       top: 50%;
       left: 50%;
@@ -252,118 +364,109 @@ export function generateBulletinHTML(data: BulletinData): string {
       opacity: 0.04;
     }
 
+    /* ── Content layers ── */
     .content { position: relative; z-index: 1; }
 
-    /* ── Header band (dark blue) ── */
-    .hdr-band {
+    /* ── Header band ── */
+    .header-band {
       background: #1a3a6b;
       color: white;
-      padding: 5px 7px 4px;
+      padding: 5px 8px 5px;
       display: grid;
-      grid-template-columns: 1fr 120px 1fr;
+      grid-template-columns: 1fr auto 1fr;
       align-items: center;
       gap: 4px;
       margin-bottom: 3px;
     }
-    .hdr-left  { font-size: 6.5pt; line-height: 1.5; }
-    .hdr-center { text-align: center; }
-    .hdr-center .inst-name { font-size: 12pt; font-weight: bold; display: block; }
-    .hdr-center .inst-sub  { font-size: 7.5pt; font-style: italic; display: block; margin-top: 1px; }
-    .hdr-right { font-size: 6.5pt; line-height: 1.5; text-align: right; }
+    .header-left  { font-size: 6.5pt; line-height: 1.5; }
+    .header-center { text-align: center; }
+    .header-center .inst-name { font-size: 12.5pt; font-weight: bold; letter-spacing: 0.5px; }
+    .header-center .inst-sub  { font-size: 8pt; font-style: italic; }
+    .header-right { font-size: 6.5pt; line-height: 1.5; text-align: right; }
 
-    /* ── Sub-header ── */
-    .sub-hdr {
+    /* ── Sub-header (école info) ── */
+    .sub-header {
       display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 2px;
-      margin-bottom: 2px;
+      grid-template-columns: 1fr auto 1fr;
+      gap: 4px;
+      margin-bottom: 3px;
+      padding: 0 1px;
       font-size: 7pt;
       line-height: 1.55;
     }
-    .sub-hdr-right { text-align: right; }
+    .sub-header-logo { text-align: center; }
 
     /* ── Title bar ── */
     .title-bar {
       background: #dce6f1;
       border: 1px solid #1A1A1A;
-      padding: 3px 8px;
+      padding: 4px 8px;
       display: flex;
       justify-content: space-between;
       align-items: center;
       margin-bottom: 3px;
     }
-    .title-bar span { font-weight: bold; font-size: 9pt; }
+    .title-bar-left  { font-weight: bold; font-size: 9pt; }
+    .title-bar-right { font-weight: bold; font-size: 9pt; }
 
     /* ── Student block ── */
     .student-block {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 5px;
-      margin-bottom: 3px;
+      gap: 6px;
+      margin-bottom: 4px;
     }
-    .stu-left  { font-size: 7.5pt; line-height: 1.7; }
-    .stu-right {
+    .student-left { font-size: 7.5pt; line-height: 1.65; }
+    .student-left strong { font-size: 8pt; }
+    .student-right {
       border: 1px solid #1A1A1A;
-      padding: 4px 8px;
+      padding: 5px 8px;
       font-size: 7.5pt;
-      line-height: 1.65;
+      line-height: 1.7;
     }
-    .stu-right .sname { font-weight: bold; font-size: 8.5pt; text-transform: uppercase; margin-bottom: 1px; }
-
-    /* ═══════════════════════════════════════════════════════
-       NOTES SECTION  —  flex: table(left) + jury(right)
-       Reproduit le modèle Python :
-         • colonne jury = un seul rectangle, aucune ligne interne
-         • tableau données = grille normale 4 colonnes
-    ════════════════════════════════════════════════════════ */
-    .notes-section {
-      display: flex;
-      align-items: stretch;
-      /* outer border comes from table cells + jury panel borders */
+    .student-right .sname {
+      font-weight: bold;
+      font-size: 9pt;
+      text-transform: uppercase;
+      margin-bottom: 2px;
     }
 
-    /* LEFT : 4-column table */
-    .notes-left {
-      flex: 1;
-      /* The table inside manages its own borders */
-    }
-
+    /* ── Notes table ── */
     .notes-table {
       width: 100%;
       border-collapse: collapse;
       font-size: 8pt;
     }
-    .notes-table th,
-    .notes-table td {
+    .notes-table th, .notes-table td {
       border: 1px solid #1A1A1A;
       padding: 0;
     }
+    /* Column widths */
+    .col-matiere  { width: 46%; }
+    .col-note     { width: 11%; }
+    .col-coef     { width: 8%;  }
+    .col-pts      { width: 11%; }
+    .col-jury     { width: 24%; vertical-align: top; }
 
-    /* Column proportions (mirror Python: 48/14/10/14 of 86% = left side) */
-    .col-m { width: 55.8%; }
-    .col-n { width: 16.3%; }
-    .col-c { width: 11.6%; }
-    .col-p { width: 16.3%; }
-
-    /* Table header */
+    /* Header row */
     .notes-table thead th {
       background: #E8ECEF;
       font-size: 7.5pt;
       text-align: center;
-      padding: 3px 2px;
+      padding: 3px 3px;
       font-weight: bold;
       line-height: 1.3;
     }
-    .notes-table thead th.th-m { text-align: left; padding-left: 5px; }
+    .notes-table thead th.th-matiere { text-align: left; padding-left: 5px; }
 
-    /* Bloc title (e.g. "UE DE CULTURE GÉNÉRALE") */
+    /* Bloc title row */
     .bloc-title {
       background: #E8ECEF;
       font-weight: bold;
       font-size: 7.5pt;
       text-transform: uppercase;
-      padding: 2px 5px;
-      letter-spacing: 0.2px;
+      padding: 3px 6px;
+      letter-spacing: 0.3px;
     }
 
     /* UE row */
@@ -371,79 +474,94 @@ export function generateBulletinHTML(data: BulletinData): string {
     .ue-label {
       font-weight: bold;
       font-style: italic;
-      padding: 2px 5px !important;
+      padding: 2px 6px !important;
       font-size: 8pt;
     }
-    .ue-num { font-weight: bold; }
+    .ue-num {
+      font-weight: bold;
+      font-size: 8pt;
+    }
 
     /* Subject row */
     .subject-row td { background: #FDFCF0; }
-    .subject-name { padding: 2px 4px 2px 12px !important; font-size: 7.5pt; }
-
-    /* Numeric cells */
-    .num { text-align: center; padding: 2px 2px !important; }
-
-    /* Result rows */
-    .result-row td    { background: #F0EFE8; }
-    .result-row.result-bold td { background: #E8F2E9; }
-    .result-label  { padding: 3px 5px !important; font-size: 7.5pt; }
-    .result-bold .result-label { font-weight: bold; }
-    .result-num    { font-weight: bold; font-size: 8pt; }
-    .result-bold .result-num { color: #1a3a6b; }
-    .result-mid    { font-size: 7pt; text-align: center; padding: 3px 2px !important; }
-
-    /* RIGHT : Jury panel — single bordered rectangle, NO internal grid */
-    .jury-panel {
-      width: 24%;
-      border: 1px solid #1A1A1A;
-      border-left: none;          /* table's right edge is the divider */
-      display: flex;
-      flex-direction: column;
-      min-width: 44mm;
+    .subject-name {
+      padding: 2px 4px 2px 14px !important;
+      font-size: 7.5pt;
     }
 
-    .jury-panel-header {
+    /* Numeric cells */
+    .num { text-align: center; padding: 2px 3px !important; }
+
+    /* Result rows */
+    .result-row td { background: #F0EFE8; }
+    .result-row.result-bold td { background: #E8F2E9; }
+    .result-label {
+      font-size: 7.5pt;
+      padding: 3px 6px !important;
+    }
+    .result-bold .result-label { font-weight: bold; }
+    .result-num { font-weight: bold; font-size: 8pt; }
+    .result-mid { font-size: 7pt; font-weight: normal; text-align: center; padding: 3px 2px !important; }
+    .result-bold .result-num { color: #1a3a6b; }
+
+    /* Jury cell (5th column, rowspan all) */
+    .jury-cell {
+      vertical-align: top;
+      padding: 0 !important;
+      border: 1px solid #1A1A1A;
+    }
+    .jury-inner {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      min-height: 120px;
+    }
+    .jury-header {
       background: #E8ECEF;
       font-weight: bold;
       font-size: 6.5pt;
       text-align: center;
-      padding: 3px 3px;
-      line-height: 1.4;
-      text-transform: uppercase;
-      letter-spacing: 0.2px;
+      padding: 4px 4px;
       border-bottom: 1px solid #1A1A1A;
-      /* Match table thead height exactly */
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+      line-height: 1.4;
     }
-
-    .jury-panel-body {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-    }
-
     .jury-decision {
       flex: 1;
       display: flex;
       align-items: center;
       justify-content: center;
+      text-align: center;
       font-weight: bold;
       font-size: 9pt;
-      text-align: center;
       padding: 8px 6px;
-      min-height: 18px;
+      min-height: 30px;
     }
-
-    .jury-sig {
+    .jury-signataire {
       border-top: 1px solid #ccc;
-      padding: 5px 4px 7px;
+      padding: 6px 4px 8px;
       text-align: center;
     }
-    .jury-sig .lbl1 { font-weight: bold; font-size: 6pt; line-height: 1.5; }
-    .jury-sig .lbl2 { font-size: 6pt; color: #555; margin-bottom: 4px; line-height: 1.5; }
-    .stamp-wrap { display: flex; justify-content: center; margin: 3px 0; }
+    .jury-stamp-label {
+      font-weight: bold;
+      font-size: 6pt;
+      line-height: 1.4;
+    }
+    .jury-stamp-sublabel {
+      font-size: 6pt;
+      color: #555;
+      margin-bottom: 4px;
+      line-height: 1.4;
+    }
+    .jury-stamp {
+      display: flex;
+      justify-content: center;
+      margin: 4px 0;
+    }
     .stamp-circle {
-      width: 52px;
-      height: 52px;
+      width: 54px;
+      height: 54px;
       border: 2px solid #1a3a6b;
       border-radius: 50%;
       display: flex;
@@ -459,8 +577,8 @@ export function generateBulletinHTML(data: BulletinData): string {
       font-weight: bold;
       font-size: 6.5pt;
       margin-top: 4px;
-      border-top: 1px solid #bbb;
-      padding-top: 3px;
+      border-top: 1px solid #aaa;
+      padding-top: 4px;
     }
 
     /* ── Edition date ── */
@@ -468,11 +586,15 @@ export function generateBulletinHTML(data: BulletinData): string {
       text-align: center;
       font-size: 7pt;
       font-style: italic;
-      margin-top: 4px;
+      margin-top: 5px;
     }
 
     /* ── Footer ── */
-    .footer-sep { border: none; border-top: 1.5px solid #1A1A1A; margin: 5px 0 3px; }
+    .footer-sep {
+      border: none;
+      border-top: 1.5px solid #1A1A1A;
+      margin: 6px 0 3px;
+    }
     .footer-campuses {
       display: flex;
       justify-content: space-between;
@@ -490,12 +612,14 @@ export function generateBulletinHTML(data: BulletinData): string {
 
     /* ── Print ── */
     @media print {
-      body { background: #FDFCF0; color: #1A1A1A; }
-      .toolbar { display: none !important; }
+      body { background: #FDFCF0; color: #1A1A1A; font-size: 9pt; }
+      .no-print { display: none !important; }
       .page {
-        margin: 0; box-shadow: none;
-        width: 210mm; min-height: 297mm;
-        padding: 7mm 9mm 5mm;
+        margin: 0;
+        padding: 8mm 10mm 6mm;
+        box-shadow: none;
+        width: 210mm;
+        min-height: 297mm;
         background: #FDFCF0;
       }
       @page { size: A4 portrait; margin: 0; }
@@ -504,69 +628,75 @@ export function generateBulletinHTML(data: BulletinData): string {
 </head>
 <body>
 
-<div class="toolbar">
-  <span>Bulletin — ${data.studentName}</span>
-  <button class="btn-print" onclick="window.print()">🖨 Imprimer / PDF</button>
+<!-- Toolbar -->
+<div class="no-print">
+  <span>Bulletin de notes — ${data.studentName}</span>
+  <button class="btn-print" onclick="window.print()">🖨 Imprimer / Enregistrer en PDF</button>
   <button class="btn-close"  onclick="window.close()">✕ Fermer</button>
 </div>
 
 <div class="page">
+
+  <!-- Watermark -->
   <div class="watermark">
-    ${logo ? `<img class="wm-img" src="${logo}" alt="">` : ""}
+    ${logo ? `<img class="watermark-img" src="${logo}" alt="">` : ""}
   </div>
 
   <div class="content">
 
-    <!-- ═══ BANDEAU BLEU EN-TÊTE ═══ -->
-    <div class="hdr-band">
-      <div class="hdr-left">
+    <!-- ═══ HEADER BAND ═══ -->
+    <div class="header-band">
+      <div class="header-left">
         Ministère de l'Enseignement Supérieur<br>
         et de la Recherche Scientifique
       </div>
-      <div class="hdr-center">
-        ${logo ? `<img src="${logo}" style="height:32px;display:block;margin:0 auto 2px;" alt="">` : ""}
-        <span class="inst-name">Institut National Polytechnique</span>
-        <span class="inst-sub">Félix HOUPHOUËT-BOIGNY</span>
+      <div class="header-center">
+        ${logo ? `<img src="${logo}" style="height:36px;display:block;margin:0 auto 3px;" alt="INP-HB">` : ""}
+        <div class="inst-name">Institut National Polytechnique</div>
+        <div class="inst-sub">Félix HOUPHOUËT-BOIGNY</div>
       </div>
-      <div class="hdr-right">
+      <div class="header-right">
         République de Côte d'Ivoire<br>
         Union &nbsp;·&nbsp; Discipline &nbsp;·&nbsp; Travail
       </div>
     </div>
 
     <!-- ═══ SUB-HEADER ═══ -->
-    <div class="sub-hdr">
+    <div class="sub-header">
       <div>
-        <strong>École Supérieure de Commerce et d'Administration des Entreprises</strong><br>
+        <strong>École Supérieure de Commerce<br>et d'Administration des Entreprises</strong><br>
         <strong>ESCAE</strong><br>
         Centre Préparatoire à l'Expertise Comptable-UEMOA<br>
         <strong>CPEC-U</strong><br>
         <span style="font-size:6pt;color:#555;">Réf : 023/2024/INP-HB/ESCAE/CPEC-U/RE/CC</span>
       </div>
-      <div class="sub-hdr-right">
-        <strong>FILIÈRE : ${data.className.toUpperCase()}</strong><br>
+      <div class="sub-header-logo">
+        <!-- intentionally empty: logo already in header band -->
+      </div>
+      <div style="text-align:right;">
+        <strong style="font-size:9pt;">FILIÈRE : ${data.className.toUpperCase()}</strong><br>
         Grade : Licence Professionnelle<br>
         <strong>CLASSE :</strong> ${data.className.toUpperCase()}<br>
         Année Scolaire : ${data.academicYear}
       </div>
     </div>
 
-    <!-- ═══ TITRE BULLETIN ═══ -->
+    <!-- ═══ TITLE BAR ═══ -->
     <div class="title-bar">
-      <span>${data.className.toUpperCase()}</span>
-      <span>BULLETIN ${data.semesterName.toUpperCase()}</span>
+      <div class="title-bar-left">${data.className.toUpperCase()}</div>
+      <div class="title-bar-right">BULLETIN ${data.semesterName.toUpperCase()}</div>
     </div>
 
-    <!-- ═══ BLOC ÉTUDIANT ═══ -->
+    <!-- ═══ STUDENT BLOCK ═══ -->
     <div class="student-block">
-      <div class="stu-left">
+      <div class="student-left">
         <strong>NOM ET PRÉNOM(S) :</strong> ${data.studentName.toUpperCase()}<br>
-        Né(e) le : <span style="border-bottom:1px dotted #999;display:inline-block;min-width:36px;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
-        &nbsp;à : <span style="border-bottom:1px dotted #999;display:inline-block;min-width:44px;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span><br>
+        Né(e) le : <span style="border-bottom:1px dotted #999;display:inline-block;min-width:40px;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
+        &nbsp;à : <span style="border-bottom:1px dotted #999;display:inline-block;min-width:50px;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span><br>
         <strong>REDOUBLANT(E) :</strong> NON<br>
         <strong>N° Matricule :</strong> ${data.studentMatricule}
       </div>
-      <div class="stu-right">
+      <div class="student-right">
         <div class="sname">${data.studentName}</div>
         <div><strong>FILIÈRE :</strong> ${data.className.toUpperCase()}</div>
         <div><strong>CLASSE :</strong> ${data.className.toUpperCase()}</div>
@@ -574,65 +704,33 @@ export function generateBulletinHTML(data: BulletinData): string {
       </div>
     </div>
 
-    <!-- ═══ SECTION NOTES (flex: tableau gauche + jury droite) ═══ -->
-    <!--
-      Architecture fidèle au PDF Python :
-      • Gauche  : tableau 4 colonnes avec grille normale
-      • Droite  : rectangle unique "JURY" sans lignes internes
-      Aucun rowspan — aucune ligne horizontale dans le panneau jury.
-    -->
-    <div class="notes-section">
+    <!-- ═══ NOTES TABLE ═══ -->
+    <table class="notes-table">
+      <colgroup>
+        <col class="col-matiere">
+        <col class="col-note">
+        <col class="col-coef">
+        <col class="col-pts">
+        <col class="col-jury">
+      </colgroup>
+      <thead>
+        <tr>
+          <th class="th-matiere">MATIÈRES</th>
+          <th>NOTES<br>/20</th>
+          <th>Coef.</th>
+          <th>Notes<br>× Coef.</th>
+          <th>APPRÉCIATIONS<br>DU JURY D'ÉCOLE</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${tableRowsHtml}
+      </tbody>
+    </table>
 
-      <!-- GAUCHE : tableau 4 colonnes -->
-      <div class="notes-left">
-        <table class="notes-table">
-          <colgroup>
-            <col class="col-m">
-            <col class="col-n">
-            <col class="col-c">
-            <col class="col-p">
-          </colgroup>
-          <thead>
-            <tr>
-              <th class="th-m">MATIÈRES</th>
-              <th>NOTES<br>/20</th>
-              <th>Coef.</th>
-              <th>Notes<br>× Coef.</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${tableBodyHtml}
-          </tbody>
-        </table>
-      </div>
-
-      <!-- DROITE : panneau jury (rectangle unique, zéro grille interne) -->
-      <div class="jury-panel">
-        <div class="jury-panel-header">
-          APPRÉCIATIONS<br>DU JURY D'ÉCOLE
-        </div>
-        <div class="jury-panel-body">
-          <div class="jury-decision" style="color:${decisionColor};">${decisionLabel}</div>
-          <div class="jury-sig">
-            <div class="lbl1">LE COORDONNATEUR DU CENTRE</div>
-            <div class="lbl2">P.O LE RESPONSABLE D'ETUDE</div>
-            <div class="stamp-wrap">
-              <div class="stamp-circle">
-                <span>ESCAE</span>
-                <span>CPEC-UEMOA</span>
-              </div>
-            </div>
-            <div class="jury-name">Dr. KPOLIE DEFFO CASIMIR</div>
-          </div>
-        </div>
-      </div>
-
-    </div><!-- /notes-section -->
-
-    <!-- ═══ DATE D'ÉDITION ═══ -->
+    <!-- ═══ EDITION DATE ═══ -->
     <div class="edition-date">${data.editionDate}</div>
 
-    <!-- ═══ PIED DE PAGE ═══ -->
+    <!-- ═══ FOOTER ═══ -->
     <hr class="footer-sep">
     <div class="footer-campuses">
       ${campusNames.map(c => `<span>${c}</span>`).join("")}
