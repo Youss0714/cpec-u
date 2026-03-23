@@ -8,8 +8,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
+import { Mail, Phone, HelpCircle } from "lucide-react";
 
 const loginSchema = z.object({
   email: z.string().email("Email invalide"),
@@ -33,6 +35,7 @@ export default function Login() {
   const { toast } = useToast();
   const [welcomeUser, setWelcomeUser] = useState<{ name: string; initial: string; subRole: string } | null>(null);
   const [currentSlide, setCurrentSlide] = useState(0);
+  const [contactDialogOpen, setContactDialogOpen] = useState(false);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -193,7 +196,7 @@ export default function Login() {
                   Mot de passe oublié ?{" "}
                   <span
                     className="text-primary underline underline-offset-2 cursor-pointer hover:text-primary/80 transition-colors"
-                    onClick={() => alert("Contactez l'administration pour réinitialiser votre mot de passe.")}
+                    onClick={() => setContactDialogOpen(true)}
                   >
                     Contacter l'administration
                   </span>
@@ -275,6 +278,43 @@ export default function Login() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Contact Administration Dialog */}
+      <Dialog open={contactDialogOpen} onOpenChange={setContactDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <HelpCircle className="w-5 h-5 text-primary" />
+              Réinitialisation du mot de passe
+            </DialogTitle>
+            <DialogDescription>
+              Pour réinitialiser votre mot de passe, veuillez contacter le service de scolarité.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="flex items-center gap-3 p-3 rounded-lg bg-muted">
+              <Mail className="w-5 h-5 text-primary shrink-0" />
+              <div>
+                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Email</p>
+                <p className="text-sm font-semibold">scolarite@cpec-u.fr</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 p-3 rounded-lg bg-muted">
+              <Phone className="w-5 h-5 text-primary shrink-0" />
+              <div>
+                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Téléphone</p>
+                <p className="text-sm font-semibold">+225 27 22 41 03 88</p>
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground text-center">
+              Horaires d'accueil : Lun–Ven, 8h–17h
+            </p>
+          </div>
+          <Button onClick={() => setContactDialogOpen(false)} className="w-full">
+            Fermer
+          </Button>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
