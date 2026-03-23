@@ -419,16 +419,63 @@ export function generateBulletinHTML(data: BulletinData): string {
     .info-block {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 8px;
-      margin-bottom: 3px;
-      padding: 3px 2px;
+      gap: 10px;
+      margin-bottom: 4px;
+      padding: 4px 2px;
       font-size: 7.5pt;
       line-height: 1.65;
       border-bottom: 1px solid #1A1A1A;
+      align-items: start;
     }
     .info-school { color: #1A1A1A; }
-    .info-school .school-ref { font-size: 6pt; color: #555; margin-top: 1px; }
-    .info-student { color: #1A1A1A; }
+    .info-school .school-ref { font-size: 6pt; color: #555; margin-top: 2px; }
+
+    /* ── Carte étudiant ── */
+    .student-card {
+      border: 1px solid #1a3a6b;
+      border-left: 4px solid #1a3a6b;
+      border-radius: 2px;
+      overflow: hidden;
+      font-size: 7.5pt;
+    }
+    .student-card-header {
+      background: #1a3a6b;
+      color: white;
+      padding: 3px 8px;
+      font-size: 6.5pt;
+      letter-spacing: 1px;
+      font-weight: bold;
+      text-transform: uppercase;
+    }
+    .student-card-name {
+      font-size: 9.5pt;
+      font-weight: bold;
+      padding: 4px 8px 3px;
+      color: #1a3a6b;
+      letter-spacing: 0.3px;
+      border-bottom: 0.5px solid #c8d4e8;
+      background: #f4f7fb;
+    }
+    .student-card-body {
+      padding: 4px 8px 5px;
+      color: #1A1A1A;
+      line-height: 1.9;
+    }
+    .student-card-row {
+      display: flex;
+      gap: 6px;
+      align-items: baseline;
+    }
+    .student-card-label {
+      font-weight: bold;
+      white-space: nowrap;
+      font-size: 7pt;
+    }
+    .student-card-dotline {
+      border-bottom: 1px dotted #999;
+      display: inline-block;
+      min-width: 50px;
+    }
 
     /* ── Title bar ── */
     .title-bar {
@@ -713,13 +760,25 @@ export function generateBulletinHTML(data: BulletinData): string {
         <strong>CPEC-U</strong><br>
         <span class="school-ref">Réf : 023/2024/INP-HB/ESCAE/CPEC-U/RE/CC</span>
       </div>
-      <div class="info-student">
-        <strong>NOM ET PRÉNOM(S) :</strong><br>
-        ${data.studentName.toUpperCase()}<br>
-        Né(e) le <span style="border-bottom:1px dotted #999;display:inline-block;min-width:36px;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
-        à <span style="border-bottom:1px dotted #999;display:inline-block;min-width:50px;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span><br>
-        <strong>REDOUBLANT(E) :</strong> NON<br>
-        <strong>N° Matricule :</strong> ${data.studentMatricule}
+      <div class="student-card">
+        <div class="student-card-header">Étudiant(e)</div>
+        <div class="student-card-name">${data.studentName.toUpperCase()}</div>
+        <div class="student-card-body">
+          <div class="student-card-row">
+            <span class="student-card-label">Né(e) le</span>
+            <span class="student-card-dotline">&nbsp;</span>
+            <span class="student-card-label">à</span>
+            <span class="student-card-dotline">&nbsp;</span>
+          </div>
+          <div class="student-card-row">
+            <span class="student-card-label">Redoublant(e) :</span>
+            <span>NON</span>
+          </div>
+          <div class="student-card-row">
+            <span class="student-card-label">N° Matricule :</span>
+            <span>${data.studentMatricule}</span>
+          </div>
+        </div>
       </div>
     </div>
 
