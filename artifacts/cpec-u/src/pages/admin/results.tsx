@@ -16,7 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { Download, Search, CheckCircle, Lock, Unlock, FileEdit, Globe, GlobeLock, TrendingUp, Users, GraduationCap, ChevronDown, ChevronUp, AlertTriangle, XCircle, Eye, Send } from "lucide-react";
@@ -60,6 +60,7 @@ export default function AdminResults() {
   const publishMutation = usePublishSemesterResults();
   const promoteMutation = usePromoteAdmitted();
   const [promotionResult, setPromotionResult] = useState<{ promoted: { id: number; name: string }[]; fromClass: string } | null>(null);
+  const [showPromoteConfirm, setShowPromoteConfirm] = useState(false);
 
   const [derogationTarget, setDerogationTarget] = useState<{
     studentId: number; studentName: string; semesterId: number;
@@ -96,13 +97,13 @@ export default function AdminResults() {
   const isTerminalClass = !!currentClass?.isTerminal;
   const canPromote = isScolarite && !!selectedSemester && selectedClass !== "all" && !isTerminalClass && !!currentClass?.nextClassId;
 
-  const handlePromote = async () => {
+  const handlePromote = () => {
     if (!canPromote) return;
-    const nextCls = (classes as any[])?.find((c: any) => c.id === currentClass.nextClassId);
-    const confirmed = window.confirm(
-      `Promouvoir tous les étudiants admis de "${currentClass?.name}" vers "${nextCls?.name ?? "classe supérieure"}" ?\n\nCette action est irréversible.`
-    );
-    if (!confirmed) return;
+    setShowPromoteConfirm(true);
+  };
+
+  const handlePromoteConfirm = async () => {
+    setShowPromoteConfirm(false);
     try {
       const result = await promoteMutation.mutateAsync({
         semesterId: parseInt(selectedSemester),
@@ -519,6 +520,41 @@ export default function AdminResults() {
           </div>
         )}
       </div>
+
+      {/* Promote confirmation dialog */}
+      <Dialog open={showPromoteConfirm} onOpenChange={setShowPromoteConfirm}>
+        <DialogContent className="w-[calc(100vw-2rem)] max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0" />
+              Confirmer la promotion de classe
+            </DialogTitle>
+            <DialogDescription className="pt-2 text-sm leading-relaxed">
+              Les étudiants <strong>admis</strong> de{" "}
+              <span className="font-semibold text-foreground">"{currentClass?.name}"</span>{" "}
+              seront transférés vers{" "}
+              <span className="font-semibold text-foreground">
+                "{(classes as any[])?.find((c: any) => c.id === currentClass?.nextClassId)?.name ?? "la classe supérieure"}"
+              </span>.
+              <br /><br />
+              Les étudiants <strong>ajournés</strong> resteront dans leur classe actuelle. Cette action est <strong>irréversible</strong>.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex-col-reverse sm:flex-row gap-2 pt-2">
+            <Button variant="outline" onClick={() => setShowPromoteConfirm(false)} className="flex-1">
+              Annuler
+            </Button>
+            <Button
+              className="flex-1 bg-violet-600 hover:bg-violet-700 text-white"
+              onClick={handlePromoteConfirm}
+              disabled={promoteMutation.isPending}
+            >
+              <TrendingUp className="w-4 h-4 mr-2" />
+              {promoteMutation.isPending ? "Promotion en cours..." : "Confirmer la promotion"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Derogation modal */}
       <Dialog open={!!derogationTarget} onOpenChange={(o) => { if (!o) setDerogationTarget(null); }}>
