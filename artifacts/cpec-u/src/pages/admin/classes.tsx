@@ -4,6 +4,7 @@ import {
   useListClasses, useCreateClass, useDeleteClass,
   useGetClassStudents, useEnrollStudent, useUnenrollStudent,
   useListUsers, useUpdateClassConfig, useMoveClass, useGetCurrentUser,
+  useListSubjects,
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -315,7 +316,13 @@ export default function AdminClasses() {
   const [selectedClass, setSelectedClass] = useState<ClassItem | null>(null);
   const [pendingDeleteClass, setPendingDeleteClass] = useState<{ id: number; name: string } | null>(null);
   const { data: classes, isLoading } = useListClasses();
+  const { data: subjects } = useListSubjects();
   const { data: currentUser } = useGetCurrentUser();
+
+  const subjectCountByClass = (subjects as any[] | undefined)?.reduce((acc: Record<number, number>, s: any) => {
+    if (s.classId) acc[s.classId] = (acc[s.classId] || 0) + 1;
+    return acc;
+  }, {}) ?? {};
   const isScolarite = (currentUser as any)?.adminSubRole === "scolarite";
   const createClass = useCreateClass();
   const deleteClass = useDeleteClass();
@@ -472,9 +479,15 @@ export default function AdminClasses() {
                 </div>
 
                 <div className="mt-6 flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-sm font-semibold text-primary bg-primary/5 px-3 py-1.5 rounded-lg">
-                    <Users className="w-4 h-4" />
-                    {cls.studentCount} Étudiant{cls.studentCount !== 1 ? "s" : ""}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <div className="flex items-center gap-1.5 text-sm font-semibold text-primary bg-primary/5 px-3 py-1.5 rounded-lg">
+                      <Users className="w-4 h-4" />
+                      {cls.studentCount} Étudiant{cls.studentCount !== 1 ? "s" : ""}
+                    </div>
+                    <div className="flex items-center gap-1.5 text-sm font-semibold text-violet-700 bg-violet-50 px-3 py-1.5 rounded-lg">
+                      <BookOpen className="w-4 h-4" />
+                      {subjectCountByClass[cls.id] ?? 0} Matière{(subjectCountByClass[cls.id] ?? 0) !== 1 ? "s" : ""}
+                    </div>
                   </div>
                   <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors" />
                 </div>

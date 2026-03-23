@@ -412,7 +412,10 @@ export default function AdminResults() {
                         </TableCell>
                         <TableCell>{res.className}</TableCell>
                         <TableCell className="text-center">
-                          <span className={`font-mono font-bold text-lg block ${res.averageFailed ? "text-destructive" : ""}`}>
+                          <span className={`font-mono font-bold text-lg block ${
+                            res.average === null ? "text-muted-foreground" :
+                            res.average >= 10 ? "text-emerald-600" : "text-destructive"
+                          }`}>
                             {res.average !== null ? res.average?.toFixed(2) : "—"}
                           </span>
                           {res.absenceDeduction > 0 && (

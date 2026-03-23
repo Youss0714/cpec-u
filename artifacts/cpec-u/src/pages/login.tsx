@@ -188,6 +188,16 @@ export default function Login() {
                 >
                   {loginMutation.isPending ? "Connexion en cours..." : "Se connecter"}
                 </Button>
+
+                <p className="text-center text-sm text-muted-foreground pt-1">
+                  Mot de passe oublié ?{" "}
+                  <span
+                    className="text-primary underline underline-offset-2 cursor-pointer hover:text-primary/80 transition-colors"
+                    onClick={() => alert("Contactez l'administration pour réinitialiser votre mot de passe.")}
+                  >
+                    Contacter l'administration
+                  </span>
+                </p>
               </form>
             </CardContent>
           </Card>

@@ -690,6 +690,7 @@ export default function AdminUsers() {
   const [editProfileLoading, setEditProfileLoading] = useState(false);
   const [editSaving, setEditSaving] = useState(false);
   const [teacherAssignmentRows, setTeacherAssignmentRows] = useState<{ subjectId: string; classId: string; semesterId: string }[]>([]);
+  const [createStudentClassId, setCreateStudentClassId] = useState<string>("");
   const [createProfileForm, setCreateProfileForm] = useState({ matricule: "", dateNaissance: "", lieuNaissance: "", phone: "", address: "", parentName: "", parentPhone: "", parentEmail: "", parentAddress: "" });
   const emptyCreateProfile = { matricule: "", dateNaissance: "", lieuNaissance: "", phone: "", address: "", parentName: "", parentPhone: "", parentEmail: "", parentAddress: "" };
   const [viewUser, setViewUser] = useState<any | null>(null);
@@ -719,9 +720,12 @@ export default function AdminUsers() {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     const role = formData.get("role") as "admin" | "teacher" | "student";
-    const classIdStr = formData.get("classId") as string;
     const adminSubRole = formData.get("adminSubRole") as string;
     const phone = formData.get("phone") as string;
+    if (role === "student" && !createStudentClassId) {
+      toast({ title: "Veuillez sélectionner une classe pour l'étudiant.", variant: "destructive" });
+      return;
+    }
     try {
       const newUser = await createUser.mutateAsync({
         data: {
@@ -729,7 +733,7 @@ export default function AdminUsers() {
           email: formData.get("email") as string,
           password: formData.get("password") as string,
           role,
-          classId: role === "student" && classIdStr ? parseInt(classIdStr) : undefined,
+          classId: role === "student" && createStudentClassId ? parseInt(createStudentClassId) : undefined,
           adminSubRole: role === "admin" ? adminSubRole : undefined,
           phone: role === "teacher" && phone ? phone : undefined,
           matricule: role === "student" && createProfileForm.matricule ? createProfileForm.matricule.trim() : undefined,
@@ -929,7 +933,7 @@ export default function AdminUsers() {
             <p className="text-muted-foreground text-sm mt-1">Gérez les accès et les profils de l'établissement.</p>
           </div>
           {(isDirecteur || isPlanificateur || isScolarite) && (
-            <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) { setTeacherAssignmentRows([]); setSelectedRole("student"); setCreateProfileForm(emptyCreateProfile); } }}>
+            <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) { setTeacherAssignmentRows([]); setSelectedRole("student"); setCreateProfileForm(emptyCreateProfile); setCreateStudentClassId(""); } }}>
               <DialogTrigger asChild>
                 <Button className="gap-2 shrink-0"><Plus className="w-4 h-4" /> Nouvel Utilisateur</Button>
               </DialogTrigger>
@@ -954,11 +958,12 @@ export default function AdminUsers() {
                     <>
                       <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1">
-                          <Label>Classe</Label>
-                          <Select name="classId">
-                            <SelectTrigger><SelectValue placeholder="Choisir une classe..." /></SelectTrigger>
+                          <Label>Classe <span className="text-destructive">*</span></Label>
+                          <Select value={createStudentClassId} onValueChange={setCreateStudentClassId}>
+                            <SelectTrigger className={!createStudentClassId ? "border-destructive/50" : ""}><SelectValue placeholder="Choisir une classe..." /></SelectTrigger>
                             <SelectContent>{classes?.map((c: any) => <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>)}</SelectContent>
                           </Select>
+                          {!createStudentClassId && <p className="text-xs text-destructive mt-0.5">Requis</p>}
                         </div>
                         <div className="space-y-1">
                           <Label className="flex items-center gap-1.5"><School className="w-3.5 h-3.5 text-muted-foreground" /> N° Matricule <span className="text-destructive">*</span></Label>

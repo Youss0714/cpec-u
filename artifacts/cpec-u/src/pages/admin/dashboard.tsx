@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import {
   Users, BookOpen, Calendar, DoorOpen, CalendarDays,
   GraduationCap, CheckCircle, AlertTriangle, BarChart, CalendarOff,
-  ArrowRight, TrendingUp,
+  ArrowRight, TrendingUp, School, ClipboardList, BarChart3, ScrollText,
 } from "lucide-react";
 import { motion } from "framer-motion";
 
@@ -37,11 +37,20 @@ function countConflicts(entries: any[]) {
   return conflictIds.size;
 }
 
-const quickLinks = [
+const planificateurQuickLinks = [
   { label: "Emplois du temps", href: "/admin/schedules", icon: CalendarDays, color: "text-blue-500", bg: "bg-blue-50" },
   { label: "Volumes Horaires", href: "/admin/planning-assignments", icon: BarChart, color: "text-purple-500", bg: "bg-purple-50" },
   { label: "Vacances & Fériés", href: "/admin/blocked-dates", icon: CalendarOff, color: "text-amber-500", bg: "bg-amber-50" },
   { label: "Gestion des Salles", href: "/admin/rooms", icon: DoorOpen, color: "text-emerald-500", bg: "bg-emerald-50" },
+];
+
+const scolariteQuickLinks = [
+  { label: "Utilisateurs", href: "/admin/users", icon: Users, color: "text-blue-500", bg: "bg-blue-50" },
+  { label: "Classes", href: "/admin/classes", icon: School, color: "text-emerald-500", bg: "bg-emerald-50" },
+  { label: "Résultats & Bulletins", href: "/admin/results", icon: GraduationCap, color: "text-purple-500", bg: "bg-purple-50" },
+  { label: "Feuilles de Présence", href: "/admin/attendance", icon: ClipboardList, color: "text-teal-500", bg: "bg-teal-50" },
+  { label: "Bilan des Absences", href: "/admin/attendance/summary", icon: BarChart3, color: "text-red-500", bg: "bg-red-50" },
+  { label: "Semestres", href: "/admin/semesters", icon: Calendar, color: "text-amber-500", bg: "bg-amber-50" },
 ];
 
 export default function AdminDashboard() {
@@ -177,28 +186,31 @@ export default function AdminDashboard() {
           </motion.div>
         )}
 
-        {/* Quick links — planificateur only */}
-        {isPlanificateur && (
-          <div>
-            <h2 className="text-lg font-semibold text-foreground mb-4">Accès Rapides</h2>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {quickLinks.map((link, i) => (
-                <motion.div key={link.href} initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.4 + i * 0.08 }}>
-                  <Link href={link.href}>
-                    <Card className="cursor-pointer hover:shadow-md transition-all duration-200 border-border/50 hover:border-primary/30 group">
-                      <CardContent className="p-5 flex flex-col items-center text-center gap-3">
-                        <div className={`p-3 rounded-xl ${link.bg} group-hover:scale-110 transition-transform`}>
-                          <link.icon className={`w-6 h-6 ${link.color}`} />
-                        </div>
-                        <p className="text-sm font-medium text-foreground leading-tight">{link.label}</p>
-                      </CardContent>
-                    </Card>
-                  </Link>
-                </motion.div>
-              ))}
+        {/* Quick links */}
+        {(() => {
+          const links = isPlanificateur ? planificateurQuickLinks : scolariteQuickLinks;
+          return (
+            <div>
+              <h2 className="text-lg font-semibold text-foreground mb-4">Accès Rapides</h2>
+              <div className={`grid gap-4 ${isPlanificateur ? "grid-cols-2 md:grid-cols-4" : "grid-cols-2 md:grid-cols-3 lg:grid-cols-6"}`}>
+                {links.map((link, i) => (
+                  <motion.div key={link.href} initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.4 + i * 0.06 }}>
+                    <Link href={link.href}>
+                      <Card className="cursor-pointer hover:shadow-md transition-all duration-200 border-border/50 hover:border-primary/30 group">
+                        <CardContent className="p-4 flex flex-col items-center text-center gap-2">
+                          <div className={`p-3 rounded-xl ${link.bg} group-hover:scale-110 transition-transform`}>
+                            <link.icon className={`w-5 h-5 ${link.color}`} />
+                          </div>
+                          <p className="text-xs font-semibold text-foreground leading-tight">{link.label}</p>
+                        </CardContent>
+                      </Card>
+                    </Link>
+                  </motion.div>
+                ))}
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* Bottom cards */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">

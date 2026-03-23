@@ -1,6 +1,6 @@
 import { ReactNode, useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
-import { useGetCurrentUser, useLogout, useGetUnreadNotificationCount, useGetPendingGradeSubmissionsCount } from "@workspace/api-client-react";
+import { useGetCurrentUser, useLogout, useGetUnreadNotificationCount, useGetPendingGradeSubmissionsCount, useGetUnreadMessageCount } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import {
   LayoutDashboard,
@@ -58,6 +58,8 @@ export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
     { enabled: isResultsAdmin } as any
   );
   const pendingCount = (pendingCountData as any)?.count ?? 0;
+  const { data: unreadMsgData } = useGetUnreadMessageCount({ enabled: !!user } as any);
+  const unreadMsgCount = (unreadMsgData as any)?.count ?? 0;
 
   const logoutMutation = useLogout({
     mutation: {
@@ -126,7 +128,7 @@ export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
     { name: "Promotion Annuelle", href: "/admin/promotion", icon: Rocket },
     { name: "Archives", href: "/admin/archives", icon: Archive },
     { name: "Journal d'Activité", href: "/admin/activity-log", icon: ScrollText },
-    { name: "Messages", href: "/admin/messages", icon: MessageSquare },
+    { name: "Messages", href: "/admin/messages", icon: MessageSquare, badge: unreadMsgCount > 0 ? unreadMsgCount : undefined },
   ];
 
   const planificateurNavItems = [
@@ -140,7 +142,7 @@ export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
     { name: "Matières", href: "/admin/subjects", icon: BookOpen },
     { name: "Semestres", href: "/admin/semesters", icon: Calendar },
     { name: "Utilisateurs", href: "/admin/users", icon: Users },
-    { name: "Messages", href: "/admin/messages", icon: MessageSquare },
+    { name: "Messages", href: "/admin/messages", icon: MessageSquare, badge: unreadMsgCount > 0 ? unreadMsgCount : undefined },
   ];
 
   const directeurNavItems = [
@@ -157,13 +159,13 @@ export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
     { name: "Archives", href: "/admin/archives", icon: Archive },
     { name: "Journal d'Activité", href: "/admin/activity-log", icon: ScrollText },
     { name: "Hébergement", href: "/admin/housing", icon: Building2 },
-    { name: "Messages", href: "/admin/messages", icon: MessageSquare },
+    { name: "Messages", href: "/admin/messages", icon: MessageSquare, badge: unreadMsgCount > 0 ? unreadMsgCount : undefined },
   ];
 
   const hebergementNavItems = [
     { name: "Tableau de bord", href: "/admin/housing", icon: LayoutDashboard },
     { name: "Hébergement", href: "/admin/housing", icon: Building2 },
-    { name: "Messages", href: "/admin/messages", icon: MessageSquare },
+    { name: "Messages", href: "/admin/messages", icon: MessageSquare, badge: unreadMsgCount > 0 ? unreadMsgCount : undefined },
   ];
 
   const navItems =
@@ -181,7 +183,7 @@ export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
           { name: "Mon Planning", href: "/teacher/schedule", icon: CalendarDays },
           { name: "Gestion des Présences", href: "/teacher/attendance", icon: ClipboardList },
           { name: "Saisie des Notes", href: "/teacher/grades", icon: PenTool },
-          { name: "Messages", href: "/teacher/messages", icon: MessageSquare },
+          { name: "Messages", href: "/teacher/messages", icon: MessageSquare, badge: unreadMsgCount > 0 ? unreadMsgCount : undefined },
         ]
       : [
           { name: "Mon Profil", href: "/student", icon: LayoutDashboard, badge: null },
@@ -189,7 +191,7 @@ export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
           { name: "Mes Résultats", href: "/student/grades", icon: FileText, badge: null },
           { name: "Mes Absences", href: "/student/absences", icon: CalendarOff, badge: null },
           { name: "Notifications", href: "/student/notifications", icon: Bell, badge: (unreadData?.count ?? 0) > 0 ? unreadData!.count : null },
-          { name: "Messages", href: "/student/messages", icon: MessageSquare, badge: null },
+          { name: "Messages", href: "/student/messages", icon: MessageSquare, badge: unreadMsgCount > 0 ? unreadMsgCount : undefined },
         ];
 
   const roleLabel =

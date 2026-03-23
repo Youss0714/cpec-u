@@ -881,6 +881,16 @@ export const useInitializeYear = (options?: UseMutationOptions<InitializeYearRes
     ...options,
   });
 
+// ─── Messages: unread count ──────────────────────────────────────────────────
+
+export const useGetUnreadMessageCount = (options?: QueryOpts<{ count: number }>) =>
+  useQuery<{ count: number }, Error>({
+    queryKey: ["/api/messages/unread/count"],
+    queryFn: () => customFetch<{ count: number }>("/api/messages/unread/count"),
+    refetchInterval: 30_000,
+    ...options,
+  });
+
 // ─── Teacher Attendance History ──────────────────────────────────────────────
 
 export const useTeacherAttendanceHistory = (options?: QueryOpts<any[]>) =>
