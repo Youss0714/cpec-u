@@ -4,7 +4,8 @@ import { useQuery } from "@tanstack/react-query";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { BarChart3, XCircle, Clock, AlertTriangle } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { BarChart3, XCircle, Clock, AlertTriangle, Download } from "lucide-react";
 
 async function apiFetch(path: string) {
   const res = await fetch(`/api${path}`, { credentials: "include" });
@@ -52,6 +53,27 @@ export default function AttendanceSummary() {
   const totalAbsences = rows.reduce((s: number, r: any) => s + r.absenceCount, 0);
   const totalLates = rows.reduce((s: number, r: any) => s + r.lateCount, 0);
   const totalMinutes = rows.reduce((s: number, r: any) => s + r.totalMinutes, 0);
+
+  const handleExportCSV = () => {
+    if (!rows.length) return;
+    const semLabel = selectedSemester ? selectedSemester.name.replace(/\s+/g, "_") : "bilan";
+    const escape = (v: string) => `"${String(v).replace(/"/g, '""')}"`;
+    const header = ["Étudiant", "Classe", "Absences", "Retards", "Total heures d'absence"];
+    const data = rows.map((r: any) => [
+      r.studentName,
+      r.className ?? "",
+      String(r.absenceCount),
+      String(r.lateCount),
+      formatDuration(r.totalMinutes),
+    ]);
+    const bom = "\uFEFF";
+    const csv = bom + [header, ...data].map(row => row.map(escape).join(";")).join("\r\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `absences_${semLabel}.csv`; a.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <AppLayout allowedRoles={["admin"]}>
@@ -142,6 +164,22 @@ export default function AttendanceSummary() {
 
             {/* Table */}
             <div className="bg-card rounded-2xl shadow-sm border border-border overflow-hidden">
+              {rows.length > 0 && (
+                <div className="flex items-center justify-between px-5 py-3 border-b bg-muted/30">
+                  <p className="text-sm text-muted-foreground">
+                    <span className="font-semibold text-foreground">{rows.length}</span> étudiant{rows.length > 1 ? "s" : ""} concerné{rows.length > 1 ? "s" : ""}
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-2 text-emerald-700 border-emerald-300 hover:bg-emerald-50"
+                    onClick={handleExportCSV}
+                  >
+                    <Download className="w-4 h-4" />
+                    Exporter CSV
+                  </Button>
+                </div>
+              )}
               <div className="overflow-y-auto max-h-[calc(100vh-420px)]">
                 <Table>
                   <TableHeader className="bg-secondary/50 sticky top-0 z-10">

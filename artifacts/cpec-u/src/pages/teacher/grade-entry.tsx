@@ -199,6 +199,14 @@ export default function GradeEntry() {
   }, 0);
   const totalFields = studentRows.length * EVAL_COUNT;
 
+  const studentsWithoutAnyGrade = studentRows.filter(row => {
+    for (let e = 1; e <= EVAL_COUNT; e++) {
+      const v = localGrades[gradeKey(row.studentId, e)];
+      if (v !== "" && v !== undefined) return false;
+    }
+    return true;
+  }).length;
+
   return (
     <AppLayout allowedRoles={["teacher"]}>
       <div className="space-y-6 max-w-5xl mx-auto pb-24">
@@ -243,8 +251,16 @@ export default function GradeEntry() {
 
         {selectedAssignment && (
           <div className="space-y-4 mt-8">
-            <div className="flex justify-between items-end mb-4 px-2">
-              <h3 className="font-bold text-xl">Liste des étudiants</h3>
+            <div className="flex justify-between items-end mb-4 px-2 flex-wrap gap-2">
+              <div>
+                <h3 className="font-bold text-xl">Liste des étudiants</h3>
+                {!isLoading && studentRows.length > 0 && studentsWithoutAnyGrade > 0 && !isLocked && (
+                  <p className="text-sm text-amber-600 font-medium mt-0.5 flex items-center gap-1.5">
+                    <span className="inline-block w-2 h-2 rounded-full bg-amber-500" />
+                    {studentsWithoutAnyGrade} étudiant{studentsWithoutAnyGrade > 1 ? "s" : ""} sans aucune note saisie
+                  </p>
+                )}
+              </div>
               <span className="text-sm text-muted-foreground font-semibold">
                 {studentRows.length} étudiant{studentRows.length > 1 ? "s" : ""} · {filledCount}/{totalFields} notes
               </span>
@@ -270,11 +286,12 @@ export default function GradeEntry() {
                 {studentRows.map(row => {
                   const avg = getStudentAverage(row.studentId);
                   const hasAll = Array.from({ length: EVAL_COUNT }, (_, i) => localGrades[gradeKey(row.studentId, i + 1)]).every(v => v !== "" && v !== undefined);
+                  const hasNone = avg === "—";
 
                   return (
                     <div
                       key={row.studentId}
-                      className={`p-4 bg-card rounded-xl border shadow-sm transition-colors ${isLocked ? "opacity-75 border-red-100" : "border-border hover:border-primary/30"}`}
+                      className={`p-4 bg-card rounded-xl border shadow-sm transition-colors ${isLocked ? "opacity-75 border-red-100" : hasNone ? "border-amber-200 hover:border-amber-400" : "border-border hover:border-primary/30"}`}
                     >
                       {/* Mobile: stacked layout */}
                       <div className="flex items-center justify-between mb-3 sm:hidden">

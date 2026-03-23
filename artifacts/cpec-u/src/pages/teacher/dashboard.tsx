@@ -1,15 +1,25 @@
+import { useMemo } from "react";
 import { AppLayout } from "@/components/layout";
-import { useGetTeacherAssignments } from "@workspace/api-client-react";
+import { useGetTeacherAssignments, useGetTeacherSchedule } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Link } from "wouter";
-import { BookOpen, PenTool, Calendar, Clock, TrendingUp } from "lucide-react";
+import { BookOpen, PenTool, Calendar, Clock, TrendingUp, MapPin, Users, CalendarDays } from "lucide-react";
 import { useOfflineGrades } from "@/lib/offline-sync";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 
 export default function TeacherDashboard() {
   const { data: assignments, isLoading } = useGetTeacherAssignments();
+  const { data: allEntries = [] } = useGetTeacherSchedule();
   const { isOnline, pendingGrades } = useOfflineGrades();
+
+  const today = new Date().toISOString().slice(0, 10);
+
+  const todaySessions = useMemo(() => {
+    return (allEntries as any[])
+      .filter((e: any) => e.sessionDate === today)
+      .sort((a: any, b: any) => a.startTime.localeCompare(b.startTime));
+  }, [allEntries, today]);
 
   const totalPlanned = (assignments as any[] ?? []).reduce((s: number, a: any) => s + (a.plannedHours ?? 0), 0);
   const totalScheduledPerWeek = (assignments as any[] ?? []).reduce((s: number, a: any) => s + (a.scheduledHoursPerWeek ?? 0), 0);
@@ -30,6 +40,49 @@ export default function TeacherDashboard() {
               </Badge>
             )}
           </div>
+        </div>
+
+        {/* Cours du jour */}
+        <div className="space-y-3">
+          <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
+            <CalendarDays className="w-5 h-5 text-primary" />
+            Cours du jour —{" "}
+            <span className="font-normal text-muted-foreground capitalize">
+              {new Date().toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })}
+            </span>
+          </h2>
+          {todaySessions.length === 0 ? (
+            <div className="bg-muted/40 border border-border rounded-2xl flex items-center gap-3 px-5 py-4 text-muted-foreground text-sm">
+              <CalendarDays className="w-5 h-5 opacity-50" />
+              Aucun cours prévu aujourd'hui.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {todaySessions.map((e: any, i: number) => (
+                <div key={e.id ?? i} className="bg-card border border-border rounded-2xl px-4 py-3 space-y-2 shadow-sm hover:border-primary/40 transition-colors">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="font-semibold text-foreground leading-tight">{e.subjectName}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">{e.className}</p>
+                    </div>
+                    <Badge variant="outline" className="text-xs shrink-0">{e.semesterName}</Badge>
+                  </div>
+                  <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+                    <span className="flex items-center gap-1">
+                      <Clock className="w-3 h-3" />
+                      {e.startTime} – {e.endTime}
+                    </span>
+                    {e.roomName && (
+                      <span className="flex items-center gap-1">
+                        <MapPin className="w-3 h-3" />
+                        {e.roomName}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

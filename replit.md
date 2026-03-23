@@ -100,11 +100,22 @@ artifacts-monorepo/
 ### Teacher
 - Enter grades for assigned subjects only. Offline mode via localStorage.
 - **Attendance history tab**: `/teacher/attendance` has "Nouvelle Feuille" + "Historique" tabs. History shows all sent sessions with stats.
+- **Teacher profile** (`/teacher/profile`): view name, email, assignment progress per subject with progress bars, global completion rate.
+- **Dashboard today's sessions**: `useGetTeacherSchedule()` filtered to today's date, shows class, room, time. If no sessions, empty state message.
+- **Grade entry indicator**: amber highlight for student rows with no grade at all; "X étudiants sans note" count shown below heading.
+
+### Planificateur / Directeur
+- **Honoraires page** (`/admin/honoraires`): manage teacher fees and payments. Stats cards (total expected, paid, remaining, recovery rate). Per-teacher: define fee amount + period, add/delete payments. Backed by `/api/honoraires/*` routes (requirePlanificateurOrDirecteur).
 
 ### Student
 - View own grades + average + rank at `/student/grades` (dedicated page). Only visible when semester.published = true. NO PDF.
 - Dashboard simplified: compact results summary card + quick navigation links.
 - **Justification notifications**: student receives a notification (in the notifications table) when admin approves or rejects their absence justification.
+
+## UI Features
+
+- **Mode sombre** : toggle Sun/Moon in sidebar bottom → adds/removes `dark` class on `document.documentElement`, persisted in localStorage (`cpec-dark-mode`). Detects system preference on first load.
+- **Dark mode CSS**: Tailwind's `darkMode: "class"` must be set in tailwind.config.
 
 ## Business Logic
 

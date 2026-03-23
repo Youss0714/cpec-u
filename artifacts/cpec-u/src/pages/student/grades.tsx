@@ -105,7 +105,7 @@ export default function StudentGrades() {
               <Card className="col-span-2 sm:col-span-1 border-border shadow-sm">
                 <CardContent className="p-5 text-center">
                   <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Moyenne Générale</p>
-                  <p className="text-4xl font-bold font-mono text-primary">{results.average?.toFixed(2) || "—"}</p>
+                  <p className={`text-4xl font-bold font-mono ${results.average == null ? "text-muted-foreground" : results.average >= 10 ? "text-emerald-600" : "text-red-500"}`}>{results.average?.toFixed(2) || "—"}</p>
                   {(results as any).absenceDeduction > 0 && (
                     <p className="text-xs text-red-500 font-medium mt-1">
                       −{(results as any).absenceDeduction.toFixed(2)} pt absences

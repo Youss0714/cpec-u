@@ -1,6 +1,6 @@
 import { AppLayout } from "@/components/layout";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { motion } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -68,6 +68,21 @@ export default function StudentAbsences() {
     (filter === "all" || r.status === filter) &&
     (semesterFilter === "all" || String(r.semesterId) === semesterFilter)
   );
+
+  const subjectStats = useMemo(() => {
+    const map = new Map<string, { total: number; present: number; absent: number; late: number }>();
+    records.forEach(r => {
+      if (!map.has(r.subjectName)) map.set(r.subjectName, { total: 0, present: 0, absent: 0, late: 0 });
+      const s = map.get(r.subjectName)!;
+      s.total++;
+      if (r.status === "present") s.present++;
+      else if (r.status === "absent") s.absent++;
+      else if (r.status === "late") s.late++;
+    });
+    return Array.from(map.entries())
+      .map(([name, s]) => ({ name, ...s, rate: s.total > 0 ? Math.round(((s.present + s.late * 0.5) / s.total) * 100) : 100 }))
+      .sort((a, b) => a.rate - b.rate);
+  }, [records]);
 
   const statCards = [
     {
@@ -156,6 +171,43 @@ export default function StudentAbsences() {
             </Card>
           ))}
         </motion.div>
+
+        {/* Taux de présence par matière */}
+        {subjectStats.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.12 }}
+            className="space-y-3"
+          >
+            <h2 className="font-semibold text-foreground flex items-center gap-2">
+              <BookOpen className="w-4 h-4 text-muted-foreground" />
+              Taux de présence par matière
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {subjectStats.map((s) => {
+                const color = s.rate >= 80 ? "text-emerald-600" : s.rate >= 60 ? "text-amber-600" : "text-red-600";
+                const barColor = s.rate >= 80 ? "bg-emerald-500" : s.rate >= 60 ? "bg-amber-500" : "bg-red-500";
+                const bg = s.rate >= 80 ? "border-emerald-100" : s.rate >= 60 ? "border-amber-100" : "border-red-100";
+                return (
+                  <div key={s.name} className={`bg-card border rounded-xl px-4 py-3 space-y-2 ${bg}`}>
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="text-sm font-medium text-foreground leading-tight flex-1">{s.name}</p>
+                      <span className={`text-sm font-bold shrink-0 ${color}`}>{s.rate}%</span>
+                    </div>
+                    <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
+                      <div className={`h-full rounded-full ${barColor}`} style={{ width: `${s.rate}%` }} />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {s.present} présent{s.present > 1 ? "s" : ""} · {s.absent} absent{s.absent > 1 ? "s" : ""}
+                      {s.late > 0 ? ` · ${s.late} retard${s.late > 1 ? "s" : ""}` : ""} sur {s.total} séance{s.total > 1 ? "s" : ""}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          </motion.div>
+        )}
 
         {/* Filters */}
         <motion.div

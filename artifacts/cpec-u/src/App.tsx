@@ -25,7 +25,9 @@ import TeacherDashboard from "@/pages/teacher/dashboard";
 import GradeEntry from "@/pages/teacher/grade-entry";
 import TeacherSchedule from "@/pages/teacher/schedule";
 import TeacherAttendance from "@/pages/teacher/attendance";
+import TeacherProfile from "@/pages/teacher/profile";
 import AdminAttendance from "@/pages/admin/attendance";
+import HonorairesPage from "@/pages/admin/honoraires";
 import AttendanceSummary from "@/pages/admin/attendance-summary";
 import StudentDashboard from "@/pages/student/dashboard";
 import StudentGrades from "@/pages/student/grades";
@@ -84,12 +86,14 @@ function Router() {
       <Route path="/admin/attendance/summary" component={AttendanceSummary} />
       <Route path="/admin/messages" component={AdminMessages} />
       <Route path="/admin/housing" component={HousingPage} />
+      <Route path="/admin/honoraires" component={HonorairesPage} />
 
       {/* Teacher Routes */}
       <Route path="/teacher" component={TeacherDashboard} />
       <Route path="/teacher/grades" component={GradeEntry} />
       <Route path="/teacher/schedule" component={TeacherSchedule} />
       <Route path="/teacher/attendance" component={TeacherAttendance} />
+      <Route path="/teacher/profile" component={TeacherProfile} />
       <Route path="/teacher/messages">
         {() => <SharedMessages allowedRoles={["teacher"]} />}
       </Route>

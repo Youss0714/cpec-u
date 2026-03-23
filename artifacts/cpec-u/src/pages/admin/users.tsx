@@ -698,6 +698,7 @@ export default function AdminUsers() {
   const [viewProfileLoading, setViewProfileLoading] = useState(false);
   const [filterClass, setFilterClass] = useState<string>("all");
   const [searchStudent, setSearchStudent] = useState("");
+  const [searchTeacher, setSearchTeacher] = useState("");
   const { data: currentUser } = useGetCurrentUser();
   const currentSubRole = (currentUser as any)?.adminSubRole as string | null;
   const isDirecteur = currentSubRole === "directeur";
@@ -913,14 +914,22 @@ export default function AdminUsers() {
 
   const listToShow = useMemo(() => {
     const base = activeTab === "teachers" ? teachers : activeTab === "responsables" ? admins : students;
-    if (activeTab !== "students") return base;
-    return base.filter((u: any) => {
-      const matchesClass = filterClass === "all" || u.className === filterClass;
-      const q = searchStudent.toLowerCase();
-      const matchesSearch = !q || u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q);
-      return matchesClass && matchesSearch;
-    });
-  }, [activeTab, teachers, admins, students, filterClass, searchStudent]);
+    if (activeTab === "students") {
+      return base.filter((u: any) => {
+        const matchesClass = filterClass === "all" || u.className === filterClass;
+        const q = searchStudent.toLowerCase();
+        const matchesSearch = !q || u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q);
+        return matchesClass && matchesSearch;
+      });
+    }
+    if (activeTab === "teachers") {
+      const q = searchTeacher.toLowerCase();
+      return !q ? base : base.filter((u: any) =>
+        u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q)
+      );
+    }
+    return base;
+  }, [activeTab, teachers, admins, students, filterClass, searchStudent, searchTeacher]);
 
   return (
     <AppLayout allowedRoles={["admin"]}>
@@ -1138,6 +1147,21 @@ export default function AdminUsers() {
         {/* Teachers / Students / Responsables tab */}
         {(activeTab === "teachers" || activeTab === "students" || activeTab === "responsables") && (
           <div className="space-y-3">
+          {activeTab === "teachers" && (
+            <div className="flex flex-wrap items-center gap-2">
+              <Input
+                placeholder="Rechercher un enseignant..."
+                value={searchTeacher}
+                onChange={e => setSearchTeacher(e.target.value)}
+                className="w-56"
+              />
+              {searchTeacher && (
+                <button onClick={() => setSearchTeacher("")} className="text-xs text-muted-foreground hover:text-foreground underline">
+                  Réinitialiser
+                </button>
+              )}
+            </div>
+          )}
           {activeTab === "students" && (
             <div className="flex flex-wrap items-center gap-2">
               <Input

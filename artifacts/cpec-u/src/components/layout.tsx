@@ -27,6 +27,11 @@ import {
   Building2,
   Rocket,
   Archive,
+  KeyRound,
+  Wallet,
+  Sun,
+  Moon,
+  UserCircle,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
@@ -49,6 +54,24 @@ export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showFarewell, setShowFarewell] = useState(false);
   const [farewellSubRole, setFarewellSubRole] = useState<string | null>(null);
+  const [isDark, setIsDark] = useState(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("cpec-dark-mode");
+      if (stored !== null) return stored === "true";
+      return window.matchMedia("(prefers-color-scheme: dark)").matches;
+    }
+    return false;
+  });
+
+  useEffect(() => {
+    if (isDark) {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+    localStorage.setItem("cpec-dark-mode", String(isDark));
+  }, [isDark]);
+
   const { data: unreadData } = useGetUnreadNotificationCount({
     enabled: !!(user && user.role === "student"),
   } as any);
@@ -142,6 +165,7 @@ export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
     { name: "Matières", href: "/admin/subjects", icon: BookOpen },
     { name: "Semestres", href: "/admin/semesters", icon: Calendar },
     { name: "Utilisateurs", href: "/admin/users", icon: Users },
+    { name: "Honoraires", href: "/admin/honoraires", icon: Wallet },
     { name: "Messages", href: "/admin/messages", icon: MessageSquare, badge: unreadMsgCount > 0 ? unreadMsgCount : undefined },
   ];
 
@@ -159,6 +183,7 @@ export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
     { name: "Archives", href: "/admin/archives", icon: Archive },
     { name: "Journal d'Activité", href: "/admin/activity-log", icon: ScrollText },
     { name: "Hébergement", href: "/admin/housing", icon: Building2 },
+    { name: "Honoraires", href: "/admin/honoraires", icon: Wallet },
     { name: "Messages", href: "/admin/messages", icon: MessageSquare, badge: unreadMsgCount > 0 ? unreadMsgCount : undefined },
   ];
 
@@ -183,6 +208,7 @@ export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
           { name: "Mon Planning", href: "/teacher/schedule", icon: CalendarDays },
           { name: "Gestion des Présences", href: "/teacher/attendance", icon: ClipboardList },
           { name: "Saisie des Notes", href: "/teacher/grades", icon: PenTool },
+          { name: "Mon Profil", href: "/teacher/profile", icon: UserCircle },
           { name: "Messages", href: "/teacher/messages", icon: MessageSquare, badge: unreadMsgCount > 0 ? unreadMsgCount : undefined },
         ]
       : [
@@ -192,6 +218,7 @@ export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
           { name: "Mes Absences", href: "/student/absences", icon: CalendarOff, badge: null },
           { name: "Notifications", href: "/student/notifications", icon: Bell, badge: (unreadData?.count ?? 0) > 0 ? unreadData!.count : null },
           { name: "Messages", href: "/student/messages", icon: MessageSquare, badge: unreadMsgCount > 0 ? unreadMsgCount : undefined },
+          { name: "Changer mon mot de passe", href: "/change-password", icon: KeyRound, badge: null },
         ];
 
   const roleLabel =
@@ -286,6 +313,13 @@ export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
             <p className="text-xs text-sidebar-foreground/60 truncate">{user.email}</p>
           </div>
         </div>
+        <button
+          onClick={() => setIsDark(d => !d)}
+          className="w-full flex items-center gap-2 px-3 py-2 mb-2 rounded-xl text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors text-sm font-medium"
+        >
+          {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+          {isDark ? "Mode clair" : "Mode sombre"}
+        </button>
         <Button
           variant="outline"
           className="w-full justify-start text-sidebar-foreground border-sidebar-border hover:bg-destructive hover:text-destructive-foreground hover:border-destructive transition-colors"

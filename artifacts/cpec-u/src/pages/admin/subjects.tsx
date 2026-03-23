@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Trash2, Pencil, BookOpen, Layers, ChevronDown, ChevronRight, Award, FlaskConical, Globe2, Star } from "lucide-react";
+import { Plus, Trash2, Pencil, BookOpen, Layers, ChevronDown, ChevronRight, Award, FlaskConical, Globe2, Star, Search } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { motion, AnimatePresence } from "framer-motion";
@@ -43,6 +43,7 @@ export default function AdminSubjects() {
   const [filterClass, setFilterClass] = useState("all");
   const [filterSemester, setFilterSemester] = useState("all");
   const [filterCategory, setFilterCategory] = useState("all");
+  const [searchSubject, setSearchSubject] = useState("");
   const [expandedUEs, setExpandedUEs] = useState<Set<number>>(new Set());
 
   const [isCreateUEOpen, setIsCreateUEOpen] = useState(false);
@@ -83,18 +84,22 @@ export default function AdminSubjects() {
       const matchClass = filterClass === "all" || String(u.classId ?? "none") === filterClass;
       const matchSem = filterSemester === "all" || String(u.semesterId ?? "none") === filterSemester;
       const matchCat = filterCategory === "all" || (u.category ?? "none") === filterCategory;
-      return matchClass && matchSem && matchCat;
+      const q = searchSubject.toLowerCase();
+      const matchSearch = !q || u.name.toLowerCase().includes(q) || (u.code ?? "").toLowerCase().includes(q);
+      return matchClass && matchSem && matchCat && matchSearch;
     });
-  }, [teachingUnits, filterClass, filterSemester, filterCategory]);
+  }, [teachingUnits, filterClass, filterSemester, filterCategory, searchSubject]);
 
   const filteredSubjects = useMemo(() => {
     if (!subjects) return [];
     return (subjects as any[]).filter((s: any) => {
       const matchClass = filterClass === "all" || String(s.classId ?? "none") === filterClass;
       const matchSem = filterSemester === "all" || String(s.semesterId ?? "none") === filterSemester;
-      return matchClass && matchSem;
+      const q = searchSubject.toLowerCase();
+      const matchSearch = !q || s.name.toLowerCase().includes(q);
+      return matchClass && matchSem && matchSearch;
     });
-  }, [subjects, filterClass, filterSemester]);
+  }, [subjects, filterClass, filterSemester, searchSubject]);
 
   const subjectsByUE = useMemo(() => {
     const map = new Map<number | null, any[]>();
@@ -413,6 +418,15 @@ export default function AdminSubjects() {
               ))}
             </SelectContent>
           </Select>
+          <div className="relative">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+            <Input
+              placeholder="Rechercher une matière ou UE..."
+              value={searchSubject}
+              onChange={e => setSearchSubject(e.target.value)}
+              className="pl-9 w-60 bg-card border-border"
+            />
+          </div>
         </div>
 
         {/* Content */}

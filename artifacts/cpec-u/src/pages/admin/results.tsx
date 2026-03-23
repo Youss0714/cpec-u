@@ -33,6 +33,7 @@ export default function AdminResults() {
 
   const [selectedSemester, setSelectedSemester] = useState<string>("");
   const [selectedClass, setSelectedClass] = useState<string>("all");
+  const [searchStudent, setSearchStudent] = useState("");
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
   const toggleRow = (id: number) => setExpandedRows(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; });
 
@@ -362,22 +363,38 @@ export default function AdminResults() {
             <div className="bg-card rounded-2xl shadow-sm border border-border overflow-hidden">
               {/* Table toolbar */}
               {(results as any[]).length > 0 && (
-                <div className="flex items-center justify-between px-5 py-3 border-b bg-muted/30">
-                  <p className="text-sm text-muted-foreground">
-                    <span className="font-semibold text-foreground">{(results as any[]).length}</span> étudiant{(results as any[]).length > 1 ? "s" : ""}
-                    {currentClass ? ` · ${currentClass.name}` : ""}
-                  </p>
-                  {isScolarite && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="gap-2 text-emerald-700 border-emerald-300 hover:bg-emerald-50"
-                      onClick={handleExportCSV}
-                    >
-                      <Download className="w-4 h-4" />
-                      Exporter CSV
-                    </Button>
-                  )}
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 px-5 py-3 border-b bg-muted/30">
+                  <div className="flex items-center gap-2 w-full sm:w-auto">
+                    <Search className="w-4 h-4 text-muted-foreground shrink-0" />
+                    <Input
+                      placeholder="Rechercher un étudiant..."
+                      value={searchStudent}
+                      onChange={e => setSearchStudent(e.target.value)}
+                      className="h-8 w-52 text-sm"
+                    />
+                    {searchStudent && (
+                      <button onClick={() => setSearchStudent("")} className="text-xs text-muted-foreground hover:text-foreground underline shrink-0">
+                        Effacer
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <p className="text-sm text-muted-foreground">
+                      <span className="font-semibold text-foreground">{(results as any[]).length}</span> étudiant{(results as any[]).length > 1 ? "s" : ""}
+                      {currentClass ? ` · ${currentClass.name}` : ""}
+                    </p>
+                    {isScolarite && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-2 text-emerald-700 border-emerald-300 hover:bg-emerald-50"
+                        onClick={handleExportCSV}
+                      >
+                        <Download className="w-4 h-4" />
+                        Exporter CSV
+                      </Button>
+                    )}
+                  </div>
                 </div>
               )}
               <Table>
@@ -398,7 +415,7 @@ export default function AdminResults() {
                   ) : (results as any[]).length === 0 ? (
                     <TableRow><TableCell colSpan={7} className="text-center py-12">Aucun résultat trouvé pour cette sélection.</TableCell></TableRow>
                   ) : (
-                    (results as any[]).map((res) => {
+                    (results as any[]).filter((r: any) => !searchStudent || r.studentName.toLowerCase().includes(searchStudent.toLowerCase())).map((res) => {
                       const isExpanded = expandedRows.has(res.studentId);
                       const failedUes: any[] = res.failedUes ?? [];
                       const hasFailure = res.decision === "Ajourné" && (failedUes.length > 0 || res.averageFailed);

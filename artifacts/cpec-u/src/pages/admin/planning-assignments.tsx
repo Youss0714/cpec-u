@@ -179,18 +179,20 @@ export default function PlanningAssignments() {
                 <TableHead>Classe</TableHead>
                 <TableHead>Semestre</TableHead>
                 <TableHead>Volume Horaire</TableHead>
+                <TableHead className="text-center">Heures restantes</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Chargement...</TableCell></TableRow>
+                <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Chargement...</TableCell></TableRow>
               ) : assignments.length === 0 ? (
-                <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Aucune affectation.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Aucune affectation.</TableCell></TableRow>
               ) : (
                 assignments.map((a: any) => {
                   const pct = Math.min(100, Math.round((a.completedHours / a.plannedHours) * 100));
                   const isComplete = a.completedHours >= a.plannedHours;
+                  const remaining = Math.max(0, a.plannedHours - a.completedHours);
                   return (
                     <TableRow key={a.id}>
                       <TableCell className="font-semibold">{a.teacherName}</TableCell>
@@ -207,6 +209,15 @@ export default function PlanningAssignments() {
                             <p className="text-xs text-muted-foreground">{a.completedHours}h / {a.plannedHours}h ({pct}%)</p>
                           </div>
                         </div>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {isComplete ? (
+                          <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">Terminé</span>
+                        ) : (
+                          <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${remaining > 0 ? "text-amber-700 bg-amber-50" : "text-muted-foreground bg-muted"}`}>
+                            {remaining}h
+                          </span>
+                        )}
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
