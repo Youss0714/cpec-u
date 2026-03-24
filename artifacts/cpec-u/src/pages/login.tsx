@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useLocation } from "wouter";
 import { useLogin } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -34,6 +35,7 @@ const SLIDE_DURATION = 4000;
 export default function Login() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [welcomeUser, setWelcomeUser] = useState<{ name: string; initial: string; subRole: string } | null>(null);
   const [currentSlide, setCurrentSlide] = useState(0);
   const [contactDialogOpen, setContactDialogOpen] = useState(false);
@@ -48,6 +50,8 @@ export default function Login() {
   const loginMutation = useLogin({
     mutation: {
       onSuccess: (data) => {
+        // Clear all cached queries so the new user's data is fetched fresh
+        queryClient.clear();
         const subRole = (data.user as any).adminSubRole;
         const redirect = () => {
           if ((data.user as any).mustChangePassword) {

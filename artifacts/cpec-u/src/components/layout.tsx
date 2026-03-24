@@ -1,5 +1,6 @@
 import { ReactNode, useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
+import { useQueryClient } from "@tanstack/react-query";
 import { useGetCurrentUser, useLogout, useGetUnreadNotificationCount, useGetPendingGradeSubmissionsCount, useGetUnreadMessageCount } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -47,6 +48,7 @@ interface AppLayoutProps {
 
 export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
   const [location, setLocation] = useLocation();
+  const queryClient = useQueryClient();
   const { data: user, isLoading, isError } = useGetCurrentUser({
     query: { retry: false, staleTime: 30_000 } as any,
   });
@@ -86,7 +88,10 @@ export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
 
   const logoutMutation = useLogout({
     mutation: {
-      onSuccess: () => setLocation("/login"),
+      onSuccess: () => {
+        queryClient.clear();
+        setLocation("/login");
+      },
     },
   });
 
