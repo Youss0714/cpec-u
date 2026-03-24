@@ -310,10 +310,18 @@ router.patch("/housing/assignments/:id", requireAuth, async (req, res) => {
     const id = parseInt(req.params.id);
     const { endDate, status, notes } = req.body as any;
 
+    const today = new Date().toISOString().split("T")[0];
+    const resolvedEndDate =
+      endDate !== undefined
+        ? endDate
+        : (status === "ended" || status === "cancelled")
+          ? today
+          : undefined;
+
     const [a] = await db
       .update(housingAssignmentsTable)
       .set({
-        ...(endDate !== undefined && { endDate }),
+        ...(resolvedEndDate !== undefined && { endDate: resolvedEndDate }),
         ...(status && { status }),
         ...(notes !== undefined && { notes }),
       })
