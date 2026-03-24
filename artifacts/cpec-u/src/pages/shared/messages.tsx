@@ -88,8 +88,15 @@ export default function SharedMessages({ allowedRoles }: { allowedRoles: string[
   const [uploading, setUploading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const messageInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (selectedUserId) {
+      setTimeout(() => messageInputRef.current?.focus(), 100);
+    }
+  }, [selectedUserId]);
 
   const { data: currentUser } = useGetCurrentUser();
   void currentUser;
@@ -320,40 +327,44 @@ export default function SharedMessages({ allowedRoles }: { allowedRoles: string[
                   </div>
                 )}
 
-                <div className="px-4 py-3 border-t border-border flex gap-2 flex-shrink-0 items-center">
-                  {/* File attachment button — all users */}
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    className="hidden"
-                    accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
-                    onChange={handleFileSelect}
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="flex-shrink-0 text-muted-foreground hover:text-foreground"
-                    onClick={() => fileInputRef.current?.click()}
-                    title="Joindre un fichier (PDF, Word, Excel, PowerPoint)"
-                  >
-                    <Paperclip className="w-4 h-4" />
-                  </Button>
-                  <Input
-                    placeholder={pendingFile ? "Ajouter un message (optionnel)…" : "Répondre…"}
-                    value={messageText}
-                    onChange={(e) => setMessageText(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    className="flex-1"
-                    disabled={sending || uploading}
-                  />
-                  <Button onClick={handleSend} disabled={!canSend} size="icon">
-                    {uploading ? (
-                      <span className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
-                    ) : (
-                      <Send className="w-4 h-4" />
-                    )}
-                  </Button>
+                <div className="px-4 py-3 border-t border-border flex-shrink-0">
+                  <div className="flex items-center gap-2 bg-muted/50 rounded-2xl px-3 py-1.5 border border-border focus-within:border-primary focus-within:bg-background transition-colors max-w-2xl mx-auto">
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      className="hidden"
+                      accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
+                      onChange={handleFileSelect}
+                    />
+                    <button
+                      type="button"
+                      className="flex-shrink-0 text-muted-foreground hover:text-primary transition-colors p-1 rounded-lg hover:bg-primary/10"
+                      onClick={() => fileInputRef.current?.click()}
+                      title="Joindre un fichier (PDF, Word, Excel, PowerPoint)"
+                    >
+                      <Paperclip className="w-4 h-4" />
+                    </button>
+                    <input
+                      ref={messageInputRef}
+                      placeholder={pendingFile ? "Ajouter un message (optionnel)…" : "Écrire un message…"}
+                      value={messageText}
+                      onChange={(e) => setMessageText(e.target.value)}
+                      onKeyDown={handleKeyDown}
+                      disabled={sending || uploading}
+                      className="flex-1 bg-transparent outline-none text-sm placeholder:text-muted-foreground text-foreground py-1.5"
+                    />
+                    <button
+                      onClick={handleSend}
+                      disabled={!canSend}
+                      className={`flex-shrink-0 w-8 h-8 rounded-xl flex items-center justify-center transition-all ${canSend ? "bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm" : "bg-muted text-muted-foreground cursor-not-allowed"}`}
+                    >
+                      {uploading ? (
+                        <span className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <Send className="w-3.5 h-3.5" />
+                      )}
+                    </button>
+                  </div>
                 </div>
               </>
             )}
