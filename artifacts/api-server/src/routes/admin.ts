@@ -24,6 +24,10 @@ import {
   studentProfilesTable,
   academicYearArchivesTable,
   ecolesInphbTable,
+  paymentsTable,
+  housingAssignmentsTable,
+  housingRoomsTable,
+  housingBuildingsTable,
 } from "@workspace/db";
 import { eq, and, sql, count, inArray, desc, ne, isNotNull } from "drizzle-orm";
 import { requireRole } from "../lib/auth.js";
@@ -1864,6 +1868,269 @@ router.put("/justifications/:id", requireRole("admin"), async (req, res) => {
     sendPushToUser(just.studentId, { title: notifTitle, body: notifMessage, type: status === "approved" ? "justification_approved" : "justification_rejected" }).catch(() => {});
 
     res.json(updated);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// ─── GET /admin/students/:id/detail — fiche complète d'un étudiant ───────────
+router.get("/students/:id/detail", requireRole("admin"), async (req, res) => {
+  try {
+    const studentId = parseInt(req.params.id);
+
+    // Info de base + profil
+    const [userRow] = await db
+      .select({
+        id: usersTable.id,
+        name: usersTable.name,
+        email: usersTable.email,
+        phone: studentProfilesTable.phone,
+        address: studentProfilesTable.address,
+        birthDate: studentProfilesTable.birthDate,
+        nationality: studentProfilesTable.nationality,
+        photoUrl: studentProfilesTable.photoUrl,
+      })
+      .from(usersTable)
+      .leftJoin(studentProfilesTable, eq(studentProfilesTable.userId, usersTable.id))
+      .where(and(eq(usersTable.id, studentId), eq(usersTable.role, "student")))
+      .limit(1);
+
+    if (!userRow) { res.status(404).json({ error: "Étudiant introuvable." }); return; }
+
+    // Inscriptions (classes + années)
+    const enrollments = await db
+      .select({
+        classId: classEnrollmentsTable.classId,
+        className: classesTable.name,
+        enrollmentYear: classEnrollmentsTable.enrollmentYear,
+      })
+      .from(classEnrollmentsTable)
+      .innerJoin(classesTable, eq(classesTable.id, classEnrollmentsTable.classId))
+      .where(eq(classEnrollmentsTable.studentId, studentId))
+      .orderBy(desc(classEnrollmentsTable.enrollmentYear));
+
+    // Résultats par semestre (notes + décision)
+    const semesters = await db.select().from(semestersTable).orderBy(semestersTable.startDate);
+    const semesterResults: any[] = [];
+    for (const sem of semesters) {
+      const grades = await db
+        .select({
+          subjectId: gradesTable.subjectId,
+          subjectName: subjectsTable.name,
+          coefficient: subjectsTable.coefficient,
+          value: gradesTable.value,
+        })
+        .from(gradesTable)
+        .innerJoin(subjectsTable, eq(subjectsTable.id, gradesTable.subjectId))
+        .where(and(eq(gradesTable.studentId, studentId), eq(gradesTable.semesterId, sem.id)));
+
+      if (grades.length === 0) continue;
+
+      const totalCoef = grades.reduce((s, g) => s + (g.coefficient ?? 1), 0);
+      const average = totalCoef > 0
+        ? grades.reduce((s, g) => s + (g.value ?? 0) * (g.coefficient ?? 1), 0) / totalCoef
+        : null;
+
+      semesterResults.push({
+        semesterId: sem.id,
+        semesterName: sem.name,
+        academicYear: sem.academicYear,
+        grades,
+        average: average !== null ? Math.round(average * 100) / 100 : null,
+        decision: average !== null ? (average >= 10 ? "Admis" : "Ajourné") : "En attente",
+      });
+    }
+
+    // Absences (total non-justifiées)
+    const absenceRows = await db
+      .select({
+        subjectId: attendanceTable.subjectId,
+        subjectName: subjectsTable.name,
+        className: classesTable.name,
+        sessionDate: attendanceTable.sessionDate,
+        status: attendanceTable.status,
+        justified: attendanceTable.justified,
+        semesterId: attendanceTable.semesterId,
+      })
+      .from(attendanceTable)
+      .leftJoin(subjectsTable, eq(subjectsTable.id, attendanceTable.subjectId))
+      .leftJoin(classesTable, eq(classesTable.id, attendanceTable.classId))
+      .where(and(eq(attendanceTable.studentId, studentId), ne(attendanceTable.status, "present")))
+      .orderBy(desc(attendanceTable.sessionDate));
+
+    // Scolarité (frais + paiements)
+    const [feeRow] = await db.select().from(studentFeesTable).where(eq(studentFeesTable.studentId, studentId)).limit(1);
+    const payments = await db
+      .select({
+        id: paymentsTable.id,
+        amount: paymentsTable.amount,
+        description: paymentsTable.description,
+        paymentDate: paymentsTable.paymentDate,
+        createdAt: paymentsTable.createdAt,
+      })
+      .from(paymentsTable)
+      .where(eq(paymentsTable.studentId, studentId))
+      .orderBy(desc(paymentsTable.paymentDate));
+
+    const totalPaid = payments.reduce((s, p) => s + (p.amount ?? 0), 0);
+    const totalDue = feeRow?.totalAmount ?? 0;
+
+    // Hébergement
+    const housingRows = await db
+      .select({
+        assignmentId: housingAssignmentsTable.id,
+        roomId: housingAssignmentsTable.roomId,
+        roomNumber: housingRoomsTable.roomNumber,
+        buildingName: housingBuildingsTable.name,
+        floor: housingRoomsTable.floor,
+        type: housingRoomsTable.type,
+        pricePerMonth: housingRoomsTable.pricePerMonth,
+        startDate: housingAssignmentsTable.startDate,
+        endDate: housingAssignmentsTable.endDate,
+        status: housingAssignmentsTable.status,
+        notes: housingAssignmentsTable.notes,
+      })
+      .from(housingAssignmentsTable)
+      .innerJoin(housingRoomsTable, eq(housingRoomsTable.id, housingAssignmentsTable.roomId))
+      .innerJoin(housingBuildingsTable, eq(housingBuildingsTable.id, housingRoomsTable.buildingId))
+      .where(eq(housingAssignmentsTable.studentId, studentId))
+      .orderBy(desc(housingAssignmentsTable.startDate));
+
+    res.json({
+      student: userRow,
+      enrollments,
+      semesterResults,
+      absences: absenceRows,
+      scolarite: {
+        totalDue,
+        totalPaid: Math.round(totalPaid * 100) / 100,
+        balance: Math.round((totalDue - totalPaid) * 100) / 100,
+        academicYear: feeRow?.academicYear ?? null,
+        payments,
+      },
+      housing: housingRows,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// ─── GET /admin/bulletin/class/:classId/:semesterId — bulletins masse ─────────
+router.get("/bulletin/class/:classId/:semesterId", requireRole("admin"), async (req, res) => {
+  try {
+    const cu = req.session.user!;
+    if (cu.adminSubRole !== "scolarite" && cu.adminSubRole !== "directeur") {
+      res.status(403).json({ error: "Réservé à la Scolarité et au Directeur." });
+      return;
+    }
+    const classId = parseInt(req.params.classId);
+    const semesterId = parseInt(req.params.semesterId);
+
+    const [classRow] = await db.select().from(classesTable).where(eq(classesTable.id, classId)).limit(1);
+    const [semester] = await db.select().from(semestersTable).where(eq(semestersTable.id, semesterId)).limit(1);
+    if (!classRow || !semester) { res.status(404).json({ error: "Classe ou semestre introuvable." }); return; }
+
+    const enrolledStudents = await db
+      .select({ studentId: classEnrollmentsTable.studentId, studentName: usersTable.name })
+      .from(classEnrollmentsTable)
+      .innerJoin(usersTable, eq(usersTable.id, classEnrollmentsTable.studentId))
+      .where(eq(classEnrollmentsTable.classId, classId))
+      .orderBy(usersTable.name);
+
+    if (enrolledStudents.length === 0) {
+      res.status(404).json({ error: "Aucun étudiant dans cette classe." });
+      return;
+    }
+
+    // Compute results for all students
+    const uesWithCategory = await db.select().from(teachingUnitsTable).where(
+      and(eq(teachingUnitsTable.classId, classId), eq(teachingUnitsTable.semesterId, semesterId))
+    );
+    const ueCategMap = new Map(uesWithCategory.map(u => [u.id, u.category]));
+
+    // Compute rank across class
+    const allStudentIds = enrolledStudents.map(s => s.studentId);
+    const allGradesForRank = await db
+      .select({ studentId: gradesTable.studentId, value: gradesTable.value, coefficient: subjectsTable.coefficient })
+      .from(gradesTable)
+      .innerJoin(subjectsTable, eq(subjectsTable.id, gradesTable.subjectId))
+      .where(and(inArray(gradesTable.studentId, allStudentIds), eq(gradesTable.semesterId, semesterId)));
+
+    const studentSums = new Map<number, { sum: number; coef: number }>();
+    for (const g of allGradesForRank) {
+      const entry = studentSums.get(g.studentId) ?? { sum: 0, coef: 0 };
+      entry.sum += (g.value ?? 0) * (g.coefficient ?? 1);
+      entry.coef += g.coefficient ?? 1;
+      studentSums.set(g.studentId, entry);
+    }
+    const avgMap = new Map<number, number>();
+    for (const [sid, { sum, coef }] of studentSums) {
+      if (coef > 0) avgMap.set(sid, sum / coef);
+    }
+    const sortedAvgs = [...avgMap.entries()].sort((a, b) => b[1] - a[1]);
+    const rankMap = new Map<number, number>();
+    sortedAvgs.forEach(([sid], i) => rankMap.set(sid, i + 1));
+
+    const bulletinHTMLParts: string[] = [];
+    for (const { studentId } of enrolledStudents) {
+      const result = await computeStudentResult(studentId, semesterId);
+      if (!result) continue;
+
+      const ueResults = result.ueResults.map(ue => ({
+        ...ue,
+        category: ueCategMap.get(ue.ueId) ?? null,
+      }));
+
+      const rank = rankMap.get(studentId) ?? null;
+      const totalStudents = sortedAvgs.length;
+
+      const html = generateBulletinHTML({
+        student: result.student,
+        semester: semester as any,
+        classId,
+        className: classRow.name,
+        ueResults,
+        average: result.average,
+        absenceDeduction: result.absenceDeduction ?? 0,
+        decision: result.decision ?? "En attente",
+        rank,
+        totalStudents,
+      } as any);
+
+      bulletinHTMLParts.push(html);
+    }
+
+    // Combine all bulletins into a single printable page
+    const combinedHTML = `<!DOCTYPE html><html lang="fr"><head>
+<meta charset="UTF-8">
+<title>Bulletins — ${classRow.name} — ${semester.name}</title>
+<style>
+  body { margin: 0; padding: 0; }
+  .bulletin-wrapper { page-break-after: always; }
+  .bulletin-wrapper:last-child { page-break-after: avoid; }
+  @media print { .no-print { display: none !important; } }
+  .no-print {
+    position: fixed; top: 16px; right: 16px; z-index: 9999;
+    background: #1e40af; color: white; border: none; padding: 10px 20px;
+    border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer;
+  }
+</style>
+</head><body>
+<button class="no-print" onclick="window.print()">🖨️ Imprimer / Enregistrer PDF</button>
+${bulletinHTMLParts.map(h => {
+  // Extract just the body content from each bulletin
+  const bodyMatch = h.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+  const content = bodyMatch ? bodyMatch[1] : h;
+  // Remove individual print buttons
+  const cleaned = content.replace(/<button[^>]*class="[^"]*no-print[^"]*"[^>]*>[\s\S]*?<\/button>/gi, "");
+  return `<div class="bulletin-wrapper">${cleaned}</div>`;
+}).join("\n")}
+</body></html>`;
+
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.send(combinedHTML);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Internal Server Error" });

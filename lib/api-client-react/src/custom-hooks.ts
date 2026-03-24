@@ -944,3 +944,28 @@ export const useReviewJustification = (options?: UseMutationOptions<any, unknown
       }),
     ...options,
   });
+
+// ─── Teacher Students per Class ───────────────────────────────────────────────
+
+export const useGetTeacherStudents = (params?: { classId?: number; semesterId?: number }, options?: QueryOpts<any[]>) =>
+  useQuery<any[], Error>({
+    queryKey: ["/api/teacher/students", params],
+    queryFn: () => {
+      const q = new URLSearchParams();
+      if (params?.classId) q.set("classId", String(params.classId));
+      if (params?.semesterId) q.set("semesterId", String(params.semesterId));
+      const qs = q.toString() ? `?${q.toString()}` : "";
+      return customFetch<any[]>(`/api/teacher/students${qs}`);
+    },
+    ...options,
+  });
+
+// ─── Admin Student Detail ─────────────────────────────────────────────────────
+
+export const useGetAdminStudentDetail = (studentId: number, options?: QueryOpts<any>) =>
+  useQuery<any, Error>({
+    queryKey: ["/api/admin/students/detail", studentId],
+    queryFn: () => customFetch<any>(`/api/admin/students/${studentId}/detail`),
+    enabled: !!studentId,
+    ...options,
+  });

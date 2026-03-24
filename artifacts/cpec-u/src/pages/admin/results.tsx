@@ -176,6 +176,11 @@ export default function AdminResults() {
     window.open(`/api/admin/bulletin/${studentId}/${semesterId}`, "_blank", "noopener");
   };
 
+  const handleDownloadClassPDF = () => {
+    if (!selectedSemester || selectedClass === "all") return;
+    window.open(`/api/admin/bulletin/class/${selectedClass}/${selectedSemester}`, "_blank", "noopener");
+  };
+
   const handleExportCSV = () => {
     if (!(results as any[]).length) return;
     const sem = (semesters as any[])?.find((s: any) => s.id === parseInt(selectedSemester));
@@ -384,15 +389,28 @@ export default function AdminResults() {
                       {currentClass ? ` · ${currentClass.name}` : ""}
                     </p>
                     {isScolarite && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="gap-2 text-emerald-700 border-emerald-300 hover:bg-emerald-50"
-                        onClick={handleExportCSV}
-                      >
-                        <Download className="w-4 h-4" />
-                        Exporter CSV
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        {selectedClass !== "all" && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="gap-2 text-primary border-primary/40 hover:bg-primary/5"
+                            onClick={handleDownloadClassPDF}
+                          >
+                            <Download className="w-4 h-4" />
+                            Bulletins PDF classe
+                          </Button>
+                        )}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="gap-2 text-emerald-700 border-emerald-300 hover:bg-emerald-50"
+                          onClick={handleExportCSV}
+                        >
+                          <Download className="w-4 h-4" />
+                          Exporter CSV
+                        </Button>
+                      </div>
                     )}
                   </div>
                 </div>

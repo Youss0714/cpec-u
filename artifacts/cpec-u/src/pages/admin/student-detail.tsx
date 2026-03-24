@@ -1,0 +1,427 @@
+import { useParams, useLocation } from "wouter";
+import { AppLayout } from "@/components/layout";
+import { useGetAdminStudentDetail } from "@workspace/api-client-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  ArrowLeft, User, Mail, Phone, MapPin, Calendar, Globe, GraduationCap,
+  BookOpen, AlertCircle, CheckCircle2, Wallet, Home, TrendingUp, Clock,
+} from "lucide-react";
+import { motion } from "framer-motion";
+
+function fmt(n: number) {
+  return new Intl.NumberFormat("fr-FR").format(Math.round(n));
+}
+
+function fmtDate(d: string | null | undefined) {
+  if (!d) return "—";
+  return new Date(d).toLocaleDateString("fr-FR", { year: "numeric", month: "short", day: "numeric" });
+}
+
+function DecisionBadge({ decision }: { decision: string }) {
+  if (decision === "Admis") return <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400">Admis</Badge>;
+  if (decision === "Ajourné") return <Badge variant="destructive">Ajourné</Badge>;
+  return <Badge variant="secondary">En attente</Badge>;
+}
+
+export default function AdminStudentDetail() {
+  const params = useParams<{ id: string }>();
+  const [, navigate] = useLocation();
+  const studentId = parseInt(params.id ?? "0");
+
+  const { data, isLoading, isError } = useGetAdminStudentDetail(studentId);
+
+  if (isLoading) {
+    return (
+      <AppLayout allowedRoles={["admin"]}>
+        <div className="space-y-4 max-w-5xl mx-auto">
+          <div className="h-8 w-40 bg-muted animate-pulse rounded-xl" />
+          <div className="h-40 bg-muted animate-pulse rounded-3xl" />
+          <div className="h-64 bg-muted animate-pulse rounded-2xl" />
+        </div>
+      </AppLayout>
+    );
+  }
+
+  if (isError || !data) {
+    return (
+      <AppLayout allowedRoles={["admin"]}>
+        <div className="flex flex-col items-center justify-center py-24 gap-4">
+          <AlertCircle className="w-12 h-12 text-muted-foreground" />
+          <p className="text-muted-foreground">Étudiant introuvable ou erreur de chargement.</p>
+          <Button variant="outline" onClick={() => navigate("/admin/users")}>
+            <ArrowLeft className="w-4 h-4 mr-2" /> Retour
+          </Button>
+        </div>
+      </AppLayout>
+    );
+  }
+
+  const { student, enrollments, semesterResults, absences, scolarite, housing } = data;
+
+  const totalAbsences = absences.length;
+  const unjustified = absences.filter((a: any) => !a.justified).length;
+  const justified = totalAbsences - unjustified;
+  const activeHousing = housing.find((h: any) => h.status === "active");
+
+  return (
+    <AppLayout allowedRoles={["admin"]}>
+      <div className="space-y-6 max-w-5xl mx-auto">
+
+        {/* Back button */}
+        <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground hover:text-foreground -ml-1" onClick={() => navigate("/admin/users")}>
+          <ArrowLeft className="w-4 h-4" /> Retour à la liste
+        </Button>
+
+        {/* Hero */}
+        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
+          <div className="bg-gradient-to-br from-primary to-primary/75 rounded-3xl p-8 text-primary-foreground shadow-xl shadow-primary/20">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-5">
+              {student.photoUrl ? (
+                <img
+                  src={student.photoUrl.startsWith("http") ? student.photoUrl : `/api/uploads/${student.photoUrl}`}
+                  alt={student.name}
+                  className="w-20 h-20 rounded-2xl object-cover ring-4 ring-white/30 shrink-0"
+                />
+              ) : (
+                <div className="w-20 h-20 rounded-2xl bg-white/20 flex items-center justify-center shrink-0">
+                  <User className="w-10 h-10 text-white" />
+                </div>
+              )}
+              <div className="flex-1 min-w-0">
+                <h1 className="text-3xl font-serif font-bold">{student.name}</h1>
+                <div className="flex flex-wrap items-center gap-3 mt-2">
+                  <Badge className="bg-white/20 text-white border-0 text-xs font-semibold">Étudiant</Badge>
+                  {enrollments[0] && (
+                    <Badge className="bg-white/15 text-white border-0 text-xs">{enrollments[0].className}</Badge>
+                  )}
+                  <span className="flex items-center gap-1.5 text-primary-foreground/80 text-sm">
+                    <Mail className="w-3.5 h-3.5" />{student.email}
+                  </span>
+                  {student.phone && (
+                    <span className="flex items-center gap-1.5 text-primary-foreground/80 text-sm">
+                      <Phone className="w-3.5 h-3.5" />{student.phone}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Summary stats */}
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.08 }}
+          className="grid grid-cols-2 sm:grid-cols-4 gap-4"
+        >
+          {[
+            {
+              label: "Solde dû",
+              value: scolarite.balance > 0 ? `${fmt(scolarite.balance)} F` : "Soldé",
+              icon: Wallet,
+              color: scolarite.balance > 0 ? "text-red-600" : "text-emerald-600",
+              bg: scolarite.balance > 0 ? "bg-red-50 dark:bg-red-900/20" : "bg-emerald-50 dark:bg-emerald-900/20",
+            },
+            {
+              label: "Absences",
+              value: `${unjustified} non just.`,
+              icon: AlertCircle,
+              color: unjustified > 0 ? "text-amber-600" : "text-emerald-600",
+              bg: unjustified > 0 ? "bg-amber-50 dark:bg-amber-900/20" : "bg-emerald-50 dark:bg-emerald-900/20",
+            },
+            {
+              label: "Semestres",
+              value: String(semesterResults.length),
+              icon: GraduationCap,
+              color: "text-primary",
+              bg: "bg-primary/10",
+            },
+            {
+              label: "Hébergement",
+              value: activeHousing ? `${activeHousing.buildingName} ${activeHousing.roomNumber}` : "Non logé",
+              icon: Home,
+              color: activeHousing ? "text-teal-600" : "text-muted-foreground",
+              bg: activeHousing ? "bg-teal-50 dark:bg-teal-900/20" : "bg-muted/50",
+            },
+          ].map((stat, i) => (
+            <Card key={i} className="border-border shadow-sm">
+              <CardContent className="p-5 flex flex-col items-center text-center gap-2">
+                <div className={`w-10 h-10 rounded-xl ${stat.bg} flex items-center justify-center`}>
+                  <stat.icon className={`w-5 h-5 ${stat.color}`} />
+                </div>
+                <p className={`text-base font-bold ${stat.color}`}>{stat.value}</p>
+                <p className="text-xs text-muted-foreground">{stat.label}</p>
+              </CardContent>
+            </Card>
+          ))}
+        </motion.div>
+
+        {/* Tabs */}
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.14 }}>
+          <Tabs defaultValue="notes">
+            <TabsList className="bg-muted/60 rounded-xl p-1 mb-4 flex-wrap gap-1 h-auto">
+              <TabsTrigger value="notes" className="rounded-lg text-xs sm:text-sm">Notes & Résultats</TabsTrigger>
+              <TabsTrigger value="absences" className="rounded-lg text-xs sm:text-sm">Absences</TabsTrigger>
+              <TabsTrigger value="scolarite" className="rounded-lg text-xs sm:text-sm">Scolarité</TabsTrigger>
+              <TabsTrigger value="housing" className="rounded-lg text-xs sm:text-sm">Hébergement</TabsTrigger>
+              <TabsTrigger value="infos" className="rounded-lg text-xs sm:text-sm">Infos personnelles</TabsTrigger>
+            </TabsList>
+
+            {/* ── Notes & Résultats ── */}
+            <TabsContent value="notes" className="space-y-4">
+              {semesterResults.length === 0 ? (
+                <Card><CardContent className="py-16 text-center text-muted-foreground">Aucune note enregistrée.</CardContent></Card>
+              ) : (
+                semesterResults.map((sem: any) => (
+                  <Card key={sem.semesterId} className="border-border shadow-sm overflow-hidden">
+                    <CardHeader className="bg-muted/30 pb-3">
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-base flex items-center gap-2">
+                          <BookOpen className="w-4 h-4 text-primary" />
+                          {sem.semesterName}
+                          <span className="text-xs font-normal text-muted-foreground">({sem.academicYear})</span>
+                        </CardTitle>
+                        <div className="flex items-center gap-3">
+                          {sem.average !== null && (
+                            <span className={`text-lg font-bold font-mono ${sem.average >= 10 ? "text-emerald-600" : "text-destructive"}`}>
+                              {sem.average.toFixed(2)} / 20
+                            </span>
+                          )}
+                          <DecisionBadge decision={sem.decision} />
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="p-0">
+                      <Table>
+                        <TableHeader className="bg-muted/20">
+                          <TableRow>
+                            <TableHead>Matière</TableHead>
+                            <TableHead className="text-center">Coef.</TableHead>
+                            <TableHead className="text-center">Note /20</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {sem.grades.map((g: any) => (
+                            <TableRow key={g.subjectId}>
+                              <TableCell className="font-medium">{g.subjectName}</TableCell>
+                              <TableCell className="text-center text-muted-foreground">{g.coefficient}</TableCell>
+                              <TableCell className="text-center">
+                                {g.value !== null ? (
+                                  <span className={`font-mono font-bold ${g.value >= 10 ? "text-emerald-600" : "text-destructive"}`}>
+                                    {g.value.toFixed(2)}
+                                  </span>
+                                ) : <span className="text-muted-foreground">—</span>}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </CardContent>
+                  </Card>
+                ))
+              )}
+            </TabsContent>
+
+            {/* ── Absences ── */}
+            <TabsContent value="absences">
+              <Card className="border-border shadow-sm">
+                <CardHeader>
+                  <div className="flex items-center justify-between flex-wrap gap-3">
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      <AlertCircle className="w-4 h-4 text-amber-500" /> Historique des absences
+                    </CardTitle>
+                    <div className="flex gap-3 text-sm">
+                      <span className="bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 px-3 py-1 rounded-full font-medium">{unjustified} non justifiée{unjustified > 1 ? "s" : ""}</span>
+                      <span className="bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 px-3 py-1 rounded-full font-medium">{justified} justifiée{justified > 1 ? "s" : ""}</span>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="p-0">
+                  {absences.length === 0 ? (
+                    <div className="py-16 text-center text-muted-foreground flex flex-col items-center gap-2">
+                      <CheckCircle2 className="w-10 h-10 text-emerald-400" />
+                      <p>Aucune absence enregistrée.</p>
+                    </div>
+                  ) : (
+                    <Table>
+                      <TableHeader className="bg-muted/30">
+                        <TableRow>
+                          <TableHead>Date</TableHead>
+                          <TableHead>Matière</TableHead>
+                          <TableHead>Classe</TableHead>
+                          <TableHead className="text-center">Statut</TableHead>
+                          <TableHead className="text-center">Justification</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {absences.map((a: any, i: number) => (
+                          <TableRow key={i}>
+                            <TableCell className="text-sm">{fmtDate(a.sessionDate)}</TableCell>
+                            <TableCell className="font-medium">{a.subjectName ?? "—"}</TableCell>
+                            <TableCell className="text-muted-foreground text-sm">{a.className ?? "—"}</TableCell>
+                            <TableCell className="text-center">
+                              {a.status === "absent" && <Badge variant="destructive" className="text-xs">Absent</Badge>}
+                              {a.status === "late" && <Badge className="bg-amber-100 text-amber-700 border-amber-200 text-xs">En retard</Badge>}
+                              {a.status === "excused" && <Badge variant="secondary" className="text-xs">Excusé</Badge>}
+                            </TableCell>
+                            <TableCell className="text-center">
+                              {a.justified
+                                ? <CheckCircle2 className="w-4 h-4 text-emerald-500 mx-auto" />
+                                : <span className="text-muted-foreground text-xs">Non justifiée</span>}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* ── Scolarité ── */}
+            <TabsContent value="scolarite" className="space-y-4">
+              {/* Balance summary */}
+              <div className="grid grid-cols-3 gap-4">
+                {[
+                  { label: "Frais totaux", value: `${fmt(scolarite.totalDue)} F`, color: "text-foreground" },
+                  { label: "Total payé", value: `${fmt(scolarite.totalPaid)} F`, color: "text-emerald-600" },
+                  { label: "Solde restant", value: scolarite.balance > 0 ? `${fmt(scolarite.balance)} F` : "Soldé", color: scolarite.balance > 0 ? "text-destructive" : "text-emerald-600" },
+                ].map((s, i) => (
+                  <Card key={i} className="border-border shadow-sm">
+                    <CardContent className="p-5 text-center">
+                      <p className="text-xs text-muted-foreground mb-1">{s.label}</p>
+                      <p className={`text-xl font-bold font-mono ${s.color}`}>{s.value}</p>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+
+              {/* Payment history */}
+              <Card className="border-border shadow-sm">
+                <CardHeader><CardTitle className="text-base flex items-center gap-2"><TrendingUp className="w-4 h-4 text-primary" />Historique des paiements</CardTitle></CardHeader>
+                <CardContent className="p-0">
+                  {scolarite.payments.length === 0 ? (
+                    <div className="py-16 text-center text-muted-foreground">Aucun paiement enregistré.</div>
+                  ) : (
+                    <Table>
+                      <TableHeader className="bg-muted/30">
+                        <TableRow>
+                          <TableHead>Date</TableHead>
+                          <TableHead>Description</TableHead>
+                          <TableHead className="text-right">Montant</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {scolarite.payments.map((p: any) => (
+                          <TableRow key={p.id}>
+                            <TableCell className="text-sm">{fmtDate(p.paymentDate)}</TableCell>
+                            <TableCell>{p.description ?? "—"}</TableCell>
+                            <TableCell className="text-right font-mono font-semibold text-emerald-700">+{fmt(p.amount)} F</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* ── Hébergement ── */}
+            <TabsContent value="housing">
+              <Card className="border-border shadow-sm">
+                <CardHeader><CardTitle className="text-base flex items-center gap-2"><Home className="w-4 h-4 text-teal-600" />Historique d'hébergement</CardTitle></CardHeader>
+                <CardContent className="p-0">
+                  {housing.length === 0 ? (
+                    <div className="py-16 text-center text-muted-foreground">Aucun hébergement enregistré.</div>
+                  ) : (
+                    <Table>
+                      <TableHeader className="bg-muted/30">
+                        <TableRow>
+                          <TableHead>Bâtiment</TableHead>
+                          <TableHead>Chambre</TableHead>
+                          <TableHead>Type</TableHead>
+                          <TableHead>Entrée</TableHead>
+                          <TableHead>Sortie</TableHead>
+                          <TableHead className="text-center">Statut</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {housing.map((h: any) => (
+                          <TableRow key={h.assignmentId}>
+                            <TableCell className="font-medium">{h.buildingName}</TableCell>
+                            <TableCell>
+                              <span className="font-mono text-sm bg-muted px-2 py-0.5 rounded">Ch. {h.roomNumber}</span>
+                              {h.floor > 0 && <span className="text-xs text-muted-foreground ml-2">Étage {h.floor}</span>}
+                            </TableCell>
+                            <TableCell className="capitalize text-sm text-muted-foreground">{h.type}</TableCell>
+                            <TableCell className="text-sm">{fmtDate(h.startDate)}</TableCell>
+                            <TableCell className="text-sm">{h.endDate ? fmtDate(h.endDate) : <span className="text-muted-foreground italic">En cours</span>}</TableCell>
+                            <TableCell className="text-center">
+                              {h.status === "active" && <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 text-xs">Actif</Badge>}
+                              {h.status === "ended" && <Badge variant="secondary" className="text-xs">Terminé</Badge>}
+                              {h.status === "cancelled" && <Badge variant="destructive" className="text-xs">Annulé</Badge>}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* ── Infos personnelles ── */}
+            <TabsContent value="infos">
+              <Card className="border-border shadow-sm">
+                <CardHeader><CardTitle className="text-base flex items-center gap-2"><User className="w-4 h-4 text-primary" />Informations personnelles</CardTitle></CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    {[
+                      { label: "Nom complet", value: student.name, icon: User },
+                      { label: "Email", value: student.email, icon: Mail },
+                      { label: "Téléphone", value: student.phone || "—", icon: Phone },
+                      { label: "Adresse", value: student.address || "—", icon: MapPin },
+                      { label: "Date de naissance", value: fmtDate(student.birthDate), icon: Calendar },
+                      { label: "Nationalité", value: student.nationality || "—", icon: Globe },
+                    ].map(({ label, value, icon: Icon }, i) => (
+                      <div key={i} className="flex items-start gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
+                          <Icon className="w-4 h-4 text-primary" />
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground font-medium">{label}</p>
+                          <p className="text-sm text-foreground font-semibold mt-0.5">{value}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {enrollments.length > 0 && (
+                    <div className="mt-6 pt-6 border-t border-border">
+                      <p className="text-sm font-semibold text-muted-foreground mb-3 flex items-center gap-2">
+                        <GraduationCap className="w-4 h-4" /> Inscriptions
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {enrollments.map((e: any, i: number) => (
+                          <Badge key={i} variant="outline" className="gap-1.5">
+                            <Clock className="w-3 h-3" />
+                            {e.className} — {e.enrollmentYear}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
+        </motion.div>
+      </div>
+    </AppLayout>
+  );
+}

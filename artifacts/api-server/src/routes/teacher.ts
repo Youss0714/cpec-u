@@ -13,8 +13,9 @@ import {
   roomsTable,
   gradeSubmissionsTable,
   notificationsTable,
+  studentProfilesTable,
 } from "@workspace/db";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, inArray } from "drizzle-orm";
 import { requireRole } from "../lib/auth.js";
 
 const router = Router();
@@ -481,6 +482,66 @@ router.post("/grade-submissions/notify-students", requireRole("teacher"), async 
 
     await db.insert(notificationsTable).values(notifications);
     res.json({ message: "Notes envoyées aux étudiants.", notifiedCount: notifications.length });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// ─── GET /teacher/students — liste des étudiants pour les classes de l'enseignant ───
+router.get("/students", requireRole("teacher", "admin"), async (req, res) => {
+  try {
+    const teacherId = req.session!.userId!;
+    const { classId, semesterId } = req.query;
+
+    // Verify teacher is assigned to this class (if classId specified)
+    if (classId) {
+      const conditions = [eq(teacherAssignmentsTable.teacherId, teacherId), eq(teacherAssignmentsTable.classId, parseInt(classId as string))];
+      if (semesterId) conditions.push(eq(teacherAssignmentsTable.semesterId, parseInt(semesterId as string)));
+      const assignment = await db.select({ id: teacherAssignmentsTable.id }).from(teacherAssignmentsTable).where(and(...conditions)).limit(1);
+      if (assignment.length === 0) {
+        res.status(403).json({ error: "Vous n'êtes pas assigné à cette classe." });
+        return;
+      }
+    }
+
+    // Get all class IDs assigned to this teacher (optionally filtered by semester)
+    const assignmentConditions = [eq(teacherAssignmentsTable.teacherId, teacherId)];
+    if (classId) assignmentConditions.push(eq(teacherAssignmentsTable.classId, parseInt(classId as string)));
+    if (semesterId) assignmentConditions.push(eq(teacherAssignmentsTable.semesterId, parseInt(semesterId as string)));
+
+    const teacherClasses = await db
+      .selectDistinct({ classId: teacherAssignmentsTable.classId })
+      .from(teacherAssignmentsTable)
+      .where(and(...assignmentConditions));
+
+    if (teacherClasses.length === 0) {
+      res.json([]);
+      return;
+    }
+
+    const classIds = teacherClasses.map(c => c.classId);
+
+    // Get all students enrolled in those classes
+    const students = await db
+      .select({
+        studentId: classEnrollmentsTable.studentId,
+        studentName: usersTable.name,
+        studentEmail: usersTable.email,
+        classId: classEnrollmentsTable.classId,
+        className: classesTable.name,
+        enrollmentYear: classEnrollmentsTable.enrollmentYear,
+        phone: studentProfilesTable.phone,
+        address: studentProfilesTable.address,
+      })
+      .from(classEnrollmentsTable)
+      .innerJoin(usersTable, eq(usersTable.id, classEnrollmentsTable.studentId))
+      .innerJoin(classesTable, eq(classesTable.id, classEnrollmentsTable.classId))
+      .leftJoin(studentProfilesTable, eq(studentProfilesTable.userId, classEnrollmentsTable.studentId))
+      .where(inArray(classEnrollmentsTable.classId, classIds))
+      .orderBy(classesTable.name, usersTable.name);
+
+    res.json(students);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Internal Server Error" });

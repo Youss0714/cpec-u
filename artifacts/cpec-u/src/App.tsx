@@ -39,6 +39,7 @@ import SharedMessages from "@/pages/shared/messages";
 import HousingPage from "@/pages/admin/housing";
 import AnnualPromotion from "@/pages/admin/promotion";
 import ArchivesPage from "@/pages/admin/archives";
+import AdminStudentDetail from "@/pages/admin/student-detail";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -87,6 +88,7 @@ function Router() {
       <Route path="/admin/messages" component={AdminMessages} />
       <Route path="/admin/housing" component={HousingPage} />
       <Route path="/admin/honoraires" component={HonorairesPage} />
+      <Route path="/admin/students/:id" component={AdminStudentDetail} />
 
       {/* Teacher Routes */}
       <Route path="/teacher" component={TeacherDashboard} />
