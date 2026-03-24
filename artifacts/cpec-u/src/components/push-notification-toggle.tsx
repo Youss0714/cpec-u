@@ -1,7 +1,14 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Bell, BellOff, BellRing, Loader2 } from "lucide-react";
+import { Bell, BellOff, BellRing, Loader2, Smartphone } from "lucide-react";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -45,6 +52,7 @@ export function PushNotificationToggle({ className }: { className?: string }) {
   const { toast } = useToast();
   const [status, setStatus] = useState<Status>("checking");
   const [loading, setLoading] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
 
   useEffect(() => {
     checkStatus();
@@ -71,6 +79,7 @@ export function PushNotificationToggle({ className }: { className?: string }) {
   }
 
   async function handleSubscribe() {
+    setDialogOpen(false);
     setLoading(true);
     try {
       const perm = await Notification.requestPermission();
@@ -158,14 +167,60 @@ export function PushNotificationToggle({ className }: { className?: string }) {
   }
 
   return (
-    <Button
-      variant="outline" size="sm"
-      onClick={handleSubscribe}
-      disabled={loading}
-      className={className}
-    >
-      {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Bell className="w-4 h-4 mr-2" />}
-      {loading ? "Activation…" : "Activer les notifications push"}
-    </Button>
+    <>
+      <Button
+        variant="outline" size="sm"
+        onClick={() => setDialogOpen(true)}
+        disabled={loading}
+        className={className}
+      >
+        {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Bell className="w-4 h-4 mr-2" />}
+        {loading ? "Activation…" : "Activer les notifications push"}
+      </Button>
+
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Bell className="w-5 h-5 text-primary" />
+              Activer les notifications push
+            </DialogTitle>
+            <DialogDescription>
+              Restez informé en temps réel, même lorsque l'application est fermée.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 py-1">
+            {[
+              "Nouveaux messages reçus",
+              "Publication de l'emploi du temps",
+              "Résultats et notes disponibles",
+              "Décision sur vos justificatifs d'absence",
+            ].map((item) => (
+              <div key={item} className="flex items-center gap-2.5">
+                <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                  <Smartphone className="w-3.5 h-3.5 text-primary" />
+                </div>
+                <p className="text-sm text-foreground">{item}</p>
+              </div>
+            ))}
+          </div>
+
+          <p className="text-xs text-muted-foreground">
+            Votre navigateur vous demandera ensuite de confirmer l'autorisation. Vous pouvez désactiver les notifications à tout moment.
+          </p>
+
+          <div className="flex gap-2 pt-1">
+            <Button variant="outline" className="flex-1" onClick={() => setDialogOpen(false)}>
+              Plus tard
+            </Button>
+            <Button className="flex-1 gap-2" onClick={handleSubscribe}>
+              <Bell className="w-4 h-4" />
+              Autoriser
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
