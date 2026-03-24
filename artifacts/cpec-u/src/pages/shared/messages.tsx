@@ -207,8 +207,8 @@ export default function SharedMessages({ allowedRoles }: { allowedRoles: string[
   const canSend = !sending && !uploading && (!!messageText.trim() || !!pendingFile);
 
   return (
-    <AppLayout allowedRoles={allowedRoles}>
-      <div className="flex flex-col h-full">
+    <AppLayout allowedRoles={allowedRoles} noScroll>
+      <div className="flex flex-col flex-1 min-h-0">
         <div className="mb-4 flex-shrink-0">
           <h1 className="text-3xl font-serif font-bold text-foreground flex items-center gap-2">
             <MessageSquare className="w-8 h-8 text-primary" />

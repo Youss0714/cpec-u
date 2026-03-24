@@ -318,8 +318,8 @@ export default function AdminMessages() {
   const canSend = !sending && !uploading && (!!messageText.trim() || !!pendingFile);
 
   return (
-    <AppLayout allowedRoles={["admin"]}>
-      <div className="flex flex-col h-full">
+    <AppLayout allowedRoles={["admin"]} noScroll>
+      <div className="flex flex-col flex-1 min-h-0">
         {/* Header */}
         <div className="flex items-center justify-between mb-4 flex-shrink-0">
           <div>

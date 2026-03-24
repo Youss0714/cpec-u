@@ -44,9 +44,10 @@ import {
 interface AppLayoutProps {
   children: ReactNode;
   allowedRoles: ("admin" | "teacher" | "student")[];
+  noScroll?: boolean;
 }
 
-export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
+export function AppLayout({ children, allowedRoles, noScroll = false }: AppLayoutProps) {
   const [location, setLocation] = useLocation();
   const queryClient = useQueryClient();
   const { data: user, isLoading, isError } = useGetCurrentUser({
@@ -378,7 +379,7 @@ export function AppLayout({ children, allowedRoles }: AppLayoutProps) {
           </div>
         </header>
 
-        <div className="flex-1 overflow-auto p-4 md:p-8">
+        <div className={`flex-1 p-4 md:p-8 ${noScroll ? "overflow-hidden flex flex-col min-h-0" : "overflow-auto"}`}>
           {children}
         </div>
       </main>
