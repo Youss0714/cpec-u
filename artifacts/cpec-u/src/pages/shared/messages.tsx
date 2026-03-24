@@ -201,7 +201,7 @@ export default function SharedMessages({ allowedRoles }: { allowedRoles: string[
 
   return (
     <AppLayout allowedRoles={allowedRoles}>
-      <div className="flex flex-col h-[calc(100vh-120px)]">
+      <div className="flex flex-col h-full">
         <div className="mb-4 flex-shrink-0">
           <h1 className="text-3xl font-serif font-bold text-foreground flex items-center gap-2">
             <MessageSquare className="w-8 h-8 text-primary" />

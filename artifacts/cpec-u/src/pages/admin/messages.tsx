@@ -312,7 +312,7 @@ export default function AdminMessages() {
 
   return (
     <AppLayout allowedRoles={["admin"]}>
-      <div className="flex flex-col h-[calc(100vh-120px)]">
+      <div className="flex flex-col h-full">
         {/* Header */}
         <div className="flex items-center justify-between mb-4 flex-shrink-0">
           <div>
