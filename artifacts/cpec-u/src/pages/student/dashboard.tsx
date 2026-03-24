@@ -146,7 +146,7 @@ export default function StudentDashboard() {
         <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileSelect} />
 
         {/* Profile Hero */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="relative bg-primary rounded-3xl p-6 sm:p-8 text-primary-foreground overflow-hidden shadow-2xl shadow-primary/20">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="relative bg-gradient-to-br from-slate-800 via-slate-700 to-slate-800 rounded-3xl p-6 sm:p-8 text-primary-foreground overflow-hidden shadow-2xl shadow-black/20">
           <div className="absolute top-0 right-0 -mr-16 -mt-16 opacity-10">
             <GraduationCap className="w-64 h-64" />
           </div>
