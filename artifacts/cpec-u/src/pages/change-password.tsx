@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { motion } from "framer-motion";
-import { Lock, Eye, EyeOff, ShieldCheck } from "lucide-react";
+import { Lock, Eye, EyeOff, ShieldCheck, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -60,8 +60,25 @@ export default function ChangePasswordPage() {
     }
   };
 
+  const homeRoute = (() => {
+    const role = (user as any)?.role;
+    const subRole = (user as any)?.adminSubRole;
+    if (role === "admin") return subRole === "hebergement" ? "/admin/housing" : "/admin";
+    if (role === "teacher") return "/teacher";
+    return "/student";
+  })();
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-background px-4">
+      {/* Back button */}
+      <button
+        onClick={() => setLocation(homeRoute)}
+        className="absolute top-5 left-5 flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors group"
+      >
+        <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
+        Retour à l'accueil
+      </button>
+
       <motion.div
         initial={{ opacity: 0, y: 24 }}
         animate={{ opacity: 1, y: 0 }}
