@@ -340,7 +340,7 @@ export function AppLayout({ children, allowedRoles, noScroll = false }: AppLayou
   );
 
   return (
-    <div className="min-h-screen flex bg-background">
+    <div className={`${noScroll ? "h-screen overflow-hidden" : "min-h-screen"} flex bg-background`}>
       {/* Desktop Sidebar */}
       <aside className="hidden md:block w-72 shrink-0">
         <SidebarContent />
