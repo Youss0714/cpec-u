@@ -111,9 +111,12 @@ export default function AdminMessages() {
   const [broadcastText, setBroadcastText] = useState("");
   const [broadcastSending, setBroadcastSending] = useState(false);
   const [broadcastSent, setBroadcastSent] = useState<number | null>(null);
+  const [broadcastFile, setBroadcastFile] = useState<{ name: string; size: number; type: string; file: File } | null>(null);
+  const [broadcastUploading, setBroadcastUploading] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const broadcastFileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -237,23 +240,60 @@ export default function AdminMessages() {
     setContactSearch("");
   };
 
+  const handleBroadcastFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!ALLOWED_TYPES.includes(file.type)) {
+      toast({ title: "Type de fichier non supporté", description: "PDF, Word, Excel ou PowerPoint uniquement.", variant: "destructive" });
+      return;
+    }
+    if (file.size > 20 * 1024 * 1024) {
+      toast({ title: "Fichier trop volumineux", description: "Taille maximale : 20 Mo", variant: "destructive" });
+      return;
+    }
+    setBroadcastFile({ name: file.name, size: file.size, type: file.type, file });
+    e.target.value = "";
+  };
+
   const handleBroadcast = async () => {
-    if (!broadcastClassId || !broadcastText.trim()) return;
+    if (!broadcastClassId || (!broadcastText.trim() && !broadcastFile)) return;
     setBroadcastSending(true);
     setBroadcastSent(null);
     try {
+      let fileData: { fileUrl?: string; fileName?: string; fileType?: string; fileSize?: number } = {};
+
+      if (broadcastFile) {
+        setBroadcastUploading(true);
+        const fd = new FormData();
+        fd.append("file", broadcastFile.file);
+        const uploadRes = await fetch("/api/messages/upload", {
+          method: "POST",
+          credentials: "include",
+          body: fd,
+        });
+        setBroadcastUploading(false);
+        if (!uploadRes.ok) {
+          const err = await uploadRes.json();
+          toast({ title: "Erreur d'envoi du fichier", description: err.error, variant: "destructive" });
+          return;
+        }
+        fileData = await uploadRes.json();
+      }
+
       const data = await apiFetch(`/messages/class/${broadcastClassId}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: broadcastText.trim() }),
+        body: JSON.stringify({ content: broadcastText.trim(), ...fileData }),
       });
       setBroadcastSent(data.sent);
       setBroadcastText("");
+      setBroadcastFile(null);
       queryClient.invalidateQueries({ queryKey: ["/api/messages"] });
     } catch (e: any) {
       toast({ title: "Erreur lors de l'envoi", description: e.message, variant: "destructive" });
     } finally {
       setBroadcastSending(false);
+      setBroadcastUploading(false);
     }
   };
 
@@ -263,6 +303,7 @@ export default function AdminMessages() {
       setBroadcastClassId(null);
       setBroadcastText("");
       setBroadcastSent(null);
+      setBroadcastFile(null);
       setContactSearch("");
     }
   };
@@ -558,13 +599,47 @@ export default function AdminMessages() {
                       />
                     </div>
 
+                    {/* Broadcast file attachment */}
+                    <input
+                      ref={broadcastFileInputRef}
+                      type="file"
+                      className="hidden"
+                      accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
+                      onChange={handleBroadcastFileSelect}
+                    />
+                    {broadcastFile ? (
+                      <div className="flex items-center gap-2 p-2 rounded-lg bg-muted border text-sm">
+                        <FileIcon className="w-4 h-4 text-primary shrink-0" />
+                        <span className="flex-1 truncate font-medium">{broadcastFile.name}</span>
+                        <span className="text-muted-foreground whitespace-nowrap text-xs">
+                          {(broadcastFile.size / 1024).toFixed(0)} Ko
+                        </span>
+                        <button
+                          type="button"
+                          className="text-muted-foreground hover:text-destructive transition-colors shrink-0"
+                          onClick={() => setBroadcastFile(null)}
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                        onClick={() => broadcastFileInputRef.current?.click()}
+                      >
+                        <Paperclip className="w-4 h-4" />
+                        Joindre un fichier (PDF, Word, Excel, PowerPoint — max 20 Mo)
+                      </button>
+                    )}
+
                     <Button
                       className="w-full gap-2"
-                      disabled={!broadcastClassId || !broadcastText.trim() || broadcastSending}
+                      disabled={!broadcastClassId || (!broadcastText.trim() && !broadcastFile) || broadcastSending}
                       onClick={handleBroadcast}
                     >
                       <Send className="w-4 h-4" />
-                      {broadcastSending ? "Envoi en cours…" : "Envoyer à toute la classe"}
+                      {broadcastUploading ? "Envoi du fichier…" : broadcastSending ? "Envoi en cours…" : "Envoyer à toute la classe"}
                     </Button>
                   </>
                 )}

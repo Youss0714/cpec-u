@@ -157,10 +157,12 @@ router.post("/messages/class/:classId", requireAuth, async (req, res) => {
   try {
     const senderId = req.session!.userId!;
     const classId = parseInt(req.params.classId);
-    const { content } = req.body as { content: string };
+    const { content, fileUrl, fileName, fileType, fileSize } = req.body as {
+      content?: string; fileUrl?: string; fileName?: string; fileType?: string; fileSize?: number;
+    };
 
-    if (!content?.trim()) {
-      res.status(400).json({ error: "content requis" });
+    if (!content?.trim() && !fileUrl) {
+      res.status(400).json({ error: "content ou fichier requis" });
       return;
     }
 
@@ -182,7 +184,7 @@ router.post("/messages/class/:classId", requireAuth, async (req, res) => {
       .where(eq(usersTable.id, senderId))
       .limit(1);
 
-    const trimmedContent = content.trim();
+    const trimmedContent = content?.trim() || (fileName ? `📎 ${fileName}` : "");
     const preview = trimmedContent.length > 80 ? trimmedContent.slice(0, 80) + "…" : trimmedContent;
     const senderName = sender?.name ?? "l'administration";
 
@@ -191,6 +193,10 @@ router.post("/messages/class/:classId", requireAuth, async (req, res) => {
       senderId,
       recipientId: e.studentId,
       content: trimmedContent,
+      fileUrl: fileUrl ?? null,
+      fileName: fileName ?? null,
+      fileType: fileType ?? null,
+      fileSize: fileSize ?? null,
     }));
     await db.insert(messagesTable).values(messageValues);
 
