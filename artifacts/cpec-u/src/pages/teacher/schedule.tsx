@@ -6,7 +6,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { useGetTeacherSchedule, useListSemesters } from "@workspace/api-client-react";
-import { CalendarDays, Clock, MapPin, ChevronLeft, ChevronRight, Users } from "lucide-react";
+import { CalendarDays, Clock, MapPin, ChevronLeft, ChevronRight, Users, Printer } from "lucide-react";
 
 const DAYS = ["", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
 const DAY_COLORS = [
@@ -181,7 +181,11 @@ export default function TeacherSchedule() {
             <h1 className="text-3xl font-serif font-bold text-foreground">Mon Emploi du Temps</h1>
             <p className="text-muted-foreground">Consultez vos cours planifiés par semaine.</p>
           </div>
-          <div className="flex items-center gap-2 flex-wrap justify-end">
+          <div className="flex items-center gap-2 flex-wrap justify-end print:hidden">
+            <Button variant="outline" size="sm" className="gap-2" onClick={() => window.print()}>
+              <Printer className="w-4 h-4" />
+              Imprimer
+            </Button>
             <Select value={filterSemester} onValueChange={setFilterSemester}>
               <SelectTrigger className="w-44">
                 <SelectValue placeholder="Tous les semestres" />
@@ -197,7 +201,7 @@ export default function TeacherSchedule() {
         </div>
 
         {visibleEntries.length > 0 && (
-          <div className="flex gap-3 flex-wrap">
+          <div className="flex gap-3 flex-wrap print:hidden">
             <div className="bg-primary/5 border border-primary/20 rounded-xl px-4 py-2 text-sm">
               <span className="font-semibold text-primary">{visibleEntries.length}</span>
               <span className="text-muted-foreground ml-1">cours sur la période</span>
@@ -215,7 +219,7 @@ export default function TeacherSchedule() {
           </div>
         )}
 
-        <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div className="flex items-center justify-between gap-4 flex-wrap print:hidden">
           <div className="flex items-center gap-2">
             <Button variant="outline" size="icon" onClick={() => navigate(-1)}>
               <ChevronLeft className="w-4 h-4" />

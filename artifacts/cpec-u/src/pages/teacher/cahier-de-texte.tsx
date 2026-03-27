@@ -1,7 +1,8 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { AppLayout } from "@/components/layout";
 import { useGetTeacherAssignments } from "@workspace/api-client-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSearch } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -77,6 +78,7 @@ function groupByDate(entries: Entry[]) {
 export default function CahierDeTexte() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const search = useSearch();
 
   const { data: assignments = [] } = useGetTeacherAssignments();
   const asgns = assignments as any[];
@@ -91,6 +93,7 @@ export default function CahierDeTexte() {
   const [saving, setSaving] = useState(false);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [expandedDates, setExpandedDates] = useState<Set<string>>(new Set());
+  const [prefillApplied, setPrefillApplied] = useState(false);
 
   const classOptions = useMemo(() => {
     const map = new Map<number, string>();
@@ -139,6 +142,20 @@ export default function CahierDeTexte() {
     });
     return Array.from(map.values());
   }, [asgns]);
+
+  useEffect(() => {
+    if (!search || prefillApplied || asgns.length === 0) return;
+    const p = new URLSearchParams(search);
+    if (p.get("open") !== "1") return;
+    const subjectId = p.get("subjectId") ?? "";
+    const classId = p.get("classId") ?? "";
+    const semesterId = p.get("semesterId") ?? "";
+    const date = p.get("date") ?? new Date().toISOString().split("T")[0];
+    setEditEntry(null);
+    setForm({ ...EMPTY_FORM, subjectId, classId, semesterId, sessionDate: date });
+    setDialogOpen(true);
+    setPrefillApplied(true);
+  }, [search, asgns.length, prefillApplied]);
 
   function openCreate() {
     setEditEntry(null);

@@ -1,7 +1,8 @@
 import { ReactNode, useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useGetCurrentUser, useLogout, useGetUnreadNotificationCount, useGetPendingGradeSubmissionsCount, useGetUnreadMessageCount } from "@workspace/api-client-react";
+import { GlobalSearch } from "@/components/GlobalSearch";
 import { Button } from "@/components/ui/button";
 import {
   LayoutDashboard,
@@ -89,6 +90,14 @@ export function AppLayout({ children, allowedRoles, noScroll = false }: AppLayou
   const { data: unreadMsgData } = useGetUnreadMessageCount({ enabled: !!user } as any);
   const unreadMsgCount = (unreadMsgData as any)?.count ?? 0;
 
+  const { data: absenceAlertData } = useQuery({
+    queryKey: ["/api/admin/absences/alert-count"],
+    queryFn: () => fetch("/api/admin/absences/alert-count", { credentials: "include" }).then(r => r.json()),
+    enabled: isResultsAdmin,
+    staleTime: 4 * 60 * 1000,
+  });
+  const absenceAlertCount: number = (absenceAlertData as any)?.count ?? 0;
+
   const logoutMutation = useLogout({
     mutation: {
       onSuccess: () => {
@@ -154,7 +163,7 @@ export function AppLayout({ children, allowedRoles, noScroll = false }: AppLayou
     { name: "Matières", href: "/admin/subjects", icon: BookOpen },
     { name: "Semestres", href: "/admin/semesters", icon: Calendar },
     { name: "Feuilles de Présence", href: "/admin/attendance", icon: ClipboardList },
-    { name: "Bilan des Absences", href: "/admin/attendance/summary", icon: BarChart3 },
+    { name: "Bilan des Absences", href: "/admin/attendance/summary", icon: BarChart3, badge: absenceAlertCount > 0 ? absenceAlertCount : undefined },
     { name: "Résultats & Bulletins", href: "/admin/results", icon: GraduationCap, badge: pendingCount > 0 ? pendingCount : undefined },
     { name: "Promotion Annuelle", href: "/admin/promotion", icon: Rocket },
     { name: "Archives", href: "/admin/archives", icon: Archive },
@@ -190,6 +199,7 @@ export function AppLayout({ children, allowedRoles, noScroll = false }: AppLayou
     { name: "Emplois du temps", href: "/admin/schedules", icon: CalendarDays },
     { name: "Salles", href: "/admin/rooms", icon: DoorOpen },
     { name: "Affectations", href: "/admin/assignments", icon: ClipboardList },
+    { name: "Bilan des Absences", href: "/admin/attendance/summary", icon: BarChart3, badge: absenceAlertCount > 0 ? absenceAlertCount : undefined },
     { name: "Résultats & Bulletins", href: "/admin/results", icon: GraduationCap, badge: pendingCount > 0 ? pendingCount : undefined },
     { name: "Promotion Annuelle", href: "/admin/promotion", icon: Rocket },
     { name: "Archives", href: "/admin/archives", icon: Archive },
@@ -295,7 +305,13 @@ export function AppLayout({ children, allowedRoles, noScroll = false }: AppLayou
           : "Menu Étudiant"}
       </div>
 
-      <nav className="flex-1 px-4 space-y-1 mt-4 overflow-y-auto">
+      {user.role === "admin" && adminSubRole !== "hebergement" && (
+        <div className="px-4 pt-1 pb-2">
+          <GlobalSearch />
+        </div>
+      )}
+
+      <nav className="flex-1 px-4 space-y-1 mt-2 overflow-y-auto">
         {navItems.map((item) => {
           const isActive = location === item.href || location.startsWith(item.href + "?") ||
             (item.href !== "/" && item.href !== "/teacher" && item.href !== "/admin" && item.href !== "/student" && location.startsWith(item.href + "/"));

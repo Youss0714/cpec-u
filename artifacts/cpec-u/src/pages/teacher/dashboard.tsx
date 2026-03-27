@@ -3,7 +3,7 @@ import { AppLayout } from "@/components/layout";
 import { useGetTeacherAssignments, useGetTeacherSchedule } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Link } from "wouter";
-import { BookOpen, PenTool, Calendar, Clock, TrendingUp, MapPin, Users, CalendarDays, ChevronRight } from "lucide-react";
+import { BookOpen, PenTool, Calendar, Clock, TrendingUp, MapPin, Users, CalendarDays, ChevronRight, BookText } from "lucide-react";
 import { useOfflineGrades } from "@/lib/offline-sync";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -79,6 +79,12 @@ export default function TeacherDashboard() {
                       </span>
                     )}
                   </div>
+                  <Link href={`/teacher/cahier-de-texte?open=1&subjectId=${e.subjectId}&classId=${e.classId}&semesterId=${e.semesterId}&date=${today}`}>
+                    <div className="flex items-center gap-1.5 text-xs text-primary font-semibold bg-primary/8 hover:bg-primary/15 rounded-lg px-2.5 py-1.5 transition-colors w-full justify-center mt-1">
+                      <BookText className="w-3 h-3" />
+                      Saisir le cours
+                    </div>
+                  </Link>
                 </div>
               ))}
             </div>

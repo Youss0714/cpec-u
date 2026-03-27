@@ -174,6 +174,14 @@ artifacts-monorepo/
 | Student | — | etudiant4@cpec-u.fr | etudiant123 |
 | Student | — | etudiant5@cpec-u.fr | etudiant123 |
 
+## Recent UX Improvements (T008–T012)
+
+- **T008** — Teacher dashboard "Cours du jour" cards have a "Saisir le cours" shortcut that opens the cahier de texte pre-filled with subject + date via URL params (`?open=1&subjectId=...`)
+- **T009** — Director dashboard shows two KPI cards: "Taux de progression pédagogique" (sessions saisies / planifiées per class) and "Recouvrement financier par classe" (paid / due per class), both with colour-coded progress bars. Backend: `GET /api/admin/stats`
+- **T010** — "Imprimer" button (Printer icon) in teacher and student schedule pages; `@media print` CSS hides sidebar/header
+- **T011** — Red badge on "Bilan des Absences" sidebar nav item showing count of students with ≥3 absences in active semester; visible for scolarite & directeur. Backend: `GET /api/admin/absences/alert-count`
+- **T012** — Global search (Cmd+K) in admin sidebar (not hébergement): debounced search across students/teachers, grouped results, keyboard navigation, routes to student/teacher detail pages. Component: `GlobalSearch.tsx`
+
 ## Key URLs
 
 - Frontend: `/`

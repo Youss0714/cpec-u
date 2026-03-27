@@ -1,5 +1,6 @@
 import { useMemo, useEffect } from "react";
 import { Link, useLocation } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 import { AppLayout } from "@/components/layout";
 import {
   useGetCurrentUser, useListUsers, useListClasses, useListSubjects,
@@ -7,10 +8,12 @@ import {
 } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
 import {
   Users, BookOpen, Calendar, DoorOpen, CalendarDays,
   GraduationCap, CheckCircle, AlertTriangle, BarChart, CalendarOff,
   ArrowRight, TrendingUp, School, ClipboardList, BarChart3, ScrollText,
+  PieChart, Wallet,
 } from "lucide-react";
 import { motion } from "framer-motion";
 
@@ -58,6 +61,7 @@ export default function AdminDashboard() {
   const { data: currentUser } = useGetCurrentUser();
   const adminSubRole = (currentUser as any)?.adminSubRole as string | null;
   const isPlanificateur = adminSubRole === "planificateur";
+  const isDirecteur = adminSubRole === "directeur";
 
   useEffect(() => {
     if (adminSubRole === "hebergement") setLocation("/admin/housing");
@@ -69,6 +73,13 @@ export default function AdminDashboard() {
   const { data: rooms } = useListRooms();
   const { data: scheduleEntries = [] } = useListScheduleEntries({});
   const { data: scolariteStatsData } = useGetScolariteStats();
+
+  const { data: directorStats } = useQuery({
+    queryKey: ["/api/admin/stats"],
+    queryFn: () => fetch("/api/admin/stats", { credentials: "include" }).then(r => r.json()),
+    enabled: isDirecteur,
+    staleTime: 5 * 60 * 1000,
+  });
 
   const scheduledTeacherCount = useMemo(() =>
     new Set((scheduleEntries as any[]).map((e) => e.teacherId).filter(Boolean)).size,
@@ -211,6 +222,83 @@ export default function AdminDashboard() {
             </div>
           );
         })()}
+
+        {/* Director: pedagogical + financial KPIs */}
+        {isDirecteur && directorStats && (
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Class progression */}
+              <Card className="shadow-md border-border/50">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <PieChart className="w-5 h-5 text-primary" />
+                    Taux de progression pédagogique
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {((directorStats as any).progression ?? []).filter((c: any) => c.planned_sessions > 0).map((c: any) => {
+                      const pct = c.planned_sessions > 0 ? Math.min(100, Math.round((c.actual_sessions / c.planned_sessions) * 100)) : 0;
+                      return (
+                        <div key={c.class_id} className="space-y-1.5">
+                          <div className="flex justify-between text-sm">
+                            <span className="font-medium text-foreground truncate">{c.class_name}</span>
+                            <span className={`font-bold shrink-0 ml-2 ${pct >= 75 ? "text-emerald-600" : pct >= 40 ? "text-amber-500" : "text-red-500"}`}>
+                              {pct}%
+                            </span>
+                          </div>
+                          <Progress value={pct} className="h-2" />
+                          <p className="text-xs text-muted-foreground">
+                            {c.actual_sessions} séance{c.actual_sessions !== 1 ? "s" : ""} saisie{c.actual_sessions !== 1 ? "s" : ""} sur {c.planned_sessions} planifiée{c.planned_sessions !== 1 ? "s" : ""}
+                          </p>
+                        </div>
+                      );
+                    })}
+                    {((directorStats as any).progression ?? []).filter((c: any) => c.planned_sessions > 0).length === 0 && (
+                      <p className="text-muted-foreground text-center py-4 text-sm">Aucune donnée de planification disponible.</p>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Financial recovery by class */}
+              <Card className="shadow-md border-border/50">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Wallet className="w-5 h-5 text-primary" />
+                    Recouvrement financier par classe
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {((directorStats as any).financial ?? []).filter((c: any) => Number(c.total_due) > 0).map((c: any) => {
+                      const due = Number(c.total_due);
+                      const paid = Number(c.total_paid);
+                      const pct = due > 0 ? Math.min(100, Math.round((paid / due) * 100)) : 0;
+                      return (
+                        <div key={c.class_id} className="space-y-1.5">
+                          <div className="flex justify-between text-sm">
+                            <span className="font-medium text-foreground truncate">{c.class_name}</span>
+                            <span className={`font-bold shrink-0 ml-2 ${pct >= 75 ? "text-emerald-600" : pct >= 40 ? "text-amber-500" : "text-red-500"}`}>
+                              {pct}%
+                            </span>
+                          </div>
+                          <Progress value={pct} className="h-2" />
+                          <p className="text-xs text-muted-foreground">
+                            {paid.toLocaleString("fr-FR")} F payés sur {due.toLocaleString("fr-FR")} F dus
+                          </p>
+                        </div>
+                      );
+                    })}
+                    {((directorStats as any).financial ?? []).filter((c: any) => Number(c.total_due) > 0).length === 0 && (
+                      <p className="text-muted-foreground text-center py-4 text-sm">Aucun frais de scolarité configuré.</p>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </motion.div>
+        )}
 
         {/* Bottom cards */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">

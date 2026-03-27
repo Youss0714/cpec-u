@@ -319,3 +319,37 @@ summary,
   from { width: 0%; }
   to { width: 100%; }
 }
+
+@media print {
+  /* Hide sidebar and mobile header */
+  aside {
+    display: none !important;
+  }
+  header {
+    display: none !important;
+  }
+  /* Remove main padding */
+  main > div {
+    padding: 0.5cm !important;
+  }
+  /* Tailwind print:hidden utility override */
+  .print\:hidden {
+    display: none !important;
+  }
+  /* Expand schedule grid for print */
+  body {
+    background: white !important;
+  }
+  /* Make week grid columns fit on page */
+  .grid.grid-cols-2.md\:grid-cols-3 {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+  /* Smaller text in print */
+  .text-xs {
+    font-size: 9px !important;
+  }
+  .text-sm {
+    font-size: 11px !important;
+  }
+}

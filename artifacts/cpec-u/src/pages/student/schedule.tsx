@@ -11,7 +11,7 @@ import {
   useGetStudentMe,
   useListSchedulePublications,
 } from "@workspace/api-client-react";
-import { CalendarDays, Clock, MapPin, ChevronLeft, ChevronRight, BookOpen, Eye, EyeOff, Video } from "lucide-react";
+import { CalendarDays, Clock, MapPin, ChevronLeft, ChevronRight, BookOpen, Eye, EyeOff, Video, Printer } from "lucide-react";
 
 const DAYS = ["", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
 const DAY_COLORS = [
@@ -174,13 +174,19 @@ export default function StudentSchedule() {
     <AppLayout allowedRoles={["student"]}>
       <div className="space-y-5">
         {/* Header */}
-        <div>
-          <h1 className="text-3xl font-serif font-bold text-foreground">Mon Emploi du Temps</h1>
-          <p className="text-muted-foreground">
-            {(me as any)?.className
-              ? <span>Classe : <strong>{(me as any).className}</strong></span>
-              : "Vous n'êtes inscrit dans aucune classe."}
-          </p>
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div>
+            <h1 className="text-3xl font-serif font-bold text-foreground">Mon Emploi du Temps</h1>
+            <p className="text-muted-foreground">
+              {(me as any)?.className
+                ? <span>Classe : <strong>{(me as any).className}</strong></span>
+                : "Vous n'êtes inscrit dans aucune classe."}
+            </p>
+          </div>
+          <Button variant="outline" size="sm" className="gap-2 print:hidden" onClick={() => window.print()}>
+            <Printer className="w-4 h-4" />
+            Imprimer
+          </Button>
         </div>
 
         {/* Publication status banner */}
@@ -212,7 +218,7 @@ export default function StudentSchedule() {
         ) : (
           <>
             {/* Filters + View mode */}
-            <div className="flex gap-3 flex-wrap items-center justify-between">
+            <div className="flex gap-3 flex-wrap items-center justify-between print:hidden">
               <Select value={filterSemester} onValueChange={setFilterSemester}>
                 <SelectTrigger className="w-52">
                   <SelectValue placeholder="Tous les semestres" />
@@ -243,7 +249,7 @@ export default function StudentSchedule() {
             </div>
 
             {/* Date navigation */}
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 print:hidden">
               <Button variant="outline" size="icon" onClick={() => navigate(-1)}>
                 <ChevronLeft className="w-4 h-4" />
               </Button>

@@ -2306,6 +2306,70 @@ router.post("/absences/send-alerts", requireRole("admin"), async (req, res) => {
   }
 });
 
+// ─── Alert count: students above absence threshold ────────────────────────────
+
+router.get("/absences/alert-count", requireRole("admin"), async (req, res) => {
+  try {
+    const threshold = parseInt((req.query.threshold as string) ?? "3");
+    const [result] = await db.execute(sql`
+      SELECT COUNT(*)::int as count
+      FROM (
+        SELECT student_id
+        FROM ${attendanceTable}
+        WHERE status = 'absent'
+        GROUP BY student_id
+        HAVING COUNT(*) >= ${threshold}
+      ) sub
+    `);
+    res.json({ count: (result as any).count ?? 0, threshold });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// ─── Director stats: class progression + financial recovery ───────────────────
+
+router.get("/stats", requireRole("admin"), async (req, res) => {
+  try {
+    const progression = await db.execute(sql`
+      SELECT
+        c.id as class_id,
+        c.name as class_name,
+        COUNT(DISTINCT se.id)::int as planned_sessions,
+        COUNT(DISTINCT cdt.id)::int as actual_sessions
+      FROM classes c
+      LEFT JOIN schedule_entries se ON se.class_id = c.id
+      LEFT JOIN cahier_de_texte cdt ON cdt.class_id = c.id
+      GROUP BY c.id, c.name
+      ORDER BY c.name
+    `);
+
+    const financial = await db.execute(sql`
+      SELECT
+        c.id as class_id,
+        c.name as class_name,
+        COALESCE(SUM(sf.total_amount), 0)::numeric as total_due,
+        COALESCE(SUM(p_agg.total_paid), 0)::numeric as total_paid
+      FROM classes c
+      LEFT JOIN class_enrollments ce ON ce.class_id = c.id
+      LEFT JOIN student_fees sf ON sf.student_id = ce.student_id
+      LEFT JOIN (
+        SELECT student_id, SUM(amount)::numeric as total_paid
+        FROM payments
+        GROUP BY student_id
+      ) p_agg ON p_agg.student_id = ce.student_id
+      GROUP BY c.id, c.name
+      ORDER BY c.name
+    `);
+
+    res.json({ progression: Array.from(progression), financial: Array.from(financial) });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
 // ─── Cahier de texte (lecture seule admin) ────────────────────────────────────
 
 router.get("/cahier-de-texte", requireRole("admin"), async (req, res) => {
