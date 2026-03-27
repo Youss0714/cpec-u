@@ -21,3 +21,4 @@ export * from "./archives";
 export * from "./ecoles_inphb";
 export * from "./absence_justifications";
 export * from "./push_subscriptions";
+export * from "./cahier_de_texte";

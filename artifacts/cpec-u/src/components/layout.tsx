@@ -33,6 +33,7 @@ import {
   Sun,
   Moon,
   UserCircle,
+  BookText,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
@@ -214,6 +215,7 @@ export function AppLayout({ children, allowedRoles, noScroll = false }: AppLayou
           { name: "Mon Planning", href: "/teacher/schedule", icon: CalendarDays },
           { name: "Gestion des Présences", href: "/teacher/attendance", icon: ClipboardList },
           { name: "Saisie des Notes", href: "/teacher/grades", icon: PenTool },
+          { name: "Cahier de texte", href: "/teacher/cahier-de-texte", icon: BookText },
           { name: "Mes Étudiants", href: "/teacher/students", icon: Users },
           { name: "Mon Profil", href: "/teacher/profile", icon: UserCircle },
           { name: "Messages", href: "/teacher/messages", icon: MessageSquare, badge: unreadMsgCount > 0 ? unreadMsgCount : undefined },

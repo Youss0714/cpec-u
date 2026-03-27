@@ -15,8 +15,9 @@ import {
   notificationsTable,
   studentProfilesTable,
   attendanceTable,
+  cahierDeTexteTable,
 } from "@workspace/db";
-import { eq, and, sql, inArray, desc } from "drizzle-orm";
+import { eq, and, sql, inArray, desc, asc } from "drizzle-orm";
 import { requireRole } from "../lib/auth.js";
 
 const router = Router();
@@ -651,6 +652,163 @@ router.get("/students", requireRole("teacher", "admin"), async (req, res) => {
       .orderBy(classesTable.name, usersTable.name);
 
     res.json(students);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// ─── Cahier de texte ─────────────────────────────────────────────────────────
+
+// GET /teacher/cahier-de-texte — list entries for this teacher
+router.get("/cahier-de-texte", requireRole("teacher", "admin"), async (req, res) => {
+  try {
+    const teacherId = req.session!.userId!;
+    const { classId, subjectId, semesterId } = req.query;
+
+    const conditions: any[] = [eq(cahierDeTexteTable.teacherId, teacherId)];
+    if (classId) conditions.push(eq(cahierDeTexteTable.classId, parseInt(classId as string)));
+    if (subjectId) conditions.push(eq(cahierDeTexteTable.subjectId, parseInt(subjectId as string)));
+    if (semesterId) conditions.push(eq(cahierDeTexteTable.semesterId, parseInt(semesterId as string)));
+
+    const entries = await db
+      .select({
+        id: cahierDeTexteTable.id,
+        sessionDate: cahierDeTexteTable.sessionDate,
+        title: cahierDeTexteTable.title,
+        contenu: cahierDeTexteTable.contenu,
+        devoirs: cahierDeTexteTable.devoirs,
+        heuresEffectuees: cahierDeTexteTable.heuresEffectuees,
+        subjectId: cahierDeTexteTable.subjectId,
+        subjectName: subjectsTable.name,
+        classId: cahierDeTexteTable.classId,
+        className: classesTable.name,
+        semesterId: cahierDeTexteTable.semesterId,
+        semesterName: semestersTable.name,
+        createdAt: cahierDeTexteTable.createdAt,
+        updatedAt: cahierDeTexteTable.updatedAt,
+      })
+      .from(cahierDeTexteTable)
+      .innerJoin(subjectsTable, eq(subjectsTable.id, cahierDeTexteTable.subjectId))
+      .innerJoin(classesTable, eq(classesTable.id, cahierDeTexteTable.classId))
+      .innerJoin(semestersTable, eq(semestersTable.id, cahierDeTexteTable.semesterId))
+      .where(conditions.length === 1 ? conditions[0] : and(...conditions))
+      .orderBy(desc(cahierDeTexteTable.sessionDate), asc(subjectsTable.name));
+
+    res.json(entries);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// POST /teacher/cahier-de-texte — create entry
+router.post("/cahier-de-texte", requireRole("teacher"), async (req, res) => {
+  try {
+    const teacherId = req.session!.userId!;
+    const { subjectId, classId, semesterId, sessionDate, title, contenu, devoirs, heuresEffectuees } = req.body;
+
+    if (!subjectId || !classId || !semesterId || !sessionDate || !title?.trim() || !contenu?.trim()) {
+      res.status(400).json({ error: "Champs obligatoires manquants (matière, classe, semestre, date, titre, contenu)" });
+      return;
+    }
+
+    // Verify teacher is assigned to this class/subject/semester
+    const [assignment] = await db
+      .select({ id: teacherAssignmentsTable.id })
+      .from(teacherAssignmentsTable)
+      .where(and(
+        eq(teacherAssignmentsTable.teacherId, teacherId),
+        eq(teacherAssignmentsTable.subjectId, parseInt(subjectId)),
+        eq(teacherAssignmentsTable.classId, parseInt(classId)),
+        eq(teacherAssignmentsTable.semesterId, parseInt(semesterId)),
+      ))
+      .limit(1);
+
+    if (!assignment) {
+      res.status(403).json({ error: "Vous n'êtes pas assigné à cette matière/classe/semestre." });
+      return;
+    }
+
+    const [entry] = await db
+      .insert(cahierDeTexteTable)
+      .values({
+        teacherId,
+        subjectId: parseInt(subjectId),
+        classId: parseInt(classId),
+        semesterId: parseInt(semesterId),
+        sessionDate,
+        title: title.trim(),
+        contenu: contenu.trim(),
+        devoirs: devoirs?.trim() || null,
+        heuresEffectuees: heuresEffectuees ? parseFloat(heuresEffectuees) : null,
+      })
+      .returning();
+
+    res.status(201).json(entry);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// PUT /teacher/cahier-de-texte/:id — update entry
+router.put("/cahier-de-texte/:id", requireRole("teacher"), async (req, res) => {
+  try {
+    const teacherId = req.session!.userId!;
+    const entryId = parseInt(req.params.id);
+    const { sessionDate, title, contenu, devoirs, heuresEffectuees } = req.body;
+
+    const [existing] = await db
+      .select({ id: cahierDeTexteTable.id, teacherId: cahierDeTexteTable.teacherId })
+      .from(cahierDeTexteTable)
+      .where(and(eq(cahierDeTexteTable.id, entryId), eq(cahierDeTexteTable.teacherId, teacherId)))
+      .limit(1);
+
+    if (!existing) {
+      res.status(404).json({ error: "Entrée introuvable ou non autorisée." });
+      return;
+    }
+
+    const [updated] = await db
+      .update(cahierDeTexteTable)
+      .set({
+        sessionDate: sessionDate ?? undefined,
+        title: title?.trim() ?? undefined,
+        contenu: contenu?.trim() ?? undefined,
+        devoirs: devoirs?.trim() || null,
+        heuresEffectuees: heuresEffectuees !== undefined ? (heuresEffectuees ? parseFloat(heuresEffectuees) : null) : undefined,
+        updatedAt: new Date(),
+      })
+      .where(eq(cahierDeTexteTable.id, entryId))
+      .returning();
+
+    res.json(updated);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// DELETE /teacher/cahier-de-texte/:id — delete entry
+router.delete("/cahier-de-texte/:id", requireRole("teacher"), async (req, res) => {
+  try {
+    const teacherId = req.session!.userId!;
+    const entryId = parseInt(req.params.id);
+
+    const [existing] = await db
+      .select({ id: cahierDeTexteTable.id })
+      .from(cahierDeTexteTable)
+      .where(and(eq(cahierDeTexteTable.id, entryId), eq(cahierDeTexteTable.teacherId, teacherId)))
+      .limit(1);
+
+    if (!existing) {
+      res.status(404).json({ error: "Entrée introuvable ou non autorisée." });
+      return;
+    }
+
+    await db.delete(cahierDeTexteTable).where(eq(cahierDeTexteTable.id, entryId));
+    res.json({ message: "Entrée supprimée." });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Internal Server Error" });

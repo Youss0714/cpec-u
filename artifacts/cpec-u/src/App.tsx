@@ -28,6 +28,7 @@ import TeacherAttendance from "@/pages/teacher/attendance";
 import TeacherProfile from "@/pages/teacher/profile";
 import TeacherStudents from "@/pages/teacher/students";
 import TeacherStudentDetail from "@/pages/teacher/student-detail";
+import CahierDeTexte from "@/pages/teacher/cahier-de-texte";
 import AdminAttendance from "@/pages/admin/attendance";
 import HonorairesPage from "@/pages/admin/honoraires";
 import AttendanceSummary from "@/pages/admin/attendance-summary";
@@ -100,6 +101,7 @@ function Router() {
       <Route path="/teacher/profile" component={TeacherProfile} />
       <Route path="/teacher/students" component={TeacherStudents} />
       <Route path="/teacher/students/:id" component={TeacherStudentDetail} />
+      <Route path="/teacher/cahier-de-texte" component={CahierDeTexte} />
       <Route path="/teacher/messages">
         {() => <SharedMessages allowedRoles={["teacher"]} />}
       </Route>
