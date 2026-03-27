@@ -12,6 +12,7 @@ import {
 import { eq, and } from "drizzle-orm";
 import { requireRole } from "../lib/auth.js";
 import { notifyStudentsOfClasses, notifyStudentsBySemester } from "./notifications.js";
+import { sendPushToUser } from "./push.js";
 
 const router = Router();
 
@@ -226,6 +227,19 @@ router.post("/publish-period", requirePlanificateur, async (req, res) => {
   }
 });
 
+async function notifyTeacherOfEntry(entryId: number, isNew: boolean) {
+  try {
+    const enriched = await getEnrichedEntries();
+    const e = enriched.find((x) => x.id === entryId);
+    if (!e || !e.teacherId) return;
+    const dateLabel = new Date(e.sessionDate + "T00:00:00").toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" });
+    const timeLabel = `${e.startTime.slice(0, 5)} – ${e.endTime.slice(0, 5)}`;
+    const title = isNew ? "Nouveau cours programmé" : "Cours modifié";
+    const body = `${e.subjectName} · ${e.className}\n${dateLabel} de ${timeLabel}`;
+    sendPushToUser(e.teacherId, { title, body, type: "schedule_assigned" }).catch(() => {});
+  } catch (_) {}
+}
+
 router.post("/", requirePlanificateur, async (req, res) => {
   try {
     const { teacherId, subjectId, classId, roomId, semesterId, sessionDate, startTime, endTime, notes, teamsLink } = req.body;
@@ -236,6 +250,7 @@ router.post("/", requirePlanificateur, async (req, res) => {
       .insert(scheduleEntriesTable)
       .values({ teacherId, subjectId, classId, roomId, semesterId, sessionDate, startTime, endTime, notes: notes ?? null, teamsLink: teamsLink ?? null, published: false })
       .returning();
+    notifyTeacherOfEntry(entry.id, true);
     const enriched = await getEnrichedEntries();
     res.status(201).json(enriched.find((e) => e.id === entry.id));
   } catch (err) {
@@ -254,6 +269,7 @@ router.put("/:entryId", requirePlanificateur, async (req, res) => {
       .where(eq(scheduleEntriesTable.id, entryId))
       .returning();
     if (!entry) return res.status(404).json({ error: "Not Found" });
+    notifyTeacherOfEntry(entry.id, false);
     const enriched = await getEnrichedEntries();
     res.json(enriched.find((e) => e.id === entry.id));
   } catch (err) {

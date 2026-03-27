@@ -3,15 +3,19 @@ import { AppLayout } from "@/components/layout";
 import { useGetTeacherAssignments, useGetTeacherSchedule } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Link } from "wouter";
-import { BookOpen, PenTool, Calendar, Clock, TrendingUp, MapPin, Users, CalendarDays, ChevronRight, BookText } from "lucide-react";
+import { BookOpen, PenTool, Calendar, Clock, TrendingUp, MapPin, Users, CalendarDays, ChevronRight, BookText, Bell, BellOff, BellRing } from "lucide-react";
 import { useOfflineGrades } from "@/lib/offline-sync";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { Button } from "@/components/ui/button";
+import { usePushNotifications } from "@/hooks/usePushNotifications";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 export default function TeacherDashboard() {
   const { data: assignments, isLoading } = useGetTeacherAssignments();
   const { data: allEntries = [] } = useGetTeacherSchedule();
   const { isOnline, pendingGrades } = useOfflineGrades();
+  const { state: pushState, subscribe, unsubscribe } = usePushNotifications();
 
   const today = new Date().toISOString().slice(0, 10);
 
@@ -38,6 +42,37 @@ export default function TeacherDashboard() {
               <Badge className="bg-amber-500 hover:bg-amber-600">
                 {pendingGrades.length} note(s) en attente de synchro
               </Badge>
+            )}
+            {pushState !== "unsupported" && pushState !== "loading" && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    {pushState === "subscribed" ? (
+                      <Button variant="outline" size="sm" onClick={unsubscribe} className="gap-2 text-emerald-600 border-emerald-200 hover:bg-emerald-50">
+                        <BellRing className="w-4 h-4" />
+                        Notifications actives
+                      </Button>
+                    ) : pushState === "denied" ? (
+                      <Button variant="outline" size="sm" disabled className="gap-2 text-muted-foreground">
+                        <BellOff className="w-4 h-4" />
+                        Notifications bloquées
+                      </Button>
+                    ) : (
+                      <Button variant="outline" size="sm" onClick={subscribe} className="gap-2">
+                        <Bell className="w-4 h-4" />
+                        Activer les notifications
+                      </Button>
+                    )}
+                  </TooltipTrigger>
+                  <TooltipContent side="left" className="max-w-xs">
+                    {pushState === "subscribed"
+                      ? "Vous recevez des notifications push quand l'emploi du temps change. Cliquez pour désactiver."
+                      : pushState === "denied"
+                      ? "Les notifications sont bloquées par votre navigateur. Modifiez les paramètres du site pour les réactiver."
+                      : "Recevez une notification instantanée dès que le responsable pédagogique programme ou modifie un de vos cours."}
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             )}
           </div>
         </div>

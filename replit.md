@@ -182,6 +182,15 @@ artifacts-monorepo/
 - **T011** — Red badge on "Bilan des Absences" sidebar nav item showing count of students with ≥3 absences in active semester; visible for scolarite & directeur. Backend: `GET /api/admin/absences/alert-count`
 - **T012** — Global search (Cmd+K) in admin sidebar (not hébergement): debounced search across students/teachers, grouped results, keyboard navigation, routes to student/teacher detail pages. Component: `GlobalSearch.tsx`
 
+## Push Notifications (Teacher)
+
+- Infrastructure: VAPID keys in env (`VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_EMAIL`), `push_subscriptions` table, `push.ts` module with `sendPushToUser()` helper
+- Push router mounted at `/api/push` (`GET /vapid-public-key`, `POST /subscribe`, `DELETE /unsubscribe`)
+- `sw.js` handles `push` and `notificationclick` events
+- Frontend hook: `artifacts/cpec-u/src/hooks/usePushNotifications.ts`
+- Teacher dashboard shows a Bell toggle button (top-right): "Activer les notifications" / "Notifications actives" / "Notifications bloquées"
+- When planificateur creates or updates a schedule entry (`POST/PUT /api/admin/schedules`), the server automatically sends a push notification to the assigned teacher with subject name, class, date and time
+
 ## Key URLs
 
 - Frontend: `/`
