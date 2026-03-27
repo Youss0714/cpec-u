@@ -805,7 +805,8 @@ export default function AdminUsers() {
   };
 
   const canDelete = (u: any) => {
-    if (isDirecteur) return false;
+    if (u.id === (currentUser as any)?.id) return false; // jamais son propre compte
+    if (isDirecteur) return true; // le Directeur peut supprimer tout le monde sauf lui-même
     if (currentSubRole === "scolarite") return u.role === "student";
     if (isPlanificateur) return u.role === "teacher";
     return false;

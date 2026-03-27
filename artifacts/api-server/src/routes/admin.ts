@@ -212,7 +212,13 @@ router.delete("/users/:id", requireRole("admin"), async (req, res) => {
     const id = parseInt(req.params.id);
     const currentUser = req.session.user!;
 
-    // Restrictions selon le sous-rôle
+    // Personne ne peut supprimer son propre compte
+    if (id === currentUser.id) {
+      res.status(403).json({ error: "Vous ne pouvez pas supprimer votre propre compte." });
+      return;
+    }
+
+    // Restrictions selon le sous-rôle (le Directeur peut tout supprimer sauf lui-même)
     if (currentUser.adminSubRole === "planificateur" || currentUser.adminSubRole === "scolarite") {
       const [target] = await db.select().from(usersTable).where(eq(usersTable.id, id));
       if (target && target.role === "admin") {
