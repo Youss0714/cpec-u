@@ -1,6 +1,7 @@
 import { Router } from "express";
 import multer from "multer";
 import path from "path";
+import fs from "fs";
 import { fileURLToPath } from "url";
 import { db } from "@workspace/db";
 import { messagesTable, usersTable, classesTable, classEnrollmentsTable, notificationsTable } from "@workspace/db";
@@ -10,6 +11,7 @@ import { sendPushToUsers, sendPushToUser } from "./push.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const UPLOADS_DIR = path.join(__dirname, "../../uploads");
+fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, UPLOADS_DIR),
@@ -217,6 +219,21 @@ router.post("/messages/class/:classId", requireAuth, async (req, res) => {
     console.error(err);
     res.status(500).json({ error: "Internal Server Error" });
   }
+});
+
+// ─── Download file (authenticated, forces attachment download) ────────────────
+router.get("/messages/download/:filename", requireAuth, (req, res) => {
+  const filename = path.basename(req.params.filename);
+  const filePath = path.join(UPLOADS_DIR, filename);
+  const originalName = (req.query.name as string) || filename;
+
+  if (!fs.existsSync(filePath)) {
+    res.status(404).json({ error: "Fichier introuvable" });
+    return;
+  }
+
+  res.setHeader("Content-Disposition", `attachment; filename*=UTF-8''${encodeURIComponent(originalName)}`);
+  res.sendFile(filePath);
 });
 
 // ─── Upload file for message attachment (MUST be before /:userId) ─────────────

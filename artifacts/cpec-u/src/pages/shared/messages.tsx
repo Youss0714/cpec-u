@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   MessageSquare, Send, UserCircle2, Paperclip, X,
   FileText, Sheet, Presentation, FileArchive, Download,
+  Plus, Search,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -54,17 +55,43 @@ function FileIcon({ type, className = "w-5 h-5" }: { type: string; className?: s
 function FileAttachment({ fileUrl, fileName, fileType, fileSize, isMe }: {
   fileUrl: string; fileName: string; fileType: string; fileSize: number; isMe: boolean;
 }) {
+  const [downloading, setDownloading] = useState(false);
+  const { toast } = useToast();
+
+  async function handleDownload(e: React.MouseEvent) {
+    e.preventDefault();
+    if (downloading) return;
+    setDownloading(true);
+    try {
+      const storedFilename = fileUrl.split("/").pop() ?? "";
+      const url = `/api/messages/download/${storedFilename}?name=${encodeURIComponent(fileName)}`;
+      const res = await fetch(url, { credentials: "include" });
+      if (!res.ok) throw new Error(`Erreur ${res.status}`);
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
+    } catch {
+      toast({ title: "Téléchargement échoué", description: "Impossible de télécharger le fichier.", variant: "destructive" });
+    } finally {
+      setDownloading(false);
+    }
+  }
+
   return (
-    <a
-      href={fileUrl}
-      download={fileName}
-      target="_blank"
-      rel="noopener noreferrer"
-      className={`flex items-center gap-2.5 rounded-xl p-2.5 mt-1 transition-colors ${
+    <button
+      onClick={handleDownload}
+      disabled={downloading}
+      className={`flex items-center gap-2.5 rounded-xl p-2.5 mt-1 transition-colors w-full text-left ${
         isMe
           ? "bg-primary-foreground/15 hover:bg-primary-foreground/25"
           : "bg-background/60 hover:bg-background border border-border/50"
-      }`}
+      } disabled:opacity-60`}
     >
       <FileIcon type={fileType} />
       <div className="flex-1 min-w-0">
@@ -72,11 +99,11 @@ function FileAttachment({ fileUrl, fileName, fileType, fileSize, isMe }: {
           {fileName}
         </p>
         <p className={`text-[10px] ${isMe ? "text-primary-foreground/60" : "text-muted-foreground"}`}>
-          {formatSize(fileSize)}
+          {formatSize(fileSize)} {downloading ? "— téléchargement…" : ""}
         </p>
       </div>
       <Download className={`w-4 h-4 flex-shrink-0 ${isMe ? "text-primary-foreground/70" : "text-muted-foreground"}`} />
-    </a>
+    </button>
   );
 }
 
@@ -86,6 +113,8 @@ export default function SharedMessages({ allowedRoles }: { allowedRoles: string[
   const [sending, setSending] = useState(false);
   const [pendingFile, setPendingFile] = useState<{ name: string; size: number; type: string; file: File } | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [showContactPicker, setShowContactPicker] = useState(false);
+  const [contactSearch, setContactSearch] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messageInputRef = useRef<HTMLInputElement>(null);
@@ -94,6 +123,8 @@ export default function SharedMessages({ allowedRoles }: { allowedRoles: string[
 
   useEffect(() => {
     if (selectedUserId) {
+      setShowContactPicker(false);
+      setContactSearch("");
       setTimeout(() => messageInputRef.current?.focus(), 100);
     }
   }, [selectedUserId]);
@@ -105,6 +136,12 @@ export default function SharedMessages({ allowedRoles }: { allowedRoles: string[
     queryKey: ["/api/messages"],
     queryFn: () => apiFetch("/messages"),
     refetchInterval: 8000,
+  });
+
+  const { data: allContacts = [] } = useQuery({
+    queryKey: ["/api/messages/contacts/list"],
+    queryFn: () => apiFetch("/messages/contacts/list"),
+    enabled: showContactPicker,
   });
 
   const { data: thread } = useQuery({
@@ -127,6 +164,11 @@ export default function SharedMessages({ allowedRoles }: { allowedRoles: string[
   const convs = conversations as any[];
   const msgs = (thread?.messages ?? []) as any[];
   const other = thread?.other as any;
+  const contacts = (allContacts as any[]).filter((c: any) =>
+    !contactSearch.trim() ||
+    c.name.toLowerCase().includes(contactSearch.toLowerCase()) ||
+    c.email?.toLowerCase().includes(contactSearch.toLowerCase())
+  );
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -220,43 +262,96 @@ export default function SharedMessages({ allowedRoles }: { allowedRoles: string[
         <div className="flex flex-1 gap-4 min-h-0 rounded-2xl border border-border overflow-hidden bg-card shadow-sm">
           {/* Left: conversations */}
           <div className="w-64 flex-shrink-0 border-r border-border flex flex-col">
-            <div className="px-3 py-2.5 border-b border-border">
+            <div className="px-3 py-2 border-b border-border flex items-center justify-between gap-1">
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Conversations</p>
+              <button
+                onClick={() => setShowContactPicker(v => !v)}
+                title="Nouveau message"
+                className={`w-6 h-6 rounded-lg flex items-center justify-center transition-colors ${showContactPicker ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-primary hover:bg-primary/10"}`}
+              >
+                <Plus className="w-3.5 h-3.5" />
+              </button>
             </div>
-            <div className="flex-1 overflow-y-auto">
-              {convs.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-2 px-4 text-center">
-                  <MessageSquare className="w-7 h-7 opacity-20" />
-                  <p className="text-xs">Aucun message reçu pour l'instant.</p>
+
+            {showContactPicker ? (
+              <div className="flex flex-col flex-1 min-h-0">
+                <div className="px-2 py-2 border-b border-border">
+                  <div className="flex items-center gap-1.5 bg-muted/50 rounded-lg px-2 py-1.5 border border-border focus-within:border-primary transition-colors">
+                    <Search className="w-3 h-3 text-muted-foreground flex-shrink-0" />
+                    <input
+                      autoFocus
+                      placeholder="Rechercher…"
+                      value={contactSearch}
+                      onChange={e => setContactSearch(e.target.value)}
+                      className="flex-1 bg-transparent text-xs outline-none placeholder:text-muted-foreground"
+                    />
+                  </div>
                 </div>
-              ) : (
-                convs.map((c: any) => (
-                  <button
-                    key={c.userId}
-                    onClick={() => setSelectedUserId(c.userId)}
-                    className={`w-full text-left px-4 py-3 flex gap-3 items-start hover:bg-muted/50 transition-colors border-b border-border/50 ${
-                      selectedUserId === c.userId ? "bg-primary/5 border-l-2 border-l-primary" : ""
-                    }`}
-                  >
-                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 text-primary">
-                      <UserCircle2 className="w-4 h-4" />
+                <div className="flex-1 overflow-y-auto">
+                  {contacts.length === 0 ? (
+                    <div className="flex items-center justify-center h-20 text-xs text-muted-foreground">
+                      Aucun contact trouvé
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-1">
-                        <span className="text-sm font-semibold truncate">{c.userName}</span>
-                        <span className="text-[10px] text-muted-foreground flex-shrink-0">{formatTime(c.lastAt)}</span>
+                  ) : contacts.map((c: any) => (
+                    <button
+                      key={c.id}
+                      onClick={() => setSelectedUserId(c.id)}
+                      className="w-full text-left px-3 py-2.5 flex gap-2.5 items-center hover:bg-muted/50 transition-colors border-b border-border/40"
+                    >
+                      <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 text-primary font-bold text-xs">
+                        {c.name.charAt(0)}
                       </div>
-                      <div className="flex items-center justify-between gap-1 mt-0.5">
-                        <p className="text-xs text-muted-foreground truncate">{c.lastMessage}</p>
-                        {c.unreadCount > 0 && (
-                          <Badge className="h-4 min-w-4 text-[10px] px-1 bg-primary flex-shrink-0">{c.unreadCount}</Badge>
-                        )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold truncate">{c.name}</p>
+                        <p className="text-[10px] text-muted-foreground truncate">{roleLabel(c.role, c.adminSubRole)}</p>
                       </div>
-                    </div>
-                  </button>
-                ))
-              )}
-            </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="flex-1 overflow-y-auto">
+                {convs.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-3 px-4 text-center">
+                    <MessageSquare className="w-7 h-7 opacity-20" />
+                    <p className="text-xs">Aucune conversation.</p>
+                    <button
+                      onClick={() => setShowContactPicker(true)}
+                      className="flex items-center gap-1.5 text-xs text-primary font-medium hover:underline"
+                    >
+                      <Plus className="w-3 h-3" />
+                      Nouveau message
+                    </button>
+                  </div>
+                ) : (
+                  convs.map((c: any) => (
+                    <button
+                      key={c.userId}
+                      onClick={() => setSelectedUserId(c.userId)}
+                      className={`w-full text-left px-4 py-3 flex gap-3 items-start hover:bg-muted/50 transition-colors border-b border-border/50 ${
+                        selectedUserId === c.userId ? "bg-primary/5 border-l-2 border-l-primary" : ""
+                      }`}
+                    >
+                      <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 text-primary">
+                        <UserCircle2 className="w-4 h-4" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-1">
+                          <span className="text-sm font-semibold truncate">{c.userName}</span>
+                          <span className="text-[10px] text-muted-foreground flex-shrink-0">{formatTime(c.lastAt)}</span>
+                        </div>
+                        <div className="flex items-center justify-between gap-1 mt-0.5">
+                          <p className="text-xs text-muted-foreground truncate">{c.lastMessage}</p>
+                          {c.unreadCount > 0 && (
+                            <Badge className="h-4 min-w-4 text-[10px] px-1 bg-primary flex-shrink-0">{c.unreadCount}</Badge>
+                          )}
+                        </div>
+                      </div>
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
           </div>
 
           {/* Right: thread */}

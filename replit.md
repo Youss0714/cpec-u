@@ -116,8 +116,16 @@ artifacts-monorepo/
 - View own grades + average + rank at `/student/grades` (dedicated page). Only visible when semester.published = true. NO PDF.
 - Dashboard simplified: compact results summary card + quick navigation links.
 - **Justification notifications**: student receives a notification (in the notifications table) when admin approves or rejects their absence justification.
-- **Tuition balance card** (`/student` dashboard): shows "Mon Solde de Scolarité" card with totalDue, totalPaid, remaining, progress bar, and payment history. If no fees configured, shows a friendly empty state. Backend: `GET /api/student/balance`. Hook: `useGetStudentBalance()`.
-- **API**: `GET /api/student/balance` — returns `{ totalDue, totalPaid, remaining, academicYear, status, payments[] }`. The `status` field is `"non_configure"` when no fees are set up.
+
+## Messaging — File Attachments Fix
+
+- **Bug fixed**: Files uploaded in messages couldn't be downloaded — caused by two issues:
+  1. `uploads/` directory didn't exist at `artifacts/api-server/uploads/`
+  2. Path mismatch: `app.ts` was serving static files from `artifacts/uploads/` while multer saved to `artifacts/api-server/uploads/`
+- **Fix**: Corrected path in `app.ts` to `path.join(__dirname, "../uploads")` (was `"../../uploads"`), added `fs.mkdirSync(UPLOADS_DIR, { recursive: true })` in both `app.ts` and `messages.ts` to auto-create the directory
+- **New download route**: `GET /api/messages/download/:filename?name=originalName` — authenticated endpoint that sends files with `Content-Disposition: attachment` header (forces download instead of inline display)
+- **Frontend improvement**: `FileAttachment` component now uses `fetch() + Blob URL` programmatic download instead of `<a href download>` — more reliable in proxied environments, includes session cookie, shows "téléchargement…" indicator
+- **UX improvement**: Added "Nouveau message" `+` button in conversations sidebar — opens a searchable contact picker to start new conversations without needing an existing thread
 
 ## UI Features
 
