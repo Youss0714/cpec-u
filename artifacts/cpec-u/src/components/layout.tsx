@@ -313,8 +313,16 @@ export function AppLayout({ children, allowedRoles, noScroll = false }: AppLayou
 
       <nav className="flex-1 px-4 space-y-1 mt-2 overflow-y-auto">
         {navItems.map((item) => {
-          const isActive = location === item.href || location.startsWith(item.href + "?") ||
-            (item.href !== "/" && item.href !== "/teacher" && item.href !== "/admin" && item.href !== "/student" && location.startsWith(item.href + "/"));
+          const rootExclusions = ["/", "/teacher", "/admin", "/student"];
+          const prefixMatch = !rootExclusions.includes(item.href) &&
+            location.startsWith(item.href + "/") &&
+            !navItems.some(
+              (other) =>
+                other.href !== item.href &&
+                location.startsWith(other.href) &&
+                other.href.startsWith(item.href)
+            );
+          const isActive = location === item.href || location.startsWith(item.href + "?") || prefixMatch;
           return (
             <Link
               key={item.name}
