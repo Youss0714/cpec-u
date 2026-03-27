@@ -173,6 +173,7 @@ export function AppLayout({ children, allowedRoles, noScroll = false }: AppLayou
     { name: "Matières", href: "/admin/subjects", icon: BookOpen },
     { name: "Semestres", href: "/admin/semesters", icon: Calendar },
     { name: "Utilisateurs", href: "/admin/users", icon: Users },
+    { name: "Cahiers de texte", href: "/admin/cahier-de-texte", icon: BookText },
     { name: "Honoraires", href: "/admin/honoraires", icon: Wallet },
     { name: "Messages", href: "/admin/messages", icon: MessageSquare, badge: unreadMsgCount > 0 ? unreadMsgCount : undefined },
   ];
