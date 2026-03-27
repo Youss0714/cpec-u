@@ -2138,6 +2138,174 @@ ${bulletinHTMLParts.map(h => {
   }
 });
 
+// ─── Paiements (T001) ─────────────────────────────────────────────────────────
+
+router.post("/payments", requireRole("admin"), async (req, res) => {
+  try {
+    const cu = req.session?.user as any;
+    if (cu?.adminSubRole !== "scolarite" && cu?.adminSubRole !== "directeur") {
+      res.status(403).json({ error: "Réservé à la Scolarité et au Directeur." }); return;
+    }
+    const { studentId, amount, description, paymentDate } = req.body;
+    if (!studentId || !amount || isNaN(Number(amount)) || Number(amount) <= 0) {
+      res.status(400).json({ error: "studentId et amount (positif) sont requis." }); return;
+    }
+    const [payment] = await db.insert(paymentsTable).values({
+      studentId: parseInt(studentId),
+      amount: Number(amount).toFixed(2),
+      description: description?.trim() || null,
+      paymentDate: paymentDate ? new Date(paymentDate) : new Date(),
+      recordedById: cu.id,
+    }).returning();
+    await db.insert(activityLogTable).values({
+      userId: cu.id,
+      action: "payment_recorded",
+      details: `Paiement de ${Number(amount).toFixed(0)} F enregistré pour l'étudiant #${studentId}.`,
+    }).catch(() => {});
+    res.status(201).json(payment);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+router.delete("/payments/:id", requireRole("admin"), async (req, res) => {
+  try {
+    const cu = req.session?.user as any;
+    if (cu?.adminSubRole !== "scolarite" && cu?.adminSubRole !== "directeur") {
+      res.status(403).json({ error: "Réservé à la Scolarité et au Directeur." }); return;
+    }
+    const id = parseInt(req.params.id);
+    const [deleted] = await db.delete(paymentsTable).where(eq(paymentsTable.id, id)).returning();
+    if (!deleted) { res.status(404).json({ error: "Paiement introuvable." }); return; }
+    res.json({ message: "Paiement supprimé." });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// ─── Suivi heures planifiées vs réalisées (T003) ──────────────────────────────
+
+router.get("/suivi-heures", requireRole("admin"), async (req, res) => {
+  try {
+    const { semesterId, classId } = req.query;
+
+    const conditions: any[] = [];
+    if (semesterId) conditions.push(eq(teacherAssignmentsTable.semesterId, parseInt(semesterId as string)));
+    if (classId) conditions.push(eq(teacherAssignmentsTable.classId, parseInt(classId as string)));
+
+    const assignments = await db
+      .select({
+        id: teacherAssignmentsTable.id,
+        teacherId: teacherAssignmentsTable.teacherId,
+        teacherName: usersTable.name,
+        subjectId: teacherAssignmentsTable.subjectId,
+        subjectName: subjectsTable.name,
+        classId: teacherAssignmentsTable.classId,
+        className: classesTable.name,
+        semesterId: teacherAssignmentsTable.semesterId,
+        semesterName: semestersTable.name,
+        plannedHours: teacherAssignmentsTable.plannedHours,
+      })
+      .from(teacherAssignmentsTable)
+      .innerJoin(usersTable, eq(usersTable.id, teacherAssignmentsTable.teacherId))
+      .innerJoin(subjectsTable, eq(subjectsTable.id, teacherAssignmentsTable.subjectId))
+      .innerJoin(classesTable, eq(classesTable.id, teacherAssignmentsTable.classId))
+      .innerJoin(semestersTable, eq(semestersTable.id, teacherAssignmentsTable.semesterId))
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(asc(usersTable.name), asc(subjectsTable.name));
+
+    const result = await Promise.all(assignments.map(async (a) => {
+      const [row] = await db
+        .select({
+          sessions: sql<number>`COUNT(*)`,
+          heuresRealisees: sql<number>`COALESCE(SUM(${cahierDeTexteTable.heuresEffectuees}), 0)`,
+        })
+        .from(cahierDeTexteTable)
+        .where(
+          and(
+            eq(cahierDeTexteTable.teacherId, a.teacherId),
+            eq(cahierDeTexteTable.subjectId, a.subjectId),
+            eq(cahierDeTexteTable.classId, a.classId),
+            eq(cahierDeTexteTable.semesterId, a.semesterId),
+          )
+        );
+
+      const planned = Number(a.plannedHours ?? 0);
+      const done = Number(row?.heuresRealisees ?? 0);
+      const pct = planned > 0 ? Math.round((done / planned) * 100) : null;
+
+      return {
+        ...a,
+        plannedHours: planned,
+        heuresRealisees: done,
+        sessions: Number(row?.sessions ?? 0),
+        progressPct: pct,
+      };
+    }));
+
+    res.json(result);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// ─── Alertes seuil d'absences (T007) ──────────────────────────────────────────
+
+router.post("/absences/send-alerts", requireRole("admin"), async (req, res) => {
+  try {
+    const cu = req.session?.user as any;
+    const { semesterId, classId, threshold = 3 } = req.body;
+    if (!semesterId) { res.status(400).json({ error: "semesterId requis." }); return; }
+
+    const threshNum = parseInt(String(threshold));
+    const cond: any[] = [
+      eq(attendanceTable.semesterId, parseInt(String(semesterId))),
+      eq(attendanceTable.status, "absent"),
+      eq(attendanceTable.justified, false),
+    ];
+    if (classId) cond.push(eq(attendanceTable.classId, parseInt(String(classId))));
+
+    const absRows = await db
+      .select({
+        studentId: attendanceTable.studentId,
+        studentName: usersTable.name,
+        absenceCount: sql<number>`COUNT(*)`,
+      })
+      .from(attendanceTable)
+      .innerJoin(usersTable, eq(usersTable.id, attendanceTable.studentId))
+      .where(and(...cond))
+      .groupBy(attendanceTable.studentId, usersTable.name)
+      .having(sql`COUNT(*) >= ${threshNum}`);
+
+    if (absRows.length === 0) {
+      res.json({ sent: 0, message: "Aucun étudiant ne dépasse le seuil." });
+      return;
+    }
+
+    await Promise.all(absRows.map(async (s) => {
+      await db.insert(notificationsTable).values({
+        userId: s.studentId,
+        type: "absence_alert",
+        title: "Alerte absences",
+        message: `Vous avez ${s.absenceCount} absence(s) non justifiée(s) ce semestre (seuil : ${threshNum}). Veuillez régulariser votre situation auprès de la scolarité.`,
+      });
+      sendPushToUser(s.studentId, {
+        title: "Alerte absences",
+        body: `Vous avez ${s.absenceCount} absence(s) non justifiée(s). Contactez la scolarité.`,
+        type: "absence_alert",
+      }).catch(() => {});
+    }));
+
+    res.json({ sent: absRows.length, students: absRows.map(s => ({ id: s.studentId, name: s.studentName, absenceCount: s.absenceCount })) });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
 // ─── Cahier de texte (lecture seule admin) ────────────────────────────────────
 
 router.get("/cahier-de-texte", requireRole("admin"), async (req, res) => {

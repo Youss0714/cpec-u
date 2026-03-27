@@ -44,6 +44,8 @@ import AnnualPromotion from "@/pages/admin/promotion";
 import ArchivesPage from "@/pages/admin/archives";
 import AdminStudentDetail from "@/pages/admin/student-detail";
 import AdminCahierDeTexte from "@/pages/admin/cahier-de-texte";
+import AdminSuiviHeures from "@/pages/admin/suivi-heures";
+import StudentCahierDeTexte from "@/pages/student/cahier-de-texte";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -94,6 +96,7 @@ function Router() {
       <Route path="/admin/honoraires" component={HonorairesPage} />
       <Route path="/admin/students/:id" component={AdminStudentDetail} />
       <Route path="/admin/cahier-de-texte" component={AdminCahierDeTexte} />
+      <Route path="/admin/suivi-heures" component={AdminSuiviHeures} />
 
       {/* Teacher Routes */}
       <Route path="/teacher" component={TeacherDashboard} />
@@ -111,6 +114,7 @@ function Router() {
       {/* Student Routes */}
       <Route path="/student" component={StudentDashboard} />
       <Route path="/student/absences" component={StudentAbsences} />
+      <Route path="/student/cahier-de-texte" component={StudentCahierDeTexte} />
       <Route path="/student/schedule" component={StudentSchedule} />
       <Route path="/student/grades" component={StudentGrades} />
       <Route path="/student/notifications" component={StudentNotifications} />

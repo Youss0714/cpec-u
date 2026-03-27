@@ -5,7 +5,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { BarChart3, XCircle, Clock, AlertTriangle, Download } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { BarChart3, XCircle, Clock, AlertTriangle, Download, Bell } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 async function apiFetch(path: string) {
   const res = await fetch(`/api${path}`, { credentials: "include" });
@@ -25,6 +29,39 @@ function formatDuration(minutes: number): string {
 export default function AttendanceSummary() {
   const [semesterId, setSemesterId] = useState("");
   const [classId, setClassId] = useState("all");
+  const { toast } = useToast();
+  const [showAlertDialog, setShowAlertDialog] = useState(false);
+  const [alertThreshold, setAlertThreshold] = useState("3");
+  const [alertLoading, setAlertLoading] = useState(false);
+
+  const handleSendAlerts = async () => {
+    setAlertLoading(true);
+    try {
+      const res = await fetch("/api/admin/absences/send-alerts", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          semesterId: parseInt(semesterId),
+          classId: classId !== "all" ? parseInt(classId) : undefined,
+          threshold: parseInt(alertThreshold) || 3,
+        }),
+      });
+      if (!res.ok) { const e = await res.json(); throw new Error(e.error ?? "Erreur"); }
+      const data = await res.json();
+      toast({
+        title: "Alertes envoyées",
+        description: data.sent === 0
+          ? "Aucun étudiant ne dépasse le seuil fixé."
+          : `${data.sent} étudiant(s) notifié(s).`,
+      });
+      setShowAlertDialog(false);
+    } catch (err: any) {
+      toast({ title: "Erreur", description: err.message, variant: "destructive" });
+    } finally {
+      setAlertLoading(false);
+    }
+  };
 
   const { data: semesters = [] } = useQuery({
     queryKey: ["/api/admin/semesters"],
@@ -90,7 +127,7 @@ export default function AttendanceSummary() {
         </div>
 
         {/* Filters */}
-        <div className="flex flex-wrap gap-3">
+        <div className="flex flex-wrap items-end gap-3">
           <div className="w-64 space-y-1.5">
             <label className="text-sm font-medium text-foreground">Semestre</label>
             <Select value={semesterId} onValueChange={setSemesterId}>
@@ -118,6 +155,17 @@ export default function AttendanceSummary() {
               </SelectContent>
             </Select>
           </div>
+          {semesterId && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2 text-amber-700 border-amber-300 hover:bg-amber-50 h-10"
+              onClick={() => setShowAlertDialog(true)}
+            >
+              <Bell className="w-4 h-4" />
+              Envoyer des alertes
+            </Button>
+          )}
         </div>
 
         {!semesterId && (
@@ -265,6 +313,48 @@ export default function AttendanceSummary() {
           </>
         )}
       </div>
+
+      {/* Dialog: Envoyer des alertes */}
+      <Dialog open={showAlertDialog} onOpenChange={(o) => { if (!o) setShowAlertDialog(false); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Bell className="w-4 h-4 text-amber-600" />
+              Envoyer des alertes d'absences
+            </DialogTitle>
+            <DialogDescription>
+              Les étudiants ayant atteint ou dépassé le seuil d'absences non justifiées recevront une notification.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <div className="space-y-1.5">
+              <Label>Seuil d'absences non justifiées</Label>
+              <Input
+                type="number"
+                min="1"
+                max="50"
+                value={alertThreshold}
+                onChange={(e) => setAlertThreshold(e.target.value)}
+                placeholder="ex: 3"
+              />
+              <p className="text-xs text-muted-foreground">
+                Les étudiants avec ≥ {alertThreshold} absence(s) seront notifiés.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAlertDialog(false)}>Annuler</Button>
+            <Button
+              className="gap-2 bg-amber-600 hover:bg-amber-700"
+              onClick={handleSendAlerts}
+              disabled={alertLoading}
+            >
+              <Bell className="w-4 h-4" />
+              {alertLoading ? "Envoi…" : "Envoyer les alertes"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   );
 }

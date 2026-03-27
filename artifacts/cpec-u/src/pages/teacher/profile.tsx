@@ -1,14 +1,60 @@
+import { useState } from "react";
 import { AppLayout } from "@/components/layout";
 import { useGetCurrentUser, useGetTeacherAssignments } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
-import { User, Mail, BookOpen, Clock, Calendar, TrendingUp, Award } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { User, Mail, Phone, BookOpen, Clock, Calendar, TrendingUp, Award, Pencil } from "lucide-react";
 import { motion } from "framer-motion";
+import { useQueryClient } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
 
 export default function TeacherProfile() {
   const { data: user } = useGetCurrentUser();
   const { data: assignments = [], isLoading } = useGetTeacherAssignments();
+  const { toast } = useToast();
+  const qc = useQueryClient();
+
+  const [showEdit, setShowEdit] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [editPhone, setEditPhone] = useState("");
+  const [editLoading, setEditLoading] = useState(false);
+
+  const openEdit = () => {
+    setEditName((user as any)?.name ?? "");
+    setEditEmail((user as any)?.email ?? "");
+    setEditPhone((user as any)?.phone ?? "");
+    setShowEdit(true);
+  };
+
+  const handleSaveProfile = async () => {
+    if (!editName.trim()) {
+      toast({ title: "Nom requis", variant: "destructive" });
+      return;
+    }
+    setEditLoading(true);
+    try {
+      const res = await fetch("/api/teacher/profile", {
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: editName, email: editEmail, phone: editPhone }),
+      });
+      if (!res.ok) { const e = await res.json(); throw new Error(e.error ?? "Erreur"); }
+      toast({ title: "Profil mis à jour", description: "Vos informations ont été enregistrées." });
+      setShowEdit(false);
+      qc.invalidateQueries({ queryKey: ["/api/auth/me"] });
+    } catch (err: any) {
+      toast({ title: "Erreur", description: err.message, variant: "destructive" });
+    } finally {
+      setEditLoading(false);
+    }
+  };
 
   const totalPlanned = (assignments as any[]).reduce((s: number, a: any) => s + (a.plannedHours ?? 0), 0);
   const totalCompleted = (assignments as any[]).reduce((s: number, a: any) => s + (a.completedHours ?? 0), 0);
@@ -34,8 +80,23 @@ export default function TeacherProfile() {
                     <Mail className="w-3.5 h-3.5" />
                     {(user as any)?.email ?? "—"}
                   </span>
+                  {(user as any)?.phone && (
+                    <span className="flex items-center gap-1.5 text-primary-foreground/80 text-sm">
+                      <Phone className="w-3.5 h-3.5" />
+                      {(user as any).phone}
+                    </span>
+                  )}
                 </div>
               </div>
+              <Button
+                variant="secondary"
+                size="sm"
+                className="gap-1.5 bg-white/20 text-white hover:bg-white/30 border-0 shrink-0"
+                onClick={openEdit}
+              >
+                <Pencil className="w-3.5 h-3.5" />
+                Modifier
+              </Button>
             </div>
           </div>
         </motion.div>
@@ -140,6 +201,39 @@ export default function TeacherProfile() {
           </Card>
         </motion.div>
       </div>
+
+      {/* Dialog: Modifier le profil */}
+      <Dialog open={showEdit} onOpenChange={(o) => { if (!o) setShowEdit(false); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Pencil className="w-4 h-4 text-primary" />
+              Modifier mon profil
+            </DialogTitle>
+            <DialogDescription>Mettez à jour vos informations de contact.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <div className="space-y-1.5">
+              <Label>Nom complet *</Label>
+              <Input value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="Votre nom" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Adresse email</Label>
+              <Input type="email" value={editEmail} onChange={(e) => setEditEmail(e.target.value)} placeholder="email@exemple.com" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Téléphone</Label>
+              <Input value={editPhone} onChange={(e) => setEditPhone(e.target.value)} placeholder="+225 07 00 00 00 00" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowEdit(false)}>Annuler</Button>
+            <Button onClick={handleSaveProfile} disabled={editLoading}>
+              {editLoading ? "Enregistrement…" : "Enregistrer"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   );
 }

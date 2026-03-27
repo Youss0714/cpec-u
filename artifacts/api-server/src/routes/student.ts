@@ -327,6 +327,52 @@ router.get("/justifications", requireRole("student"), async (req, res) => {
 });
 
 // ─── GET /student/balance — solde de scolarité de l'étudiant connecté ─────────
+// ─── Cahier de texte étudiant (T002) ─────────────────────────────────────────
+
+router.get("/cahier-de-texte", requireRole("student"), async (req, res) => {
+  try {
+    const studentId = req.session!.userId!;
+
+    const enrollment = await db
+      .select({ classId: classEnrollmentsTable.classId })
+      .from(classEnrollmentsTable)
+      .where(eq(classEnrollmentsTable.studentId, studentId))
+      .orderBy(sql`enrolled_at DESC`)
+      .limit(1);
+
+    if (!enrollment.length) {
+      res.json([]);
+      return;
+    }
+
+    const classId = enrollment[0].classId;
+
+    const entries = await db.execute(sql`
+      SELECT
+        c.id,
+        c.session_date AS "sessionDate",
+        c.title,
+        c.contenu,
+        c.devoirs,
+        c.heures_effectuees AS "heuresEffectuees",
+        s.name AS "subjectName",
+        sem.name AS "semesterName",
+        u.name AS "teacherName"
+      FROM cahier_de_texte c
+      INNER JOIN subjects s ON s.id = c.subject_id
+      INNER JOIN semesters sem ON sem.id = c.semester_id
+      INNER JOIN users u ON u.id = c.teacher_id
+      WHERE c.class_id = ${classId}
+      ORDER BY c.session_date DESC, s.name ASC
+    `);
+
+    res.json(entries.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
 router.get("/balance", requireRole("student"), async (req, res) => {
   try {
     const studentId = req.session!.userId!;

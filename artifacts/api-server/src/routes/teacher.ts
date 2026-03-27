@@ -815,4 +815,46 @@ router.delete("/cahier-de-texte/:id", requireRole("teacher"), async (req, res) =
   }
 });
 
+// ─── Profil enseignant modifiable (T004) ─────────────────────────────────────
+
+router.put("/profile", requireRole("teacher"), async (req, res) => {
+  try {
+    const teacherId = req.session!.userId!;
+    const { name, email, phone } = req.body;
+
+    const updates: any = { updatedAt: new Date() };
+    if (name?.trim()) updates.name = name.trim();
+    if (email?.trim()) updates.email = email.trim().toLowerCase();
+    if (phone !== undefined) updates.phone = phone?.trim() || null;
+
+    if (Object.keys(updates).length === 1) {
+      res.status(400).json({ error: "Aucune donnée à mettre à jour." });
+      return;
+    }
+
+    if (email?.trim()) {
+      const [existing] = await db
+        .select({ id: usersTable.id })
+        .from(usersTable)
+        .where(eq(usersTable.email, email.trim().toLowerCase()))
+        .limit(1);
+      if (existing && existing.id !== teacherId) {
+        res.status(409).json({ error: "Cet email est déjà utilisé." });
+        return;
+      }
+    }
+
+    const [updated] = await db
+      .update(usersTable)
+      .set(updates)
+      .where(eq(usersTable.id, teacherId))
+      .returning({ id: usersTable.id, name: usersTable.name, email: usersTable.email, phone: usersTable.phone });
+
+    res.json(updated);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
 export default router;

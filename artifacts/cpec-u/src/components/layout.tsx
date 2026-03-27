@@ -34,6 +34,7 @@ import {
   Moon,
   UserCircle,
   BookText,
+  TrendingUp,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
@@ -158,6 +159,7 @@ export function AppLayout({ children, allowedRoles, noScroll = false }: AppLayou
     { name: "Promotion Annuelle", href: "/admin/promotion", icon: Rocket },
     { name: "Archives", href: "/admin/archives", icon: Archive },
     { name: "Cahiers de texte", href: "/admin/cahier-de-texte", icon: BookText },
+    { name: "Suivi des Heures", href: "/admin/suivi-heures", icon: TrendingUp },
     { name: "Journal d'Activité", href: "/admin/activity-log", icon: ScrollText },
     { name: "Messages", href: "/admin/messages", icon: MessageSquare, badge: unreadMsgCount > 0 ? unreadMsgCount : undefined },
   ];
@@ -174,6 +176,7 @@ export function AppLayout({ children, allowedRoles, noScroll = false }: AppLayou
     { name: "Semestres", href: "/admin/semesters", icon: Calendar },
     { name: "Utilisateurs", href: "/admin/users", icon: Users },
     { name: "Cahiers de texte", href: "/admin/cahier-de-texte", icon: BookText },
+    { name: "Suivi des Heures", href: "/admin/suivi-heures", icon: TrendingUp },
     { name: "Honoraires", href: "/admin/honoraires", icon: Wallet },
     { name: "Messages", href: "/admin/messages", icon: MessageSquare, badge: unreadMsgCount > 0 ? unreadMsgCount : undefined },
   ];
@@ -191,6 +194,7 @@ export function AppLayout({ children, allowedRoles, noScroll = false }: AppLayou
     { name: "Promotion Annuelle", href: "/admin/promotion", icon: Rocket },
     { name: "Archives", href: "/admin/archives", icon: Archive },
     { name: "Cahiers de texte", href: "/admin/cahier-de-texte", icon: BookText },
+    { name: "Suivi des Heures", href: "/admin/suivi-heures", icon: TrendingUp },
     { name: "Journal d'Activité", href: "/admin/activity-log", icon: ScrollText },
     { name: "Hébergement", href: "/admin/housing", icon: Building2 },
     { name: "Honoraires", href: "/admin/honoraires", icon: Wallet },
@@ -228,6 +232,7 @@ export function AppLayout({ children, allowedRoles, noScroll = false }: AppLayou
           { name: "Mon Emploi du Temps", href: "/student/schedule", icon: CalendarDays, badge: null },
           { name: "Mes Résultats", href: "/student/grades", icon: FileText, badge: null },
           { name: "Mes Absences", href: "/student/absences", icon: CalendarOff, badge: null },
+          { name: "Cahier de texte", href: "/student/cahier-de-texte", icon: BookText, badge: null },
           { name: "Notifications", href: "/student/notifications", icon: Bell, badge: (unreadData?.count ?? 0) > 0 ? unreadData!.count : null },
           { name: "Messages", href: "/student/messages", icon: MessageSquare, badge: unreadMsgCount > 0 ? unreadMsgCount : undefined },
           { name: "Changer mon mot de passe", href: "/change-password", icon: KeyRound, badge: null },

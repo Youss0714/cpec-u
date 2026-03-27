@@ -1,16 +1,24 @@
+import { useState } from "react";
 import { useParams, useLocation } from "wouter";
 import { AppLayout } from "@/components/layout";
-import { useGetAdminStudentDetail } from "@workspace/api-client-react";
+import { useGetAdminStudentDetail, useGetCurrentUser } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
+} from "@/components/ui/dialog";
+import {
   ArrowLeft, User, Mail, Phone, MapPin, Calendar, Globe, GraduationCap,
-  BookOpen, AlertCircle, CheckCircle2, Wallet, Home, TrendingUp, Clock,
+  BookOpen, AlertCircle, CheckCircle2, Wallet, Home, TrendingUp, Clock, Plus, Trash2,
 } from "lucide-react";
 import { motion } from "framer-motion";
+import { useQueryClient } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
 
 function fmt(n: number) {
   return new Intl.NumberFormat("fr-FR").format(Math.round(n));
@@ -31,6 +39,60 @@ export default function AdminStudentDetail() {
   const params = useParams<{ id: string }>();
   const [, navigate] = useLocation();
   const studentId = parseInt(params.id ?? "0");
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const { data: currentUser } = useGetCurrentUser();
+  const adminSubRole = (currentUser as any)?.adminSubRole;
+  const canRecordPayment = adminSubRole === "scolarite" || adminSubRole === "directeur";
+
+  const [showPayDialog, setShowPayDialog] = useState(false);
+  const [payAmount, setPayAmount] = useState("");
+  const [payDesc, setPayDesc] = useState("");
+  const [payDate, setPayDate] = useState(new Date().toISOString().slice(0, 10));
+  const [payLoading, setPayLoading] = useState(false);
+
+  const [deletePayId, setDeletePayId] = useState<number | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
+  const handleAddPayment = async () => {
+    if (!payAmount || isNaN(Number(payAmount)) || Number(payAmount) <= 0) {
+      toast({ title: "Montant invalide", description: "Veuillez saisir un montant positif.", variant: "destructive" });
+      return;
+    }
+    setPayLoading(true);
+    try {
+      const res = await fetch("/api/admin/payments", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ studentId, amount: Number(payAmount), description: payDesc, paymentDate: payDate }),
+      });
+      if (!res.ok) { const e = await res.json(); throw new Error(e.error ?? "Erreur"); }
+      toast({ title: "Paiement enregistré", description: `${Number(payAmount).toLocaleString("fr-FR")} FCFA ajouté avec succès.` });
+      setShowPayDialog(false);
+      setPayAmount(""); setPayDesc(""); setPayDate(new Date().toISOString().slice(0, 10));
+      qc.invalidateQueries({ queryKey: [`/api/admin/students/${studentId}/detail`] });
+    } catch (err: any) {
+      toast({ title: "Erreur", description: err.message, variant: "destructive" });
+    } finally {
+      setPayLoading(false);
+    }
+  };
+
+  const handleDeletePayment = async (payId: number) => {
+    setDeleteLoading(true);
+    try {
+      const res = await fetch(`/api/admin/payments/${payId}`, { method: "DELETE", credentials: "include" });
+      if (!res.ok) { const e = await res.json(); throw new Error(e.error ?? "Erreur"); }
+      toast({ title: "Paiement supprimé" });
+      setDeletePayId(null);
+      qc.invalidateQueries({ queryKey: [`/api/admin/students/${studentId}/detail`] });
+    } catch (err: any) {
+      toast({ title: "Erreur", description: err.message, variant: "destructive" });
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
 
   const { data, isLoading, isError } = useGetAdminStudentDetail(studentId);
 
@@ -303,7 +365,19 @@ export default function AdminStudentDetail() {
 
               {/* Payment history */}
               <Card className="border-border shadow-sm">
-                <CardHeader><CardTitle className="text-base flex items-center gap-2"><TrendingUp className="w-4 h-4 text-primary" />Historique des paiements</CardTitle></CardHeader>
+                <CardHeader>
+                  <div className="flex items-center justify-between gap-3">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <TrendingUp className="w-4 h-4 text-primary" />Historique des paiements
+                    </CardTitle>
+                    {canRecordPayment && (
+                      <Button size="sm" className="gap-1.5" onClick={() => setShowPayDialog(true)}>
+                        <Plus className="w-4 h-4" />
+                        Enregistrer
+                      </Button>
+                    )}
+                  </div>
+                </CardHeader>
                 <CardContent className="p-0">
                   {scolarite.payments.length === 0 ? (
                     <div className="py-16 text-center text-muted-foreground">Aucun paiement enregistré.</div>
@@ -314,6 +388,7 @@ export default function AdminStudentDetail() {
                           <TableHead>Date</TableHead>
                           <TableHead>Description</TableHead>
                           <TableHead className="text-right">Montant</TableHead>
+                          {canRecordPayment && <TableHead className="w-10" />}
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -322,6 +397,16 @@ export default function AdminStudentDetail() {
                             <TableCell className="text-sm">{fmtDate(p.paymentDate)}</TableCell>
                             <TableCell>{p.description ?? "—"}</TableCell>
                             <TableCell className="text-right font-mono font-semibold text-emerald-700">+{fmt(p.amount)} F</TableCell>
+                            {canRecordPayment && (
+                              <TableCell>
+                                <button
+                                  onClick={() => setDeletePayId(p.id)}
+                                  className="text-muted-foreground hover:text-destructive transition-colors p-1"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </TableCell>
+                            )}
                           </TableRow>
                         ))}
                       </TableBody>
@@ -422,6 +507,72 @@ export default function AdminStudentDetail() {
           </Tabs>
         </motion.div>
       </div>
+
+      {/* Dialog: Enregistrer un paiement */}
+      <Dialog open={showPayDialog} onOpenChange={(o) => { if (!o) setShowPayDialog(false); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Wallet className="w-4 h-4 text-primary" />
+              Enregistrer un paiement
+            </DialogTitle>
+            <DialogDescription>
+              Saisissez les informations du versement pour {student?.name}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <div className="space-y-1.5">
+              <Label>Montant (FCFA) *</Label>
+              <Input
+                type="number"
+                min="0"
+                step="500"
+                placeholder="ex: 150000"
+                value={payAmount}
+                onChange={(e) => setPayAmount(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Description</Label>
+              <Input
+                placeholder="ex: Versement 1re tranche"
+                value={payDesc}
+                onChange={(e) => setPayDesc(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Date du paiement</Label>
+              <Input
+                type="date"
+                value={payDate}
+                onChange={(e) => setPayDate(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowPayDialog(false)}>Annuler</Button>
+            <Button onClick={handleAddPayment} disabled={payLoading}>
+              {payLoading ? "Enregistrement…" : "Enregistrer"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog: Confirmer suppression paiement */}
+      <Dialog open={deletePayId !== null} onOpenChange={(o) => { if (!o) setDeletePayId(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Supprimer ce paiement ?</DialogTitle>
+            <DialogDescription>Cette action est irréversible. Le paiement sera définitivement effacé.</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeletePayId(null)}>Annuler</Button>
+            <Button variant="destructive" onClick={() => deletePayId && handleDeletePayment(deletePayId)} disabled={deleteLoading}>
+              {deleteLoading ? "Suppression…" : "Supprimer"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   );
 }

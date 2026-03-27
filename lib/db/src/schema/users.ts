@@ -13,6 +13,7 @@ export const usersTable = pgTable("users", {
   role: roleEnum("role").notNull().default("student"),
   adminSubRole: adminSubRoleEnum("admin_sub_role"),
   mustChangePassword: boolean("must_change_password").default(false).notNull(),
+  phone: varchar("phone", { length: 50 }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
