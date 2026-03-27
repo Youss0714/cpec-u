@@ -14,8 +14,9 @@ import {
   gradeSubmissionsTable,
   notificationsTable,
   studentProfilesTable,
+  attendanceTable,
 } from "@workspace/db";
-import { eq, and, sql, inArray } from "drizzle-orm";
+import { eq, and, sql, inArray, desc } from "drizzle-orm";
 import { requireRole } from "../lib/auth.js";
 
 const router = Router();
@@ -488,6 +489,114 @@ router.post("/grade-submissions/notify-students", requireRole("teacher"), async 
   }
 });
 
+// ─── GET /teacher/students/:studentId — fiche détaillée d'un étudiant ────────
+router.get("/students/:studentId", requireRole("teacher"), async (req, res) => {
+  try {
+    const teacherId = req.session!.userId!;
+    const studentId = parseInt(req.params.studentId);
+
+    // Check teacher is assigned to a class this student is enrolled in
+    const teacherClasses = await db
+      .selectDistinct({ classId: teacherAssignmentsTable.classId })
+      .from(teacherAssignmentsTable)
+      .where(eq(teacherAssignmentsTable.teacherId, teacherId));
+    const classIds = teacherClasses.map(c => c.classId);
+    if (classIds.length === 0) {
+      res.status(403).json({ error: "Aucune classe assignée." });
+      return;
+    }
+
+    const [enrollment] = await db
+      .select({ classId: classEnrollmentsTable.classId, className: classesTable.name })
+      .from(classEnrollmentsTable)
+      .innerJoin(classesTable, eq(classesTable.id, classEnrollmentsTable.classId))
+      .where(and(
+        eq(classEnrollmentsTable.studentId, studentId),
+        inArray(classEnrollmentsTable.classId, classIds),
+      ))
+      .limit(1);
+
+    if (!enrollment) {
+      res.status(403).json({ error: "Cet étudiant n'est pas dans vos classes." });
+      return;
+    }
+
+    const [student] = await db
+      .select({ id: usersTable.id, name: usersTable.name, email: usersTable.email })
+      .from(usersTable)
+      .where(eq(usersTable.id, studentId))
+      .limit(1);
+
+    const [profile] = await db
+      .select({ photoUrl: studentProfilesTable.photoUrl, matricule: studentProfilesTable.matricule, phone: studentProfilesTable.phone })
+      .from(studentProfilesTable)
+      .where(eq(studentProfilesTable.studentId, studentId))
+      .limit(1);
+
+    // Grades for this student in teacher's subjects only
+    const teacherSubjects = await db
+      .selectDistinct({ subjectId: teacherAssignmentsTable.subjectId, semesterId: teacherAssignmentsTable.semesterId })
+      .from(teacherAssignmentsTable)
+      .where(and(
+        eq(teacherAssignmentsTable.teacherId, teacherId),
+        eq(teacherAssignmentsTable.classId, enrollment.classId),
+      ));
+
+    const subjectIds = teacherSubjects.map(s => s.subjectId);
+    const grades = subjectIds.length > 0
+      ? await db
+          .select({
+            subjectId: gradesTable.subjectId,
+            subjectName: subjectsTable.name,
+            coefficient: subjectsTable.coefficient,
+            semesterId: gradesTable.semesterId,
+            semesterName: semestersTable.name,
+            evaluationNumber: gradesTable.evaluationNumber,
+            value: gradesTable.value,
+          })
+          .from(gradesTable)
+          .innerJoin(subjectsTable, eq(subjectsTable.id, gradesTable.subjectId))
+          .innerJoin(semestersTable, eq(semestersTable.id, gradesTable.semesterId))
+          .where(and(
+            eq(gradesTable.studentId, studentId),
+            inArray(gradesTable.subjectId, subjectIds),
+          ))
+          .orderBy(gradesTable.semesterId, subjectsTable.name, gradesTable.evaluationNumber)
+      : [];
+
+    // Absences for this student in teacher's classes
+    const absences = await db
+      .select({
+        id: attendanceTable.id,
+        sessionDate: attendanceTable.sessionDate,
+        status: attendanceTable.status,
+        subjectName: subjectsTable.name,
+        semesterName: semestersTable.name,
+        note: attendanceTable.note,
+        justified: attendanceTable.justified,
+      })
+      .from(attendanceTable)
+      .innerJoin(subjectsTable, eq(subjectsTable.id, attendanceTable.subjectId))
+      .innerJoin(semestersTable, eq(semestersTable.id, attendanceTable.semesterId))
+      .where(and(
+        eq(attendanceTable.studentId, studentId),
+        eq(attendanceTable.classId, enrollment.classId),
+        inArray(attendanceTable.subjectId, subjectIds.length > 0 ? subjectIds : [-1]),
+      ))
+      .orderBy(desc(attendanceTable.sessionDate));
+
+    res.json({
+      student: { ...student, ...profile },
+      enrollment,
+      grades,
+      absences,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
 // ─── GET /teacher/students — liste des étudiants pour les classes de l'enseignant ───
 router.get("/students", requireRole("teacher", "admin"), async (req, res) => {
   try {
@@ -530,14 +639,14 @@ router.get("/students", requireRole("teacher", "admin"), async (req, res) => {
         studentEmail: usersTable.email,
         classId: classEnrollmentsTable.classId,
         className: classesTable.name,
-        enrollmentYear: classEnrollmentsTable.enrollmentYear,
+        enrolledAt: classEnrollmentsTable.enrolledAt,
         phone: studentProfilesTable.phone,
-        address: studentProfilesTable.address,
+        matricule: studentProfilesTable.matricule,
       })
       .from(classEnrollmentsTable)
       .innerJoin(usersTable, eq(usersTable.id, classEnrollmentsTable.studentId))
       .innerJoin(classesTable, eq(classesTable.id, classEnrollmentsTable.classId))
-      .leftJoin(studentProfilesTable, eq(studentProfilesTable.userId, classEnrollmentsTable.studentId))
+      .leftJoin(studentProfilesTable, eq(studentProfilesTable.studentId, classEnrollmentsTable.studentId))
       .where(inArray(classEnrollmentsTable.classId, classIds))
       .orderBy(classesTable.name, usersTable.name);
 

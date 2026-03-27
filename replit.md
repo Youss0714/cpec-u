@@ -103,6 +103,11 @@ artifacts-monorepo/
 - **Teacher profile** (`/teacher/profile`): view name, email, assignment progress per subject with progress bars, global completion rate.
 - **Dashboard today's sessions**: `useGetTeacherSchedule()` filtered to today's date, shows class, room, time. If no sessions, empty state message.
 - **Grade entry indicator**: amber highlight for student rows with no grade at all; "X étudiants sans note" count shown below heading.
+- **Student list** (`/teacher/students`): lists students enrolled in teacher's assigned classes, grouped by class, with search and class filter. Supports `?classId=X` URL param for deep-linking from dashboard. Each row links to student detail.
+- **Assignment cards deep-link**: each assignment card on the teacher dashboard has a "Voir les étudiants" button linking to `/teacher/students?classId=X`.
+- **Student detail** (`/teacher/students/:id`): tabbed view showing student grades (by evaluation) and absences (with justified/unjustified status) — scoped to the teacher's own subjects only. Backend enforces access control.
+- **API**: `GET /api/teacher/students` (list, with optional classId/semesterId filter), `GET /api/teacher/students/:studentId` (detail, teacher-scoped).
+- **Hook**: `useGetTeacherStudents(params?)`, `useGetTeacherStudentDetail(studentId)` in `lib/api-client-react/src/custom-hooks.ts`.
 
 ### Planificateur / Directeur
 - **Honoraires page** (`/admin/honoraires`): manage teacher fees and payments. Stats cards (total expected, paid, remaining, recovery rate). Per-teacher: define fee amount + period, add/delete payments. Backed by `/api/honoraires/*` routes (requirePlanificateurOrDirecteur).
@@ -111,6 +116,8 @@ artifacts-monorepo/
 - View own grades + average + rank at `/student/grades` (dedicated page). Only visible when semester.published = true. NO PDF.
 - Dashboard simplified: compact results summary card + quick navigation links.
 - **Justification notifications**: student receives a notification (in the notifications table) when admin approves or rejects their absence justification.
+- **Tuition balance card** (`/student` dashboard): shows "Mon Solde de Scolarité" card with totalDue, totalPaid, remaining, progress bar, and payment history. If no fees configured, shows a friendly empty state. Backend: `GET /api/student/balance`. Hook: `useGetStudentBalance()`.
+- **API**: `GET /api/student/balance` — returns `{ totalDue, totalPaid, remaining, academicYear, status, payments[] }`. The `status` field is `"non_configure"` when no fees are set up.
 
 ## UI Features
 

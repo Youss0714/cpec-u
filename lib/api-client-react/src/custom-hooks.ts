@@ -969,3 +969,37 @@ export const useGetAdminStudentDetail = (studentId: number, options?: QueryOpts<
     enabled: !!studentId,
     ...options,
   });
+
+// ─── Teacher Student Detail ───────────────────────────────────────────────────
+
+export const useGetTeacherStudentDetail = (studentId: number, options?: QueryOpts<any>) =>
+  useQuery<any, Error>({
+    queryKey: ["/api/teacher/students/detail", studentId],
+    queryFn: () => customFetch<any>(`/api/teacher/students/${studentId}`),
+    enabled: !!studentId,
+    ...options,
+  });
+
+// ─── Student Balance ──────────────────────────────────────────────────────────
+
+export type StudentBalance = {
+  totalDue: number;
+  totalPaid: number;
+  remaining: number;
+  academicYear: string | null;
+  status: "non_configure" | "solde" | "partiel" | "impaye";
+  payments: {
+    id: number;
+    amount: number;
+    description: string | null;
+    paymentDate: string;
+    recordedByName: string | null;
+  }[];
+};
+
+export const useGetStudentBalance = (options?: QueryOpts<StudentBalance>) =>
+  useQuery<StudentBalance, Error>({
+    queryKey: ["/api/student/balance"],
+    queryFn: () => customFetch<StudentBalance>("/api/student/balance"),
+    ...options,
+  });

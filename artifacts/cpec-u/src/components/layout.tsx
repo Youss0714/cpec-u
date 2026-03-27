@@ -214,6 +214,7 @@ export function AppLayout({ children, allowedRoles, noScroll = false }: AppLayou
           { name: "Mon Planning", href: "/teacher/schedule", icon: CalendarDays },
           { name: "Gestion des Présences", href: "/teacher/attendance", icon: ClipboardList },
           { name: "Saisie des Notes", href: "/teacher/grades", icon: PenTool },
+          { name: "Mes Étudiants", href: "/teacher/students", icon: Users },
           { name: "Mon Profil", href: "/teacher/profile", icon: UserCircle },
           { name: "Messages", href: "/teacher/messages", icon: MessageSquare, badge: unreadMsgCount > 0 ? unreadMsgCount : undefined },
         ]
@@ -286,7 +287,8 @@ export function AppLayout({ children, allowedRoles, noScroll = false }: AppLayou
 
       <nav className="flex-1 px-4 space-y-1 mt-4 overflow-y-auto">
         {navItems.map((item) => {
-          const isActive = location === item.href || location.startsWith(item.href + "?");
+          const isActive = location === item.href || location.startsWith(item.href + "?") ||
+            (item.href !== "/" && item.href !== "/teacher" && item.href !== "/admin" && item.href !== "/student" && location.startsWith(item.href + "/"));
           return (
             <Link
               key={item.name}

@@ -3,7 +3,7 @@ import { AppLayout } from "@/components/layout";
 import { useGetTeacherAssignments, useGetTeacherSchedule } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Link } from "wouter";
-import { BookOpen, PenTool, Calendar, Clock, TrendingUp, MapPin, Users, CalendarDays } from "lucide-react";
+import { BookOpen, PenTool, Calendar, Clock, TrendingUp, MapPin, Users, CalendarDays, ChevronRight } from "lucide-react";
 import { useOfflineGrades } from "@/lib/offline-sync";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -198,6 +198,12 @@ export default function TeacherDashboard() {
                             </>
                           )}
                         </div>
+                        <Link href={`/teacher/students?classId=${a.classId}`}>
+                          <div className="flex items-center justify-between text-xs text-primary font-medium hover:underline underline-offset-2 pt-1">
+                            <span className="flex items-center gap-1"><Users className="w-3 h-3" />Voir les étudiants</span>
+                            <ChevronRight className="w-3 h-3" />
+                          </div>
+                        </Link>
                       </CardContent>
                     </Card>
                   );

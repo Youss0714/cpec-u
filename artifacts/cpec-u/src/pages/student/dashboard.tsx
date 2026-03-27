@@ -1,5 +1,5 @@
 import { AppLayout } from "@/components/layout";
-import { useGetStudentProfile, useListSemesters, useGetStudentResults } from "@workspace/api-client-react";
+import { useGetStudentProfile, useListSemesters, useGetStudentResults, useGetStudentBalance } from "@workspace/api-client-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { useState, useRef } from "react";
 import { motion } from "framer-motion";
@@ -7,7 +7,7 @@ import {
   GraduationCap, Award, Building2, CalendarDays, Camera, Upload,
   FileText, CalendarOff, MessageSquare, Bell, ArrowRight,
   Hash, MapPin, Phone, User2, Mail, Home, BookOpen,
-  Calendar, BadgeCheck, ChevronDown, ChevronUp,
+  Calendar, BadgeCheck, ChevronDown, ChevronUp, Wallet, CheckCircle, AlertCircle, Clock,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -51,6 +51,7 @@ export default function StudentDashboard() {
   const { data: profile } = useGetStudentProfile();
   const { data: semesters } = useListSemesters();
   const { data: housing } = useMyHousing();
+  const { data: balance } = useGetStudentBalance();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -334,6 +335,103 @@ export default function StudentDashboard() {
             </Card>
           </motion.div>
         )}
+
+        {/* Solde de scolarité */}
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.22 }}>
+          <Card className="border-border shadow-sm overflow-hidden">
+            <CardContent className="p-0">
+              <div className="flex items-center justify-between px-5 py-4 border-b border-border/50 bg-secondary/20">
+                <div className="flex items-center gap-2">
+                  <Wallet className="w-4 h-4 text-primary" />
+                  <span className="font-semibold text-foreground text-sm">Mon Solde de Scolarité</span>
+                  {balance && balance.academicYear && (
+                    <span className="text-xs text-muted-foreground">— {balance.academicYear}</span>
+                  )}
+                </div>
+                {balance && balance.status !== "non_configure" && (
+                  <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${
+                    balance.status === "solde"
+                      ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                      : balance.status === "partiel"
+                      ? "bg-amber-50 text-amber-700 border-amber-200"
+                      : "bg-red-50 text-red-700 border-red-200"
+                  }`}>
+                    {balance.status === "solde" ? "✓ Soldé" : balance.status === "partiel" ? "Partiel" : "Non payé"}
+                  </span>
+                )}
+              </div>
+
+              {!balance || balance.status === "non_configure" ? (
+                <div className="px-5 py-6 text-center text-muted-foreground text-sm">
+                  <Clock className="w-6 h-6 mx-auto mb-2 opacity-40" />
+                  Frais de scolarité non encore configurés. Contactez l'administration.
+                </div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-3 divide-x divide-border/60">
+                    <div className="px-5 py-5 text-center">
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Total dû</p>
+                      <p className="text-xl font-bold font-mono text-foreground">
+                        {balance.totalDue.toLocaleString("fr-FR")}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-0.5">FCFA</p>
+                    </div>
+                    <div className="px-5 py-5 text-center">
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Payé</p>
+                      <p className="text-xl font-bold font-mono text-emerald-600">
+                        {balance.totalPaid.toLocaleString("fr-FR")}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-0.5">FCFA</p>
+                    </div>
+                    <div className="px-5 py-5 text-center">
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Reste à payer</p>
+                      <p className={`text-xl font-bold font-mono ${balance.remaining > 0 ? "text-red-600" : "text-emerald-600"}`}>
+                        {balance.remaining.toLocaleString("fr-FR")}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-0.5">FCFA</p>
+                    </div>
+                  </div>
+
+                  {/* Progress bar */}
+                  <div className="px-5 pb-4">
+                    <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all ${balance.status === "solde" ? "bg-emerald-500" : "bg-primary"}`}
+                        style={{ width: `${balance.totalDue > 0 ? Math.min(100, Math.round((balance.totalPaid / balance.totalDue) * 100)) : 0}%` }}
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1.5 text-right">
+                      {balance.totalDue > 0 ? Math.round((balance.totalPaid / balance.totalDue) * 100) : 0}% réglé
+                    </p>
+                  </div>
+
+                  {/* Payment history */}
+                  {balance.payments.length > 0 && (
+                    <div className="border-t border-border/50 px-5 pt-3 pb-4">
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Historique des paiements</p>
+                      <div className="space-y-2">
+                        {balance.payments.map((p) => (
+                          <div key={p.id} className="flex items-center justify-between text-sm">
+                            <div className="flex items-center gap-2">
+                              <CheckCircle className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />
+                              <div>
+                                <span className="font-medium">{Number(p.amount).toLocaleString("fr-FR")} FCFA</span>
+                                {p.description && <span className="text-muted-foreground ml-1">— {p.description}</span>}
+                              </div>
+                            </div>
+                            <span className="text-muted-foreground text-xs flex-shrink-0">
+                              {new Date(p.paymentDate).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </motion.div>
 
         {/* Latest results summary */}
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.24 }}>

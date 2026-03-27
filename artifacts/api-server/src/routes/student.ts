@@ -10,8 +10,10 @@ import {
   studentProfilesTable,
   attendanceTable,
   absenceJustificationsTable,
+  studentFeesTable,
+  paymentsTable,
 } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { requireRole } from "../lib/auth.js";
 
 const router = Router();
@@ -318,6 +320,53 @@ router.get("/justifications", requireRole("student"), async (req, res) => {
       .from(absenceJustificationsTable)
       .where(eq(absenceJustificationsTable.studentId, studentId));
     res.json(justifications);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// ─── GET /student/balance — solde de scolarité de l'étudiant connecté ─────────
+router.get("/balance", requireRole("student"), async (req, res) => {
+  try {
+    const studentId = req.session!.userId!;
+
+    const [fee] = await db
+      .select()
+      .from(studentFeesTable)
+      .where(eq(studentFeesTable.studentId, studentId))
+      .limit(1);
+
+    const [paidRow] = await db
+      .select({ totalPaid: sql<number>`COALESCE(SUM(${paymentsTable.amount}), 0)` })
+      .from(paymentsTable)
+      .where(eq(paymentsTable.studentId, studentId));
+
+    const totalDue = fee ? Number(fee.totalAmount) : 0;
+    const totalPaid = Number(paidRow?.totalPaid ?? 0);
+    const remaining = Math.max(0, totalDue - totalPaid);
+
+    const payments = await db
+      .select({
+        id: paymentsTable.id,
+        amount: paymentsTable.amount,
+        description: paymentsTable.description,
+        paymentDate: paymentsTable.paymentDate,
+        recordedByName: usersTable.name,
+      })
+      .from(paymentsTable)
+      .leftJoin(usersTable, eq(usersTable.id, paymentsTable.recordedById))
+      .where(eq(paymentsTable.studentId, studentId))
+      .orderBy(paymentsTable.paymentDate);
+
+    res.json({
+      totalDue,
+      totalPaid,
+      remaining,
+      academicYear: fee?.academicYear ?? null,
+      status: totalDue === 0 ? "non_configure" : totalPaid >= totalDue ? "solde" : totalPaid > 0 ? "partiel" : "impaye",
+      payments,
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Internal Server Error" });
