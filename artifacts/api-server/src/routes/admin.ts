@@ -28,8 +28,9 @@ import {
   housingAssignmentsTable,
   housingRoomsTable,
   housingBuildingsTable,
+  cahierDeTexteTable,
 } from "@workspace/db";
-import { eq, and, sql, count, inArray, desc, ne, isNotNull } from "drizzle-orm";
+import { eq, and, sql, count, inArray, desc, ne, isNotNull, asc } from "drizzle-orm";
 import { requireRole } from "../lib/auth.js";
 
 const router = Router();
@@ -2131,6 +2132,55 @@ ${bulletinHTMLParts.map(h => {
 
     res.setHeader("Content-Type", "text/html; charset=utf-8");
     res.send(combinedHTML);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// ─── Cahier de texte (lecture seule admin) ────────────────────────────────────
+
+router.get("/cahier-de-texte", requireRole("admin"), async (req, res) => {
+  try {
+    const { teacherId, classId, subjectId, semesterId } = req.query;
+
+    const conditions: any[] = [];
+    if (teacherId) conditions.push(eq(cahierDeTexteTable.teacherId, parseInt(teacherId as string)));
+    if (classId) conditions.push(eq(cahierDeTexteTable.classId, parseInt(classId as string)));
+    if (subjectId) conditions.push(eq(cahierDeTexteTable.subjectId, parseInt(subjectId as string)));
+    if (semesterId) conditions.push(eq(cahierDeTexteTable.semesterId, parseInt(semesterId as string)));
+
+    const query = db
+      .select({
+        id: cahierDeTexteTable.id,
+        sessionDate: cahierDeTexteTable.sessionDate,
+        title: cahierDeTexteTable.title,
+        contenu: cahierDeTexteTable.contenu,
+        devoirs: cahierDeTexteTable.devoirs,
+        heuresEffectuees: cahierDeTexteTable.heuresEffectuees,
+        subjectId: cahierDeTexteTable.subjectId,
+        subjectName: subjectsTable.name,
+        classId: cahierDeTexteTable.classId,
+        className: classesTable.name,
+        semesterId: cahierDeTexteTable.semesterId,
+        semesterName: semestersTable.name,
+        teacherId: cahierDeTexteTable.teacherId,
+        teacherName: usersTable.name,
+        createdAt: cahierDeTexteTable.createdAt,
+        updatedAt: cahierDeTexteTable.updatedAt,
+      })
+      .from(cahierDeTexteTable)
+      .innerJoin(subjectsTable, eq(subjectsTable.id, cahierDeTexteTable.subjectId))
+      .innerJoin(classesTable, eq(classesTable.id, cahierDeTexteTable.classId))
+      .innerJoin(semestersTable, eq(semestersTable.id, cahierDeTexteTable.semesterId))
+      .innerJoin(usersTable, eq(usersTable.id, cahierDeTexteTable.teacherId))
+      .orderBy(desc(cahierDeTexteTable.sessionDate), asc(usersTable.name));
+
+    const entries = conditions.length > 0
+      ? await query.where(conditions.length === 1 ? conditions[0] : and(...conditions))
+      : await query;
+
+    res.json(entries);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Internal Server Error" });

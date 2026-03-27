@@ -157,6 +157,7 @@ export function AppLayout({ children, allowedRoles, noScroll = false }: AppLayou
     { name: "Résultats & Bulletins", href: "/admin/results", icon: GraduationCap, badge: pendingCount > 0 ? pendingCount : undefined },
     { name: "Promotion Annuelle", href: "/admin/promotion", icon: Rocket },
     { name: "Archives", href: "/admin/archives", icon: Archive },
+    { name: "Cahiers de texte", href: "/admin/cahier-de-texte", icon: BookText },
     { name: "Journal d'Activité", href: "/admin/activity-log", icon: ScrollText },
     { name: "Messages", href: "/admin/messages", icon: MessageSquare, badge: unreadMsgCount > 0 ? unreadMsgCount : undefined },
   ];
@@ -188,6 +189,7 @@ export function AppLayout({ children, allowedRoles, noScroll = false }: AppLayou
     { name: "Résultats & Bulletins", href: "/admin/results", icon: GraduationCap, badge: pendingCount > 0 ? pendingCount : undefined },
     { name: "Promotion Annuelle", href: "/admin/promotion", icon: Rocket },
     { name: "Archives", href: "/admin/archives", icon: Archive },
+    { name: "Cahiers de texte", href: "/admin/cahier-de-texte", icon: BookText },
     { name: "Journal d'Activité", href: "/admin/activity-log", icon: ScrollText },
     { name: "Hébergement", href: "/admin/housing", icon: Building2 },
     { name: "Honoraires", href: "/admin/honoraires", icon: Wallet },
