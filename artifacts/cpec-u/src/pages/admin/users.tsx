@@ -943,7 +943,7 @@ export default function AdminUsers() {
             <p className="text-muted-foreground text-sm mt-1">Gérez les accès et les profils de l'établissement.</p>
           </div>
           {(isDirecteur || isPlanificateur || isScolarite) && (
-            <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) { setTeacherAssignmentRows([]); setSelectedRole("student"); setCreateProfileForm(emptyCreateProfile); setCreateStudentClassId(""); } }}>
+            <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (open) { setSelectedRole(isPlanificateur ? "teacher" : "student"); } else { setTeacherAssignmentRows([]); setSelectedRole(isPlanificateur ? "teacher" : "student"); setCreateProfileForm(emptyCreateProfile); setCreateStudentClassId(""); } }}>
               <DialogTrigger asChild>
                 <Button className="gap-2 shrink-0"><Plus className="w-4 h-4" /> Nouvel Utilisateur</Button>
               </DialogTrigger>
@@ -955,7 +955,7 @@ export default function AdminUsers() {
                   <div className="space-y-1"><Label>Mot de passe</Label><Input name="password" type="password" required minLength={6} autoComplete="new-password" /></div>
                   <div className="space-y-1">
                     <Label>Rôle</Label>
-                    <Select name="role" defaultValue={isPlanificateur ? "teacher" : "student"} onValueChange={(v) => { setSelectedRole(v); setTeacherAssignmentRows([]); }}>
+                    <Select name="role" value={selectedRole} onValueChange={(v) => { setSelectedRole(v); setTeacherAssignmentRows([]); }}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
                         {!isPlanificateur && <SelectItem value="student">Étudiant</SelectItem>}
