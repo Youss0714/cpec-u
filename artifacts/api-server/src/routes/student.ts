@@ -83,8 +83,8 @@ router.put("/photo", requireRole("student"), async (req, res) => {
       res.status(400).json({ error: "Bad Request", message: "photoUrl is required" });
       return;
     }
-    if (photoUrl.length > 5 * 1024 * 1024) {
-      res.status(400).json({ error: "Bad Request", message: "Image trop grande (max 5MB)" });
+    if (photoUrl.length > 10 * 1024 * 1024) {
+      res.status(400).json({ error: "Bad Request", message: "Image trop grande (max 7MB)" });
       return;
     }
     const [existing] = await db.select().from(studentProfilesTable).where(eq(studentProfilesTable.studentId, studentId)).limit(1);
