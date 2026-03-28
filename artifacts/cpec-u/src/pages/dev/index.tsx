@@ -176,6 +176,15 @@ export default function DevDashboard() {
     }
   };
 
+  const handleRenew = async (id: number) => {
+    if (!confirm("Renouveler cette clé ? Un nouveau code sera généré avec la même durée, et l'ancienne assignation sera effacée.")) return;
+    const r = await fetch(`${API}/keys/${id}/renew`, { method: "POST", credentials: "include" });
+    if (r.ok) {
+      const updated = await r.json();
+      setKeys(k => k.map(x => x.id === id ? updated : x));
+    }
+  };
+
   const handleCopy = (id: number, key: string) => {
     navigator.clipboard.writeText(key);
     setCopiedId(id);
@@ -520,6 +529,15 @@ export default function DevDashboard() {
                               title="Révoquer"
                             >
                               <RotateCcw className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                          {(k.status === "assigned" || k.status === "revoked") && (
+                            <button
+                              onClick={() => handleRenew(k.id)}
+                              className="p-1.5 rounded-lg text-zinc-500 hover:text-emerald-400 hover:bg-emerald-400/10 transition-colors"
+                              title="Renouveler (même durée, nouveau code)"
+                            >
+                              <RefreshCw className="w-3.5 h-3.5" />
                             </button>
                           )}
                           <button

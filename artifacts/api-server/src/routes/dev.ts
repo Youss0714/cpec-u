@@ -114,6 +114,36 @@ router.patch("/keys/:id/revoke", requireDev, async (req, res) => {
   }
 });
 
+router.post("/keys/:id/renew", requireDev, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const [existing] = await db
+      .select({ duration: activationKeysTable.duration })
+      .from(activationKeysTable)
+      .where(eq(activationKeysTable.id, id));
+    if (!existing) return res.status(404).json({ error: "Not Found" });
+
+    const newKey = generateKey();
+    const newExpiry = computeExpiry(existing.duration);
+
+    const [row] = await db.update(activationKeysTable)
+      .set({
+        key: newKey,
+        status: "available",
+        assignedToUserId: null,
+        assignedAt: null,
+        shownAt: null,
+        expiresAt: newExpiry,
+      })
+      .where(eq(activationKeysTable.id, id))
+      .returning();
+    res.json(row);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
 // --- User Management (directeurs only) ---
 
 router.get("/directeurs", requireDev, async (_req, res) => {
