@@ -20,25 +20,21 @@ if (Number.isNaN(port) || port <= 0) {
 
 async function seedInitialAdmin() {
   try {
-    const result = await db.execute(sql`SELECT COUNT(*) as count FROM users`);
-    const rows = Array.from(result as Iterable<{ count: string }>);
-    const count = parseInt(rows[0]?.count ?? "0", 10);
+    const passwordHash = crypto
+      .createHash("sha256")
+      .update("password123" + "cpec-u-salt")
+      .digest("hex");
 
-    if (count === 0) {
-      const passwordHash = crypto
-        .createHash("sha256")
-        .update("password123" + "cpec-u-salt")
-        .digest("hex");
+    const inserted = await db.insert(usersTable).values({
+      email: "youss@gmail.com",
+      name: "Youssouf Sawadogo",
+      passwordHash,
+      role: "admin",
+      adminSubRole: "directeur",
+      mustChangePassword: false,
+    }).onConflictDoNothing();
 
-      await db.insert(usersTable).values({
-        email: "youss@gmail.com",
-        name: "Youssouf Sawadogo",
-        passwordHash,
-        role: "admin",
-        adminSubRole: "directeur",
-        mustChangePassword: false,
-      });
-
+    if (inserted.rowCount && inserted.rowCount > 0) {
       console.log("✓ Compte administrateur initial créé : youss@gmail.com");
     }
   } catch (err) {

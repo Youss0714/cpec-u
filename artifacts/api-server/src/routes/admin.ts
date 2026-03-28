@@ -2317,7 +2317,7 @@ router.post("/absences/send-alerts", requireRole("admin"), async (req, res) => {
 router.get("/absences/alert-count", requireRole("admin"), async (req, res) => {
   try {
     const threshold = parseInt((req.query.threshold as string) ?? "3");
-    const [result] = await db.execute(sql`
+    const rows = Array.from(await db.execute(sql`
       SELECT COUNT(*)::int as count
       FROM (
         SELECT student_id
@@ -2326,8 +2326,8 @@ router.get("/absences/alert-count", requireRole("admin"), async (req, res) => {
         GROUP BY student_id
         HAVING COUNT(*) >= ${threshold}
       ) sub
-    `);
-    res.json({ count: (result as any).count ?? 0, threshold });
+    `));
+    res.json({ count: (rows[0] as any)?.count ?? 0, threshold });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Internal Server Error" });

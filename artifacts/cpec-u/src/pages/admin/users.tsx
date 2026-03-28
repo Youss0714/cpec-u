@@ -723,6 +723,10 @@ export default function AdminUsers() {
     const role = formData.get("role") as "admin" | "teacher" | "student";
     const adminSubRole = formData.get("adminSubRole") as string;
     const phone = formData.get("phone") as string;
+    if (!role) {
+      toast({ title: "Veuillez sélectionner un rôle.", variant: "destructive" });
+      return;
+    }
     if (role === "student" && !createStudentClassId) {
       toast({ title: "Veuillez sélectionner une classe pour l'étudiant.", variant: "destructive" });
       return;
@@ -943,7 +947,7 @@ export default function AdminUsers() {
             <p className="text-muted-foreground text-sm mt-1">Gérez les accès et les profils de l'établissement.</p>
           </div>
           {(isDirecteur || isPlanificateur || isScolarite) && (
-            <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (open) { setSelectedRole(isPlanificateur ? "teacher" : "student"); } else { setTeacherAssignmentRows([]); setSelectedRole(isPlanificateur ? "teacher" : "student"); setCreateProfileForm(emptyCreateProfile); setCreateStudentClassId(""); } }}>
+            <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); const defaultRole = isPlanificateur ? "teacher" : isScolarite ? "student" : ""; if (open) { setSelectedRole(defaultRole); } else { setTeacherAssignmentRows([]); setSelectedRole(defaultRole); setCreateProfileForm(emptyCreateProfile); setCreateStudentClassId(""); } }}>
               <DialogTrigger asChild>
                 <Button className="gap-2 shrink-0"><Plus className="w-4 h-4" /> Nouvel Utilisateur</Button>
               </DialogTrigger>
@@ -956,13 +960,14 @@ export default function AdminUsers() {
                   <div className="space-y-1">
                     <Label>Rôle</Label>
                     <Select name="role" value={selectedRole} onValueChange={(v) => { setSelectedRole(v); setTeacherAssignmentRows([]); }}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectTrigger><SelectValue placeholder="Sélectionner un rôle..." /></SelectTrigger>
                       <SelectContent>
                         {!isPlanificateur && <SelectItem value="student">Étudiant</SelectItem>}
                         {!isScolarite && <SelectItem value="teacher">Enseignant</SelectItem>}
                         {isDirecteur && <SelectItem value="admin">Admin</SelectItem>}
                       </SelectContent>
                     </Select>
+                    {!selectedRole && <p className="text-xs text-destructive mt-0.5">Veuillez sélectionner un rôle</p>}
                   </div>
                   {selectedRole === "student" && (
                     <>
