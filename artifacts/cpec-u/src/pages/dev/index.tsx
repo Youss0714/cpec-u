@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   Key, Plus, Trash2, ShieldCheck, LogOut, Copy, RotateCcw,
   Ban, CheckCircle, Infinity, Calendar, Clock,
+  UserCog, RefreshCw, Eye, EyeOff, X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -57,6 +58,14 @@ function formatKey(k: string): string {
   return k.replace(/-/g, "").match(/.{1,4}/g)?.join("-") ?? k;
 }
 
+interface Directeur {
+  id: number;
+  name: string;
+  email: string;
+  createdAt: string | null;
+  firstLoginAt: string | null;
+}
+
 export default function DevDashboard() {
   const [authenticated, setAuthenticated] = useState<boolean | null>(null);
   const [loginPassword, setLoginPassword] = useState("");
@@ -69,6 +78,21 @@ export default function DevDashboard() {
   const [genNotes, setGenNotes] = useState("");
   const [copiedId, setCopiedId] = useState<number | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("all");
+
+  // Tab navigation
+  const [activeTab, setActiveTab] = useState<"keys" | "directeurs">("keys");
+
+  // Directeurs & reset password
+  const [directeurs, setDirecteurs] = useState<Directeur[]>([]);
+  const [directeursLoading, setDirecteursLoading] = useState(false);
+  const [resetingId, setResetingId] = useState<number | null>(null);
+  const [resetPassword, setResetPassword] = useState("");
+  const [resetConfirm, setResetConfirm] = useState("");
+  const [showResetPwd, setShowResetPwd] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetError, setResetError] = useState("");
+  const [resetSuccess, setResetSuccess] = useState("");
 
   useEffect(() => {
     fetch(`${API}/me`, { credentials: "include" })
@@ -158,6 +182,67 @@ export default function DevDashboard() {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
+  const fetchDirecteurs = async () => {
+    setDirecteursLoading(true);
+    try {
+      const r = await fetch(`${API}/directeurs`, { credentials: "include" });
+      if (r.ok) setDirecteurs(await r.json());
+    } finally {
+      setDirecteursLoading(false);
+    }
+  };
+
+  const openResetForm = (id: number) => {
+    setResetingId(id);
+    setResetPassword("");
+    setResetConfirm("");
+    setResetError("");
+    setResetSuccess("");
+    setShowResetPwd(false);
+    setShowResetConfirm(false);
+  };
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setResetError("");
+    setResetSuccess("");
+    if (resetPassword !== resetConfirm) {
+      setResetError("Les mots de passe ne correspondent pas.");
+      return;
+    }
+    if (resetPassword.length < 6) {
+      setResetError("Le mot de passe doit contenir au moins 6 caractères.");
+      return;
+    }
+    setResetLoading(true);
+    try {
+      const r = await fetch(`${API}/reset-password`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: resetingId, newPassword: resetPassword }),
+      });
+      const d = await r.json();
+      if (r.ok) {
+        setResetSuccess(d.message);
+        setResetPassword("");
+        setResetConfirm("");
+        setTimeout(() => { setResetingId(null); setResetSuccess(""); }, 2500);
+      } else {
+        setResetError(d.error ?? "Erreur lors de la réinitialisation");
+      }
+    } catch {
+      setResetError("Erreur réseau");
+    } finally {
+      setResetLoading(false);
+    }
+  };
+
+  const handleTabChange = (tab: "keys" | "directeurs") => {
+    setActiveTab(tab);
+    if (tab === "directeurs" && directeurs.length === 0) fetchDirecteurs();
+  };
+
   if (authenticated === null) {
     return (
       <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center">
@@ -236,8 +321,37 @@ export default function DevDashboard() {
       </header>
 
       <div className="max-w-6xl mx-auto px-6 py-8 space-y-8">
-        {/* Stats */}
-        <div className="grid grid-cols-4 gap-4">
+
+        {/* Tab navigation */}
+        <div className="flex gap-1 bg-zinc-900 border border-zinc-800 rounded-xl p-1 w-fit">
+          <button
+            onClick={() => handleTabChange("keys")}
+            className={cn(
+              "flex items-center gap-2 text-sm px-4 py-2 rounded-lg transition-colors",
+              activeTab === "keys"
+                ? "bg-violet-600 text-white"
+                : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800"
+            )}
+          >
+            <Key className="w-4 h-4" />
+            Clés d'activation
+          </button>
+          <button
+            onClick={() => handleTabChange("directeurs")}
+            className={cn(
+              "flex items-center gap-2 text-sm px-4 py-2 rounded-lg transition-colors",
+              activeTab === "directeurs"
+                ? "bg-violet-600 text-white"
+                : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800"
+            )}
+          >
+            <UserCog className="w-4 h-4" />
+            Directeurs de Centre
+          </button>
+        </div>
+
+        {/* Stats - only on keys tab */}
+        {activeTab === "keys" && <div className="grid grid-cols-4 gap-4">
           {[
             { label: "Total", value: stats.total, color: "text-zinc-300" },
             { label: "Disponibles", value: stats.available, color: "text-emerald-400" },
@@ -251,8 +365,10 @@ export default function DevDashboard() {
           ))}
         </div>
 
+        }
+
         {/* Keys section */}
-        <div className="space-y-4">
+        {activeTab === "keys" && <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <h2 className="text-lg font-semibold text-white flex items-center gap-2">
@@ -421,7 +537,144 @@ export default function DevDashboard() {
               </table>
             </div>
           )}
-        </div>
+        </div>}
+
+        {/* Directeurs section */}
+        {activeTab === "directeurs" && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+                <UserCog className="w-5 h-5 text-violet-400" />
+                Directeurs de Centre
+              </h2>
+              <button
+                onClick={fetchDirecteurs}
+                className="flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-300 transition-colors px-3 py-1.5 rounded-lg hover:bg-zinc-800"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                Actualiser
+              </button>
+            </div>
+
+            {directeursLoading ? (
+              <div className="text-center py-12 text-zinc-600">Chargement...</div>
+            ) : directeurs.length === 0 ? (
+              <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-12 text-center">
+                <UserCog className="w-10 h-10 text-zinc-700 mx-auto mb-3" />
+                <p className="text-zinc-500 text-sm">Aucun directeur de centre enregistré.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {directeurs.map(d => (
+                  <div key={d.id} className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
+                    <div className="flex items-center justify-between px-5 py-4">
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 rounded-full bg-violet-500/10 border border-violet-500/20 flex items-center justify-center text-violet-400 font-semibold text-sm">
+                          {d.name.split(" ").map(n => n[0]).slice(0, 2).join("").toUpperCase()}
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-white">{d.name}</p>
+                          <p className="text-xs text-zinc-500">{d.email}</p>
+                          <p className="text-xs text-zinc-600 mt-0.5">
+                            {d.firstLoginAt ? `Première connexion : ${formatDate(d.firstLoginAt)}` : "Jamais connecté"}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => openResetForm(resetingId === d.id ? null! : d.id)}
+                        className={cn(
+                          "flex items-center gap-2 text-xs px-3 py-2 rounded-lg transition-colors",
+                          resetingId === d.id
+                            ? "bg-zinc-700 text-zinc-300"
+                            : "bg-violet-600/20 border border-violet-500/30 text-violet-400 hover:bg-violet-600/30"
+                        )}
+                      >
+                        <Key className="w-3.5 h-3.5" />
+                        Réinitialiser le mot de passe
+                      </button>
+                    </div>
+
+                    {resetingId === d.id && (
+                      <div className="border-t border-zinc-800 bg-zinc-950/60 px-5 py-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <p className="text-xs font-medium text-violet-300">
+                            Nouveau mot de passe pour <span className="text-white">{d.name}</span>
+                          </p>
+                          <button onClick={() => setResetingId(null)} className="text-zinc-600 hover:text-zinc-400">
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                        <form onSubmit={handleResetPassword} className="grid grid-cols-3 gap-3 items-end">
+                          <div className="space-y-1.5">
+                            <Label className="text-xs text-zinc-400">Nouveau mot de passe</Label>
+                            <div className="relative">
+                              <Input
+                                type={showResetPwd ? "text" : "password"}
+                                value={resetPassword}
+                                onChange={e => setResetPassword(e.target.value)}
+                                placeholder="Minimum 6 caractères"
+                                className="bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-600 pr-9"
+                                required
+                              />
+                              <button
+                                type="button"
+                                onClick={() => setShowResetPwd(v => !v)}
+                                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300"
+                              >
+                                {showResetPwd ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                              </button>
+                            </div>
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label className="text-xs text-zinc-400">Confirmer le mot de passe</Label>
+                            <div className="relative">
+                              <Input
+                                type={showResetConfirm ? "text" : "password"}
+                                value={resetConfirm}
+                                onChange={e => setResetConfirm(e.target.value)}
+                                placeholder="Répéter le mot de passe"
+                                className="bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-600 pr-9"
+                                required
+                              />
+                              <button
+                                type="button"
+                                onClick={() => setShowResetConfirm(v => !v)}
+                                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300"
+                              >
+                                {showResetConfirm ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                              </button>
+                            </div>
+                          </div>
+                          <Button
+                            type="submit"
+                            disabled={resetLoading}
+                            className="bg-violet-600 hover:bg-violet-700 text-white gap-2"
+                          >
+                            {resetLoading
+                              ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                              : <Key className="w-4 h-4" />
+                            }
+                            Confirmer
+                          </Button>
+                        </form>
+                        {resetError && (
+                          <p className="mt-2 text-xs text-red-400">{resetError}</p>
+                        )}
+                        {resetSuccess && (
+                          <p className="mt-2 text-xs text-emerald-400 flex items-center gap-1.5">
+                            <CheckCircle className="w-3.5 h-3.5" />
+                            {resetSuccess}
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
       </div>
     </div>
   );

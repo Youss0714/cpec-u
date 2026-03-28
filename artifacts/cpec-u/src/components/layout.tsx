@@ -210,6 +210,7 @@ export function AppLayout({ children, allowedRoles, noScroll = false }: AppLayou
     { name: "Hébergement", href: "/admin/housing", icon: Building2 },
     { name: "Honoraires", href: "/admin/honoraires", icon: Wallet },
     { name: "Messages", href: "/admin/messages", icon: MessageSquare, badge: unreadMsgCount > 0 ? unreadMsgCount : undefined },
+    { name: "Changer mon mot de passe", href: "/change-password", icon: KeyRound, badge: null },
   ];
 
   const hebergementNavItems = [

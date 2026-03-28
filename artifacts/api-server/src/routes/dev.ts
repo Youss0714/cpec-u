@@ -1,7 +1,7 @@
 import { Router } from "express";
 import crypto from "crypto";
 import { db } from "@workspace/db";
-import { activationKeysTable } from "@workspace/db";
+import { activationKeysTable, usersTable } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
 
 const router = Router();
@@ -108,6 +108,50 @@ router.patch("/keys/:id/revoke", requireDev, async (req, res) => {
       .returning();
     if (!row) return res.status(404).json({ error: "Not Found" });
     res.json(row);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// --- User Management (directeurs only) ---
+
+router.get("/directeurs", requireDev, async (_req, res) => {
+  try {
+    const rows = await db
+      .select({
+        id: usersTable.id,
+        name: usersTable.name,
+        email: usersTable.email,
+        createdAt: usersTable.createdAt,
+        firstLoginAt: usersTable.firstLoginAt,
+      })
+      .from(usersTable)
+      .where(eq(usersTable.adminSubRole, "directeur"))
+      .orderBy(desc(usersTable.createdAt));
+    res.json(rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+router.post("/reset-password", requireDev, async (req, res) => {
+  try {
+    const { userId, newPassword } = req.body;
+    if (!userId || !newPassword) {
+      return res.status(400).json({ error: "userId et newPassword sont requis" });
+    }
+    if (newPassword.length < 6) {
+      return res.status(400).json({ error: "Le mot de passe doit contenir au moins 6 caractères" });
+    }
+    const hash = crypto.createHash("sha256").update(newPassword + "cpec-u-salt").digest("hex");
+    const [row] = await db.update(usersTable)
+      .set({ passwordHash: hash, mustChangePassword: false, updatedAt: new Date() })
+      .where(eq(usersTable.id, parseInt(userId)))
+      .returning({ id: usersTable.id, name: usersTable.name, email: usersTable.email });
+    if (!row) return res.status(404).json({ error: "Utilisateur introuvable" });
+    res.json({ message: `Mot de passe réinitialisé pour ${row.name}`, user: row });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Internal Server Error" });
