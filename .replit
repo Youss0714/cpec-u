@@ -64,4 +64,4 @@ localPort = 8082
 VAPID_PUBLIC_KEY = "BNPGiVlKmpMBohqe5JN5X-IIC_PB3llnzs4NQi_O0nG6sa9K8i67LqQryV8IsdoP6ggXI5iT9BytPvT8-j3i-5k"
 VAPID_PRIVATE_KEY = "gV21By4xvrnSzSiokppLpi4yc17Ro3rf7-zQDLvaU1w"
 VAPID_EMAIL = "mailto:contact@cpecdigital.replit.app"
-DEV_MASTER_KEY = "CPEC@Dev2025#Secure!"
+DEV_MASTER_KEY = "@Youss054626"
