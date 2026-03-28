@@ -673,27 +673,36 @@
 
 <!-- ── Bouton téléchargement PDF ── -->
 <div class="pdf-btn-bar" id="pdfBar">
-  <button class="pdf-btn" onclick="printGuide()" title="Télécharger en PDF">
+  <button class="pdf-btn" id="pdfBtn" onclick="downloadPDF()" title="Télécharger en PDF">
     📄 Télécharger PDF
   </button>
-  <div class="pdf-tip" id="pdfTip">
-    <strong>📋 Instructions</strong>
-    <ol>
-      <li>La fenêtre d'impression va s'ouvrir</li>
-      <li>Dans <em>Destination</em>, choisissez <strong>Enregistrer en PDF</strong></li>
-      <li>Cliquez sur <strong>Enregistrer</strong></li>
-    </ol>
-  </div>
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <script>
-function printGuide() {
-  const tip = document.getElementById('pdfTip');
-  tip.classList.add('visible');
-  setTimeout(() => {
-    window.print();
-    setTimeout(() => tip.classList.remove('visible'), 3000);
-  }, 800);
+async function downloadPDF() {
+  const btn = document.getElementById('pdfBtn');
+  btn.textContent = '⏳ Génération…';
+  btn.disabled = true;
+
+  const element = document.body;
+  const opt = {
+    margin: [8, 8, 8, 8],
+    filename: 'CPEC-Digital-Guide-Utilisateur.pdf',
+    image: { type: 'jpeg', quality: 0.97 },
+    html2canvas: { scale: 2, useCORS: true, logging: false },
+    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+    pagebreak: { mode: ['css', 'legacy'], before: '.page-break', avoid: ['.stat-card', '.callout', '.step'] }
+  };
+
+  try {
+    await html2pdf().set(opt).from(element).save();
+  } catch(e) {
+    alert('Erreur lors de la génération du PDF. Veuillez réessayer.');
+  }
+
+  btn.textContent = '📄 Télécharger PDF';
+  btn.disabled = false;
 }
 </script>
 
