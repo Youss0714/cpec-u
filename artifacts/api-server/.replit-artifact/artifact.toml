@@ -16,7 +16,7 @@ run = "pnpm --filter @workspace/api-server run dev"
 build = "PORT=3000 BASE_PATH=/ pnpm --filter @workspace/cpec-u run build && pnpm --filter @workspace/api-server run build"
 
 [services.production.run]
-args = ["node", "artifacts/api-server/dist/index.mjs"]
+args = ["pnpm", "--filter", "@workspace/api-server", "run", "start"]
 
 [services.production.run.env]
 PORT = "8080"
