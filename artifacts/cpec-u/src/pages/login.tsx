@@ -12,7 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
-import { Mail, Phone, HelpCircle } from "lucide-react";
+import { Mail, Phone, HelpCircle, Eye, EyeOff } from "lucide-react";
 
 const loginSchema = z.object({
   email: z.string().email("Email invalide"),
@@ -39,6 +39,7 @@ export default function Login() {
   const [welcomeUser, setWelcomeUser] = useState<{ name: string; initial: string; subRole: string } | null>(null);
   const [currentSlide, setCurrentSlide] = useState(0);
   const [contactDialogOpen, setContactDialogOpen] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -179,13 +180,24 @@ export default function Login() {
                 
                 <div className="space-y-2">
                   <Label htmlFor="password" className="text-foreground/80 font-semibold">Mot de passe</Label>
-                  <Input 
-                    id="password" 
-                    type="password" 
-                    placeholder="••••••••" 
-                    {...register("password")}
-                    className="h-12 bg-background/50 border-border/50 focus:border-primary focus:ring-primary/20"
-                  />
+                  <div className="relative">
+                    <Input 
+                      id="password" 
+                      type={showPassword ? "text" : "password"}
+                      placeholder="••••••••" 
+                      {...register("password")}
+                      className="h-12 bg-background/50 border-border/50 focus:border-primary focus:ring-primary/20 pr-12"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(v => !v)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-1"
+                      tabIndex={-1}
+                      aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+                    >
+                      {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
+                  </div>
                   {errors.password && <p className="text-sm text-destructive mt-1">{errors.password.message}</p>}
                 </div>
 
