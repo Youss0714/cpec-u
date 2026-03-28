@@ -15,7 +15,7 @@ name = "web"
 paths = ["/"]
 
 [services.development]
-run = "PORT=3000 pnpm --filter @workspace/api-server run dev & pnpm --filter @workspace/cpec-u run dev"
+run = "pnpm --filter @workspace/cpec-u run dev"
 
 [services.env]
 PORT = "25391"

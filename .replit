@@ -15,6 +15,28 @@ args = ["pnpm", "store", "prune"]
 env = { "CI" = "true" }
 
 [workflows]
+runButton = "Project"
+
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Start application"
+
+[[workflows.workflow]]
+name = "Start application"
+author = "agent"
+
+[workflows.workflow.metadata]
+outputType = "console"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "PORT=8080 pnpm --filter @workspace/api-server run dev"
+waitForPort = 8080
 
 [agent]
 stack = "PNPM_WORKSPACE"
@@ -29,6 +51,7 @@ channel = "stable-25_05"
 
 [[ports]]
 localPort = 8080
+externalPort = 8080
 
 [[ports]]
 localPort = 8081
@@ -36,6 +59,15 @@ externalPort = 80
 
 [[ports]]
 localPort = 8082
+externalPort = 3002
+
+[[ports]]
+localPort = 25391
+externalPort = 3000
+
+[[ports]]
+localPort = 25392
+externalPort = 3001
 
 [userenv]
 
