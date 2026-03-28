@@ -458,7 +458,7 @@ router.post("/grade-submissions/notify-students", requireRole("teacher"), async 
     for (const g of grades) {
       if (!studentIds.includes(g.studentId)) continue;
       if (!gradeMap.has(g.studentId)) gradeMap.set(g.studentId, new Map());
-      gradeMap.get(g.studentId)!.set(g.evalNumber, parseFloat(g.value as any));
+      gradeMap.get(g.studentId)!.set(g.evaluationNumber, parseFloat(g.value as any));
     }
 
     // Insert one notification per student
