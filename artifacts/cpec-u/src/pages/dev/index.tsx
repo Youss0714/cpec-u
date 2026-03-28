@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   Key, Plus, Trash2, ShieldCheck, LogOut, Copy, RotateCcw,
   Ban, CheckCircle, Infinity, Calendar, Clock,
-  UserCog, RefreshCw, Eye, EyeOff, X,
+  UserCog, RefreshCw, Eye, EyeOff, X, CalendarPlus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -179,6 +179,16 @@ export default function DevDashboard() {
   const handleRenew = async (id: number) => {
     if (!confirm("Renouveler cette clé ? Un nouveau code sera généré avec la même durée, et l'ancienne assignation sera effacée.")) return;
     const r = await fetch(`${API}/keys/${id}/renew`, { method: "POST", credentials: "include" });
+    if (r.ok) {
+      const updated = await r.json();
+      setKeys(k => k.map(x => x.id === id ? updated : x));
+    }
+  };
+
+  const handleExtend = async (id: number, duration: string) => {
+    const label = DURATION_LABELS[duration as keyof typeof DURATION_LABELS] ?? duration;
+    if (!confirm(`Prolonger cette clé de ${label} supplémentaire(s) à partir de l'expiration actuelle ?`)) return;
+    const r = await fetch(`${API}/keys/${id}/extend`, { method: "POST", credentials: "include" });
     if (r.ok) {
       const updated = await r.json();
       setKeys(k => k.map(x => x.id === id ? updated : x));
@@ -529,6 +539,15 @@ export default function DevDashboard() {
                               title="Révoquer"
                             >
                               <RotateCcw className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                          {k.duration !== "lifetime" && (
+                            <button
+                              onClick={() => handleExtend(k.id, k.duration)}
+                              className="p-1.5 rounded-lg text-zinc-500 hover:text-blue-400 hover:bg-blue-400/10 transition-colors"
+                              title={`Prolonger de ${DURATION_LABELS[k.duration]}`}
+                            >
+                              <CalendarPlus className="w-3.5 h-3.5" />
                             </button>
                           )}
                           {(k.status === "assigned" || k.status === "revoked") && (
