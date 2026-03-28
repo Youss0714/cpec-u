@@ -531,7 +531,22 @@
   }
 
   /* Page break */
-  .page-break { padding-top: 56px; }
+  .page-break { padding-top: 0; }
+
+  /* En-tête de section (infos développeur) */
+  .page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0 16px 0;
+    margin-bottom: 24px;
+    border-bottom: 1px solid var(--gray-200);
+    font-size: 11px;
+    color: var(--gray-400);
+    gap: 16px;
+  }
+  .page-header-left { font-weight: 600; color: var(--navy); opacity: 0.7; }
+  .page-header-right { text-align: right; }
 
   /* Footer */
   .footer {
@@ -705,6 +720,22 @@ async function downloadPDF() {
   btn.textContent = '📄 Télécharger PDF';
   btn.disabled = false;
 }
+
+// Injection de l'en-tête développeur dans chaque section
+document.addEventListener('DOMContentLoaded', () => {
+  const pages = document.querySelectorAll('.page.page-break');
+  pages.forEach(page => {
+    const header = document.createElement('div');
+    header.className = 'page-header';
+    header.innerHTML = `
+      <span class="page-header-left">CPEC-Digital — Guide Utilisateur v2.0</span>
+      <span class="page-header-right">
+        Youssouf Sawadogo &nbsp;·&nbsp; contacteyouss@gmail.com &nbsp;·&nbsp; 07 14 17 40 82
+      </span>
+    `;
+    page.insertBefore(header, page.firstChild);
+  });
+});
 </script>
 
 <!-- ═══════════════════════════════════════════════════════════
@@ -743,7 +774,7 @@ async function downloadPDF() {
     <span class="cover-badge">🎓 Étudiant</span>
   </div>
 
-  <div class="cover-version">Version 2.0 · Avril 2026</div>
+  <div class="cover-version">Version 2.0 · Mars 2026</div>
   <div class="cover-dev">
     Développé par <strong>Youssouf Sawadogo</strong> &nbsp;·&nbsp;
     <a href="mailto:contacteyouss@gmail.com" style="color:rgba(255,255,255,0.85);">contacteyouss@gmail.com</a>
@@ -1862,7 +1893,7 @@ async function downloadPDF() {
   </table>
 
   <div class="footer">
-    <p>CPEC-Digital — Guide Utilisateur v2.0 · Avril 2026</p>
+    <p>CPEC-Digital — Guide Utilisateur v2.0 · Mars 2026</p>
     <p>Centre Préparatoire à l'Expertise Comptable – UEMOA (CPEC) · Système de Gestion Académique</p>
     <p style="margin-top:8px;font-size:11px;color:#475569;">
       Développé par <strong>Youssouf Sawadogo</strong> &nbsp;·&nbsp;
