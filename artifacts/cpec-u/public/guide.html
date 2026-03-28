@@ -33,8 +33,6 @@
 
   /* ── Cover Page ── */
   .cover {
-    height: 100vh;
-    min-height: 800px;
     background: linear-gradient(135deg, #1e3870 0%, #2d5299 50%, #1e6090 100%);
     display: flex;
     flex-direction: column;
@@ -42,7 +40,6 @@
     justify-content: center;
     text-align: center;
     padding: 60px 40px;
-    page-break-after: always;
     position: relative;
     overflow: hidden;
   }
@@ -123,15 +120,21 @@
     letter-spacing: 1px;
   }
   .cover-version {
-    position: absolute; bottom: 32px; right: 40px;
-    color: rgba(255,255,255,0.4); font-size: 12px;
+    color: rgba(255,255,255,0.45); font-size: 12px;
+    margin-top: 12px;
     z-index: 1;
   }
+  .cover-dev {
+    margin-top: 8px;
+    font-size: 12px;
+    color: rgba(255,255,255,0.75);
+    z-index: 1;
+  }
+  .cover-dev strong { color: rgba(255,255,255,0.95); }
 
   /* ── TOC ── */
   .toc-page {
     padding: 64px 80px;
-    page-break-after: always;
   }
   .toc-page h2 {
     font-family: Georgia, serif;
@@ -192,11 +195,9 @@
   /* ── Main content ── */
   .page {
     padding: 56px 80px;
-    page-break-before: always;
     max-width: 900px;
     margin: 0 auto;
   }
-  .page:first-child { page-break-before: avoid; }
 
   /* ── Section headers ── */
   .section-header {
@@ -530,7 +531,7 @@
   }
 
   /* Page break */
-  .page-break { page-break-before: always; padding-top: 56px; }
+  .page-break { padding-top: 56px; }
 
   /* Footer */
   .footer {
@@ -687,12 +688,12 @@ async function downloadPDF() {
 
   const element = document.body;
   const opt = {
-    margin: [8, 8, 8, 8],
+    margin: [10, 10, 10, 10],
     filename: 'CPEC-Digital-Guide-Utilisateur.pdf',
     image: { type: 'jpeg', quality: 0.97 },
-    html2canvas: { scale: 2, useCORS: true, logging: false },
+    html2canvas: { scale: 2, useCORS: true, logging: false, scrollY: 0 },
     jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-    pagebreak: { mode: ['css', 'legacy'], before: '.page-break', avoid: ['.stat-card', '.callout', '.step'] }
+    pagebreak: { mode: 'avoid-all', avoid: ['.section-header', '.stat-card', '.callout', '.step', '.info-card', '.mockup'] }
   };
 
   try {
@@ -743,6 +744,11 @@ async function downloadPDF() {
   </div>
 
   <div class="cover-version">Version 2.0 · Avril 2026</div>
+  <div class="cover-dev">
+    Développé par <strong>Youssouf Sawadogo</strong> &nbsp;·&nbsp;
+    <a href="mailto:contacteyouss@gmail.com" style="color:rgba(255,255,255,0.85);">contacteyouss@gmail.com</a>
+    &nbsp;·&nbsp; 07 14 17 40 82
+  </div>
 </div>
 
 <!-- ═══════════════════════════════════════════════════════════
@@ -1858,6 +1864,11 @@ async function downloadPDF() {
   <div class="footer">
     <p>CPEC-Digital — Guide Utilisateur v2.0 · Avril 2026</p>
     <p>Centre Préparatoire à l'Expertise Comptable – UEMOA (CPEC) · Système de Gestion Académique</p>
+    <p style="margin-top:8px;font-size:11px;color:#475569;">
+      Développé par <strong>Youssouf Sawadogo</strong> &nbsp;·&nbsp;
+      <a href="mailto:contacteyouss@gmail.com">contacteyouss@gmail.com</a>
+      &nbsp;·&nbsp; 07 14 17 40 82
+    </p>
     <p style="margin-top:4px;font-size:10px;">Ce document est confidentiel et destiné aux utilisateurs autorisés du système CPEC-Digital.</p>
   </div>
 </div>
