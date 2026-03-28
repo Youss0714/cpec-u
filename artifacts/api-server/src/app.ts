@@ -43,6 +43,10 @@ app.use(
   })
 );
 
+app.get("/", (_req, res) => {
+  res.json({ status: "ok", service: "CPEC-U API" });
+});
+
 app.use("/api/uploads", express.static(UPLOADS_DIR));
 app.use("/api", router);
 
