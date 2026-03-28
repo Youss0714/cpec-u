@@ -3,6 +3,7 @@ import { Link, useLocation } from "wouter";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useGetCurrentUser, useLogout, useGetUnreadNotificationCount, useGetPendingGradeSubmissionsCount, useGetUnreadMessageCount } from "@workspace/api-client-react";
 import { GlobalSearch } from "@/components/GlobalSearch";
+import { ActivationKeyModal } from "@/components/activation-key-modal";
 import { Button } from "@/components/ui/button";
 import {
   LayoutDashboard,
@@ -466,6 +467,15 @@ export function AppLayout({ children, allowedRoles, noScroll = false }: AppLayou
             </div>
           </div>
         </div>
+      )}
+
+      {/* Activation key modal for directeur first login */}
+      {user && (user as any).adminSubRole === "directeur" && (
+        <ActivationKeyModal
+          userId={(user as any).id}
+          activationKeyShown={!!(user as any).activationKeyShown}
+          isFirstLogin={!!(user as any).isFirstLogin}
+        />
       )}
     </div>
   );

@@ -45,6 +45,8 @@ artifacts-monorepo/
 - `rooms` — classrooms, amphithéâtres, labs
 - `schedule_entries` — timetable entries (teacher + subject + class + room + semester + day + time)
 - `absence_justifications` — student justification requests for absences/lates: `attendanceId` (unique), `studentId`, `reason`, `status` (pending/approved/rejected), `reviewedBy`, `reviewedAt`, `reviewNote`
+- `activation_keys` — software license keys: `key` (XXXX-XXXX-XXXX-XXXX format), `duration` (lifetime/1year/2years/5years/10years), `status` (available/assigned/revoked), `assignedToUserId`, `assignedAt`, `shownAt`, `expiresAt`
+- `users` additions: `firstLoginAt` (timestamp, set on first directeur login), `activationKeyShown` (bool, once key modal has been dismissed)
 
 ## RBAC — Multi-Admin System
 

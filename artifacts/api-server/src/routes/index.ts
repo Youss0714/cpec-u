@@ -15,11 +15,13 @@ import attendanceRouter from "./attendance.js";
 import messagesRouter from "./messages.js";
 import housingRouter from "./housing.js";
 import pushRouter from "./push.js";
+import devRouter from "./dev.js";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
 router.use("/auth", authRouter);
+router.use("/dev", devRouter);
 router.use("/admin", adminRouter);
 router.use("/admin/rooms", roomsRouter);
 router.use("/admin/schedules", schedulesRouter);

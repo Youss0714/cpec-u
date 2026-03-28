@@ -1,8 +1,8 @@
 import { Router } from "express";
 import crypto from "crypto";
 import { db } from "@workspace/db";
-import { usersTable, classEnrollmentsTable, classesTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { usersTable, classEnrollmentsTable, classesTable, activationKeysTable } from "@workspace/db";
+import { eq, and, isNull } from "drizzle-orm";
 import { requireAuth } from "../lib/auth.js";
 
 const router = Router();
@@ -30,6 +30,14 @@ router.post("/login", async (req, res) => {
     if (hash !== user.passwordHash) {
       res.status(401).json({ error: "Unauthorized", message: "Invalid credentials" });
       return;
+    }
+
+    // Track first login for directeurs
+    const isFirstLogin = user.role === "admin" && user.adminSubRole === "directeur" && !user.firstLoginAt;
+    if (isFirstLogin) {
+      await db.update(usersTable)
+        .set({ firstLoginAt: new Date() })
+        .where(eq(usersTable.id, user.id));
     }
 
     let classId: number | null = null;
@@ -68,6 +76,8 @@ router.post("/login", async (req, res) => {
         mustChangePassword: user.mustChangePassword,
         classId,
         className,
+        activationKeyShown: user.activationKeyShown,
+        isFirstLogin,
       },
       message: "Login successful",
     });
@@ -116,9 +126,71 @@ router.get("/me", requireAuth, async (req, res) => {
       mustChangePassword: user.mustChangePassword,
       classId,
       className,
+      activationKeyShown: user.activationKeyShown,
+      isFirstLogin: !!(user.firstLoginAt) && !user.activationKeyShown,
     });
   } catch (err) {
     console.error("Get me error:", err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// Mark activation key as shown for directeur
+router.post("/activation-shown", requireAuth, async (req, res) => {
+  try {
+    const userId = req.session!.userId!;
+    await db.update(usersTable)
+      .set({ activationKeyShown: true })
+      .where(eq(usersTable.id, userId));
+    // Mark the key as shown
+    await db.update(activationKeysTable)
+      .set({ shownAt: new Date() })
+      .where(and(
+        eq(activationKeysTable.assignedToUserId, String(userId)),
+        isNull(activationKeysTable.shownAt)
+      ));
+    res.json({ message: "ok" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// Get the activation key assigned to a directeur
+router.get("/my-activation-key", requireAuth, async (req, res) => {
+  try {
+    const userId = req.session!.userId!;
+    const user = (await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1))[0];
+    if (!user || user.role !== "admin" || user.adminSubRole !== "directeur") {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    const keys = await db.select().from(activationKeysTable)
+      .where(eq(activationKeysTable.assignedToUserId, String(userId)))
+      .limit(1);
+    const key = keys[0];
+    if (!key) {
+      // Try to auto-assign an available key
+      const available = await db.select().from(activationKeysTable)
+        .where(and(
+          eq(activationKeysTable.status, "available"),
+          isNull(activationKeysTable.assignedToUserId as any)
+        ))
+        .limit(1);
+      if (!available[0]) {
+        res.status(404).json({ error: "No activation key available" });
+        return;
+      }
+      const [assigned] = await db.update(activationKeysTable)
+        .set({ assignedToUserId: String(userId), assignedAt: new Date(), status: "assigned" })
+        .where(eq(activationKeysTable.id, available[0].id))
+        .returning();
+      res.json(assigned);
+      return;
+    }
+    res.json(key);
+  } catch (err) {
+    console.error(err);
     res.status(500).json({ error: "Internal Server Error" });
   }
 });

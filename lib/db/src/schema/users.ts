@@ -14,6 +14,8 @@ export const usersTable = pgTable("users", {
   adminSubRole: adminSubRoleEnum("admin_sub_role"),
   mustChangePassword: boolean("must_change_password").default(false).notNull(),
   phone: varchar("phone", { length: 50 }),
+  firstLoginAt: timestamp("first_login_at"),
+  activationKeyShown: boolean("activation_key_shown").default(false).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

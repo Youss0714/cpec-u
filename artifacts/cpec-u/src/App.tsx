@@ -47,6 +47,7 @@ import AdminStudentDetail from "@/pages/admin/student-detail";
 import AdminCahierDeTexte from "@/pages/admin/cahier-de-texte";
 import AdminSuiviHeures from "@/pages/admin/suivi-heures";
 import StudentCahierDeTexte from "@/pages/student/cahier-de-texte";
+import DevDashboard from "@/pages/dev/index";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -124,6 +125,9 @@ function Router() {
         {() => <SharedMessages allowedRoles={["student"]} />}
       </Route>
 
+      {/* Developer portal — hidden from navigation */}
+      <Route path="/dev" component={DevDashboard} />
+
       <Route component={NotFound} />
     </Switch>
     </>
@@ -131,7 +135,9 @@ function Router() {
 }
 
 function App() {
+  const isDevPortal = window.location.pathname.endsWith("/dev") || window.location.pathname.includes("/dev/");
   const [showSplash, setShowSplash] = useState(() => {
+    if (isDevPortal) return false;
     const seen = sessionStorage.getItem("cpec_splash_seen");
     return !seen;
   });
