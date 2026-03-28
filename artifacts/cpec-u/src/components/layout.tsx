@@ -212,7 +212,6 @@ export function AppLayout({ children, allowedRoles, noScroll = false }: AppLayou
   ];
 
   const hebergementNavItems = [
-    { name: "Tableau de bord", href: "/admin/housing", icon: LayoutDashboard },
     { name: "Hébergement", href: "/admin/housing", icon: Building2 },
     { name: "Messages", href: "/admin/messages", icon: MessageSquare, badge: unreadMsgCount > 0 ? unreadMsgCount : undefined },
   ];
