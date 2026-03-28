@@ -20,11 +20,13 @@ import {
   useListRooms, useListClasses, useListSemesters, useListSubjects, useListUsers,
   usePublishSchedule, useUpdateScheduleEntry,
   usePublishSchedulePeriod, useListSchedulePublications, useListAssignments,
+  useListBlockedDates,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Plus, Trash2, CalendarDays, Clock, MapPin, AlertTriangle, CheckCircle,
   Printer, Eye, EyeOff, Pencil, ChevronLeft, ChevronRight, Send, ChevronDown,
+  Ban,
 } from "lucide-react";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 
@@ -118,6 +120,32 @@ export default function AdminSchedules() {
   const { data: subjects = [] } = useListSubjects();
   const { data: allUsers = [] } = useListUsers();
   const { data: assignments = [] } = useListAssignments();
+  const { data: blockedDatesRaw = [] } = useListBlockedDates();
+
+  // Build a Set of all individually blocked date strings (expanding periods)
+  const blockedDateSet = useMemo(() => {
+    const set = new Set<string>();
+    for (const bd of blockedDatesRaw as any[]) {
+      const start = new Date(bd.date + "T00:00:00");
+      const end = bd.dateEnd ? new Date(bd.dateEnd + "T00:00:00") : start;
+      const cur = new Date(start);
+      while (cur <= end) {
+        set.add(toISODate(cur));
+        cur.setDate(cur.getDate() + 1);
+      }
+    }
+    return set;
+  }, [blockedDatesRaw]);
+
+  // Return the blocked date entry info (reason + type) for a given date
+  const getBlockedInfo = (dateISO: string): { reason: string; type: string } | null => {
+    for (const bd of blockedDatesRaw as any[]) {
+      const start = bd.date;
+      const end = bd.dateEnd ?? bd.date;
+      if (dateISO >= start && dateISO <= end) return { reason: bd.reason, type: bd.type };
+    }
+    return null;
+  };
 
   // Only teachers who have at least one assignment
   const assignedTeacherIds = useMemo(() =>
@@ -241,6 +269,15 @@ export default function AdminSchedules() {
       toast({
         title: "Date déjà écoulée",
         description: "Il est impossible de programmer un cours à une date passée.",
+        variant: "destructive",
+      });
+      return;
+    }
+    const blockedInfo = getBlockedInfo(form.sessionDate);
+    if (blockedInfo) {
+      toast({
+        title: "Date bloquée",
+        description: `Cette date est bloquée : ${blockedInfo.reason}. Choisissez une autre date.`,
         variant: "destructive",
       });
       return;
@@ -420,7 +457,17 @@ export default function AdminSchedules() {
             value={form.sessionDate}
             onChange={(e) => setForm(f => ({ ...f, sessionDate: e.target.value }))}
             min={todayISO()}
+            className={blockedDateSet.has(form.sessionDate) ? "border-red-400 bg-red-50" : ""}
           />
+          {blockedDateSet.has(form.sessionDate) && (() => {
+            const info = getBlockedInfo(form.sessionDate);
+            return (
+              <div className="flex items-center gap-1.5 text-xs text-red-600 mt-1">
+                <Ban className="w-3 h-3 shrink-0" />
+                <span>Date bloquée{info ? ` : ${info.reason}` : ""}. Choisissez une autre date.</span>
+              </div>
+            );
+          })()}
         </div>
         <div className="space-y-1">
           <Label>Début</Label>
@@ -469,33 +516,47 @@ export default function AdminSchedules() {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const isToday = dayDate.getTime() === today.getTime();
+    const isBlocked = blockedDateSet.has(dayISO);
+    const blockedInfo = isBlocked ? getBlockedInfo(dayISO) : null;
     const dayEntries = filteredEntries
       .filter((e) => e.sessionDate === dayISO)
       .sort((a: any, b: any) => a.startTime.localeCompare(b.startTime));
 
     return (
-      <div className={`border rounded-2xl overflow-hidden shadow-sm ${DAY_COLORS[day]} ${isToday ? "ring-2 ring-primary ring-offset-1" : ""}`}>
-        <div className="px-4 py-3 border-b border-current/10 flex items-center justify-between">
+      <div className={`border rounded-2xl overflow-hidden shadow-sm relative ${
+        isBlocked
+          ? "bg-gray-100 border-gray-300 opacity-75"
+          : `${DAY_COLORS[day]} ${isToday ? "ring-2 ring-primary ring-offset-1" : ""}`
+      }`}>
+        <div className={`px-4 py-3 border-b flex items-center justify-between ${isBlocked ? "border-gray-300 bg-gray-200/60" : "border-current/10"}`}>
           <h3 className="font-semibold text-foreground flex items-center gap-2">
-            <CalendarDays className="w-4 h-4" />
-            <span>{DAYS[day]}</span>
-            <span className={`text-xs font-normal ${isToday ? "text-primary font-bold" : "text-muted-foreground"}`}>
+            {isBlocked ? <Ban className="w-4 h-4 text-gray-500" /> : <CalendarDays className="w-4 h-4" />}
+            <span className={isBlocked ? "text-gray-500" : ""}>{DAYS[day]}</span>
+            <span className={`text-xs font-normal ${isToday && !isBlocked ? "text-primary font-bold" : "text-muted-foreground"}`}>
               {formatShortDate(dayDate)}
             </span>
           </h3>
           <div className="flex items-center gap-2">
             <Badge variant="secondary" className="text-xs">{dayEntries.length}</Badge>
-            <button
-              onClick={() => openCreateForDay(dayISO)}
-              className="w-6 h-6 rounded-full flex items-center justify-center bg-primary/10 hover:bg-primary/20 text-primary transition-colors"
-              title="Ajouter un cours ce jour"
-            >
-              <Plus className="w-3.5 h-3.5" />
-            </button>
+            {!isBlocked && (
+              <button
+                onClick={() => openCreateForDay(dayISO)}
+                className="w-6 h-6 rounded-full flex items-center justify-center bg-primary/10 hover:bg-primary/20 text-primary transition-colors"
+                title="Ajouter un cours ce jour"
+              >
+                <Plus className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
         </div>
         <div className="p-3 space-y-2 min-h-[80px]">
-          {dayEntries.length === 0 ? (
+          {isBlocked ? (
+            <div className="flex flex-col items-center justify-center py-4 gap-1.5 text-center">
+              <Ban className="w-5 h-5 text-gray-400" />
+              <p className="text-xs font-medium text-gray-500">{blockedInfo?.reason ?? "Jour bloqué"}</p>
+              <p className="text-[10px] text-gray-400 capitalize">{blockedInfo?.type === "vacances" ? "Vacances" : blockedInfo?.type === "ferie" ? "Jour férié" : "Bloqué"}</p>
+            </div>
+          ) : dayEntries.length === 0 ? (
             <button
               onClick={() => openCreateForDay(dayISO)}
               className="w-full text-xs text-muted-foreground text-center py-4 rounded-xl border-2 border-dashed border-transparent hover:border-primary/30 hover:text-primary hover:bg-primary/5 transition-all cursor-pointer"

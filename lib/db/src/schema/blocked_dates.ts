@@ -5,6 +5,7 @@ import { z } from "zod/v4";
 export const blockedDatesTable = pgTable("blocked_dates", {
   id: serial("id").primaryKey(),
   date: date("date").notNull(),
+  dateEnd: date("date_end"),
   reason: varchar("reason", { length: 255 }).notNull(),
   type: varchar("type", { length: 50 }).notNull().default("autre"),
   createdAt: timestamp("created_at").defaultNow().notNull(),

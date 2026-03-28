@@ -29,9 +29,16 @@ router.get("/", requireRole("admin", "teacher", "student"), async (_req, res) =>
 
 router.post("/", requirePlanificateur, async (req, res) => {
   try {
-    const { date, reason, type } = req.body;
+    const { date, dateEnd, reason, type } = req.body;
     if (!date || !reason) return res.status(400).json({ error: "Date et raison requis" });
-    const [row] = await db.insert(blockedDatesTable).values({ date, reason, type: type ?? "autre" }).returning();
+    // Validate that dateEnd >= date when provided
+    if (dateEnd && dateEnd < date) {
+      return res.status(400).json({ error: "La date de fin doit être après la date de début" });
+    }
+    const [row] = await db
+      .insert(blockedDatesTable)
+      .values({ date, dateEnd: dateEnd ?? null, reason, type: type ?? "autre" })
+      .returning();
     res.status(201).json(row);
   } catch (err) {
     console.error(err);
@@ -42,10 +49,13 @@ router.post("/", requirePlanificateur, async (req, res) => {
 router.put("/:id", requirePlanificateur, async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    const { date, reason, type } = req.body;
+    const { date, dateEnd, reason, type } = req.body;
+    if (dateEnd && date && dateEnd < date) {
+      return res.status(400).json({ error: "La date de fin doit être après la date de début" });
+    }
     const [row] = await db
       .update(blockedDatesTable)
-      .set({ date, reason, type })
+      .set({ date, dateEnd: dateEnd ?? null, reason, type })
       .where(eq(blockedDatesTable.id, id))
       .returning();
     if (!row) return res.status(404).json({ error: "Not Found" });

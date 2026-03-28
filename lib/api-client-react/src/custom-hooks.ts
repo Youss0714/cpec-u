@@ -32,6 +32,7 @@ export type CreatePlanningAssignmentRequest = {
 export type BlockedDate = {
   id: number;
   date: string;
+  dateEnd?: string | null;
   reason: string;
   type: "vacances" | "ferie" | "autre";
   createdAt: string;
@@ -39,6 +40,7 @@ export type BlockedDate = {
 
 export type CreateBlockedDateRequest = {
   date: string;
+  dateEnd?: string | null;
   reason: string;
   type?: "vacances" | "ferie" | "autre";
 };
