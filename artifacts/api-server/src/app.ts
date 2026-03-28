@@ -46,4 +46,13 @@ app.use(
 app.use("/api/uploads", express.static(UPLOADS_DIR));
 app.use("/api", router);
 
+// En production : servir les fichiers statiques du frontend
+if (process.env.NODE_ENV === "production") {
+  const frontendDist = path.join(__dirname, "../../cpec-u/dist/public");
+  app.use(express.static(frontendDist));
+  app.get("*", (_req, res) => {
+    res.sendFile(path.join(frontendDist, "index.html"));
+  });
+}
+
 export default app;
