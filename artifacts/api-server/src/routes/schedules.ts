@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import {
   scheduleEntriesTable,
   schedulePublicationsTable,
+  notificationsTable,
   usersTable,
   subjectsTable,
   classesTable,
@@ -235,8 +236,30 @@ async function notifyTeacherOfEntry(entryId: number, isNew: boolean) {
     const dateLabel = new Date(e.sessionDate + "T00:00:00").toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" });
     const timeLabel = `${e.startTime.slice(0, 5)} – ${e.endTime.slice(0, 5)}`;
     const title = isNew ? "Nouveau cours programmé" : "Cours modifié";
-    const body = `${e.subjectName} · ${e.className}\n${dateLabel} de ${timeLabel}`;
-    sendPushToUser(e.teacherId, { title, body, type: "schedule_assigned" }).catch(() => {});
+    const message = `${e.subjectName} · ${e.className}\n${dateLabel} de ${timeLabel}${e.roomName ? ` — Salle : ${e.roomName}` : ""}`;
+    await db.insert(notificationsTable).values({
+      userId: e.teacherId,
+      type: "schedule_assigned",
+      title,
+      message,
+    });
+    sendPushToUser(e.teacherId, { title, body: message, type: "schedule_assigned" }).catch(() => {});
+  } catch (_) {}
+}
+
+async function notifyTeacherOfDeletion(entry: { teacherId: number; subjectName: string; className: string; sessionDate: string; startTime: string; endTime: string }) {
+  try {
+    const dateLabel = new Date(entry.sessionDate + "T00:00:00").toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" });
+    const timeLabel = `${entry.startTime.slice(0, 5)} – ${entry.endTime.slice(0, 5)}`;
+    const title = "Cours annulé";
+    const message = `${entry.subjectName} · ${entry.className}\n${dateLabel} de ${timeLabel} a été supprimé de votre planning.`;
+    await db.insert(notificationsTable).values({
+      userId: entry.teacherId,
+      type: "schedule_cancelled",
+      title,
+      message,
+    });
+    sendPushToUser(entry.teacherId, { title, body: message, type: "schedule_cancelled" }).catch(() => {});
   } catch (_) {}
 }
 
@@ -281,7 +304,19 @@ router.put("/:entryId", requirePlanificateur, async (req, res) => {
 router.delete("/:entryId", requirePlanificateur, async (req, res) => {
   try {
     const entryId = parseInt(req.params.entryId);
+    const enriched = await getEnrichedEntries();
+    const toDelete = enriched.find((x) => x.id === entryId);
     await db.delete(scheduleEntriesTable).where(eq(scheduleEntriesTable.id, entryId));
+    if (toDelete) {
+      notifyTeacherOfDeletion({
+        teacherId: toDelete.teacherId,
+        subjectName: toDelete.subjectName,
+        className: toDelete.className,
+        sessionDate: toDelete.sessionDate,
+        startTime: toDelete.startTime,
+        endTime: toDelete.endTime,
+      }).catch(() => {});
+    }
     res.json({ message: "Créneau supprimé" });
   } catch (err) {
     console.error(err);

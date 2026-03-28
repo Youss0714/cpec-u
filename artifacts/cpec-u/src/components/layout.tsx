@@ -234,6 +234,7 @@ export function AppLayout({ children, allowedRoles, noScroll = false }: AppLayou
           { name: "Cahier de texte", href: "/teacher/cahier-de-texte", icon: BookText },
           { name: "Mes Étudiants", href: "/teacher/students", icon: Users },
           { name: "Mon Profil", href: "/teacher/profile", icon: UserCircle },
+          { name: "Notifications", href: "/teacher/notifications", icon: Bell, badge: (unreadData?.count ?? 0) > 0 ? unreadData!.count : undefined },
           { name: "Messages", href: "/teacher/messages", icon: MessageSquare, badge: unreadMsgCount > 0 ? unreadMsgCount : undefined },
         ]
       : [
