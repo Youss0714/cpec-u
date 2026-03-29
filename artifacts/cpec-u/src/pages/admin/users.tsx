@@ -399,7 +399,7 @@ function ScolariteTab() {
         <div className="text-center py-10 text-muted-foreground">Chargement...</div>
       ) : (
         <div className="rounded-xl border overflow-hidden">
-          <div className="overflow-auto max-h-[520px]">
+          <div className="overflow-y-auto max-h-[calc(100vh-340px)]">
           <Table>
             <TableHeader className="sticky top-0 z-10 bg-background">
               <TableRow className="bg-muted/50">
@@ -628,8 +628,9 @@ function HonorairesTab() {
         <div className="text-center py-10 text-muted-foreground">Chargement...</div>
       ) : (
         <div className="rounded-xl border overflow-hidden">
+          <div className="overflow-y-auto max-h-[calc(100vh-340px)]">
           <Table>
-            <TableHeader>
+            <TableHeader className="sticky top-0 z-10 bg-background">
               <TableRow className="bg-muted/50">
                 <TableHead>Enseignant</TableHead>
                 <TableHead>Email</TableHead>
@@ -666,6 +667,7 @@ function HonorairesTab() {
               ))}
             </TableBody>
           </Table>
+          </div>
         </div>
       )}
 
@@ -1325,7 +1327,7 @@ export default function AdminUsers() {
             </div>
           )}
           <div className="rounded-xl border overflow-hidden">
-            <div className="overflow-auto max-h-[520px]">
+            <div className="overflow-y-auto max-h-[calc(100vh-360px)]">
             <Table>
               <TableHeader className="sticky top-0 z-10 bg-background">
                 <TableRow className="bg-muted/50">

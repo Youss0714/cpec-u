@@ -510,8 +510,9 @@ function AssignmentsTab() {
       </div>
 
       <div className="rounded-2xl border border-border overflow-hidden">
+        <div className="overflow-y-auto max-h-[calc(100vh-300px)]">
         <table className="w-full text-sm">
-          <thead className="bg-muted/40 border-b border-border">
+          <thead className="bg-muted/40 border-b border-border sticky top-0 z-10">
             <tr>
               {["Étudiant", "Chambre", "Bâtiment", "Entrée", "Sortie", "Prix/mois", "Statut", ""].map(h => (
                 <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">{h}</th>
@@ -545,6 +546,7 @@ function AssignmentsTab() {
             )}
           </tbody>
         </table>
+        </div>
       </div>
 
       {/* Create assignment dialog */}

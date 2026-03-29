@@ -270,8 +270,9 @@ export default function StudentAbsences() {
             </Card>
           ) : (
             <div className="rounded-2xl border border-border overflow-hidden shadow-sm">
+              <div className="overflow-y-auto max-h-[calc(100vh-320px)]">
               <table className="w-full text-sm">
-                <thead>
+                <thead className="sticky top-0 z-10 bg-background">
                   <tr className="border-b border-border bg-muted/40">
                     {["Date", "Matière", "Semestre", "Horaire", "Statut", "Justificatif", "Remarque"].map(h => (
                       <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider">{h}</th>
@@ -353,6 +354,7 @@ export default function StudentAbsences() {
                   })}
                 </tbody>
               </table>
+              </div>
             </div>
           )}
         </motion.div>

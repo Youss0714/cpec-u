@@ -190,8 +190,9 @@ export default function HonorairesPage() {
               Enseignants
             </h2>
           </div>
+          <div className="overflow-y-auto max-h-[calc(100vh-280px)]">
           <Table>
-            <TableHeader className="bg-secondary/50">
+            <TableHeader className="bg-secondary/50 sticky top-0 z-10">
               <TableRow>
                 <TableHead>Enseignant</TableHead>
                 <TableHead className="text-right">Honoraires définis</TableHead>
@@ -269,6 +270,7 @@ export default function HonorairesPage() {
               )}
             </TableBody>
           </Table>
+          </div>
         </div>
 
         {/* Payment history panel */}
