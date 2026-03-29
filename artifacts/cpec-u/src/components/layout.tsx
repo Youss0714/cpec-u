@@ -4,6 +4,7 @@ import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useGetCurrentUser, useLogout, useGetUnreadNotificationCount, useGetPendingGradeSubmissionsCount, useGetUnreadMessageCount } from "@workspace/api-client-react";
 import { GlobalSearch } from "@/components/GlobalSearch";
 import { ActivationKeyModal } from "@/components/activation-key-modal";
+import { InstallButton, InstallBannerMobile } from "@/components/install-banner";
 import { Button } from "@/components/ui/button";
 import {
   LayoutDashboard,
@@ -364,6 +365,7 @@ export function AppLayout({ children, allowedRoles, noScroll = false }: AppLayou
           {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
           {isDark ? "Mode clair" : "Mode sombre"}
         </button>
+        <InstallButton />
         <Button
           variant="outline"
           className="w-full justify-start text-sidebar-foreground border-sidebar-border hover:bg-destructive hover:text-destructive-foreground hover:border-destructive transition-colors"
@@ -421,6 +423,9 @@ export function AppLayout({ children, allowedRoles, noScroll = false }: AppLayou
           {children}
         </div>
       </main>
+
+      {/* Mobile install banner */}
+      <InstallBannerMobile />
 
       {/* Logout confirmation dialog */}
       <Dialog open={showLogoutConfirm} onOpenChange={setShowLogoutConfirm}>

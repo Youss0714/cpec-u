@@ -1,15 +1,50 @@
-const CACHE_NAME = 'cpec-u-v2';
+const CACHE_NAME = 'cpec-u-v3';
+const SHELL_ASSETS = ['/', '/manifest.json', '/images/logo.png', '/images/logo.jpg'];
 
 self.addEventListener('install', (event) => {
+  event.waitUntil(
+    caches.open(CACHE_NAME).then(cache => cache.addAll(SHELL_ASSETS))
+  );
   self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(clients.claim());
+  event.waitUntil(
+    caches.keys().then(keys =>
+      Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
+    ).then(() => clients.claim())
+  );
 });
 
 self.addEventListener('fetch', (event) => {
-  // Pass-through: offline grade storage is handled in app logic via localStorage.
+  const url = new URL(event.request.url);
+
+  // API calls: network only (no caching)
+  if (url.pathname.startsWith('/api/')) return;
+
+  // Navigation requests: network-first, fall back to cached shell
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request).catch(() =>
+        caches.match('/').then(r => r ?? fetch(event.request))
+      )
+    );
+    return;
+  }
+
+  // Static assets: cache-first
+  event.respondWith(
+    caches.match(event.request).then(cached => {
+      if (cached) return cached;
+      return fetch(event.request).then(response => {
+        if (response && response.status === 200 && response.type === 'basic') {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+        }
+        return response;
+      });
+    })
+  );
 });
 
 // ─── Push notifications ───────────────────────────────────────────────────────
