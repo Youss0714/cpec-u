@@ -18,7 +18,10 @@ import { Label } from "@/components/ui/label";
 
 async function apiFetch(path: string, options?: RequestInit) {
   const res = await fetch(`/api${path}`, { credentials: "include", ...options });
-  if (!res.ok) throw new Error(await res.text());
+  if (!res.ok) {
+    const text = await res.text();
+    try { throw new Error(JSON.parse(text).error ?? text); } catch { throw new Error(text); }
+  }
   return res.json();
 }
 
@@ -32,6 +35,9 @@ const ROOM_STATUSES = [
   { value: "occupied", label: "Occupée", color: "bg-blue-100 text-blue-700 border-blue-200" },
   { value: "maintenance", label: "Maintenance", color: "bg-orange-100 text-orange-700 border-orange-200" },
 ];
+
+// Statuts autorisés uniquement à la création (pas "Occupée" — attribué automatiquement)
+const CREATION_ROOM_STATUSES = ROOM_STATUSES.filter(s => s.value !== "occupied");
 
 function StatusBadge({ status, occupantCount, capacity }: { status: string; occupantCount?: number; capacity?: number }) {
   // Show "Partielle" for double rooms with 1 occupant
@@ -369,10 +375,14 @@ function RoomsTab() {
             <div className="space-y-1.5"><Label>Capacité</Label><Input type="number" min={1} max={form.type === "double" ? 2 : 1} value={form.capacity} onChange={e => setForm(f => ({ ...f, capacity: e.target.value }))} /></div>
             <div className="space-y-1.5"><Label>Prix/mois (FCFA)</Label><Input type="number" min={0} value={form.pricePerMonth} onChange={e => setForm(f => ({ ...f, pricePerMonth: e.target.value }))} /></div>
             <div className="space-y-1.5">
-              <Label>Statut</Label>
+              <Label>Statut{!editing && <span className="ml-1 text-xs text-muted-foreground">(automatique si occupée)</span>}</Label>
               <Select value={form.status} onValueChange={v => setForm(f => ({ ...f, status: v }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{ROOM_STATUSES.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
+                <SelectContent>
+                  {(editing ? ROOM_STATUSES : CREATION_ROOM_STATUSES).map(s => (
+                    <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                  ))}
+                </SelectContent>
               </Select>
             </div>
             <div className="col-span-2 space-y-1.5"><Label>Description (optionnel)</Label><Textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} rows={2} /></div>

@@ -159,8 +159,28 @@ router.get("/housing/rooms/available", requireAuth, async (req, res) => {
 
 router.post("/housing/rooms", requireAuth, async (req, res) => {
   try {
-    const { buildingId, roomNumber, floor, capacity, type, pricePerMonth, description } = req.body as any;
+    const { buildingId, roomNumber, floor, capacity, type, pricePerMonth, status, description } = req.body as any;
     if (!buildingId || !roomNumber?.trim()) { res.status(400).json({ error: "buildingId et roomNumber requis" }); return; }
+
+    // 1. Statut limité à "available" ou "maintenance" à la création
+    const CREATION_STATUSES = ["available", "maintenance"];
+    const resolvedStatus = status ?? "available";
+    if (!CREATION_STATUSES.includes(resolvedStatus)) {
+      res.status(400).json({ error: "À la création, le statut doit être 'Disponible' ou 'En maintenance'. Le statut 'Occupée' est attribué automatiquement lors d'une affectation." });
+      return;
+    }
+
+    // 2. Unicité du numéro de chambre (validation métier)
+    const existing = await db
+      .select({ id: housingRoomsTable.id })
+      .from(housingRoomsTable)
+      .where(eq(housingRoomsTable.roomNumber, roomNumber.trim()))
+      .limit(1);
+    if (existing.length > 0) {
+      res.status(409).json({ error: "Ce numéro de chambre existe déjà" });
+      return;
+    }
+
     // Auto-set capacity from type
     const resolvedCapacity = type === "double" ? 2 : 1;
     const [r] = await db.insert(housingRoomsTable).values({
@@ -170,10 +190,16 @@ router.post("/housing/rooms", requireAuth, async (req, res) => {
       capacity: capacity ?? resolvedCapacity,
       type: type ?? "simple",
       pricePerMonth: pricePerMonth?.toString() ?? "0",
+      status: resolvedStatus,
       description,
     }).returning();
     res.json(r);
-  } catch (err) {
+  } catch (err: any) {
+    // DB unique constraint violation fallback (code 23505)
+    if (err.code === "23505") {
+      res.status(409).json({ error: "Ce numéro de chambre existe déjà" });
+      return;
+    }
     console.error(err);
     res.status(500).json({ error: "Internal Server Error" });
   }
