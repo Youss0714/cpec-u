@@ -3,6 +3,7 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "path";
 import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
+import { spawn } from "child_process";
 
 const rawPort = process.env.PORT;
 
@@ -45,6 +46,26 @@ export default defineConfig({
           ),
         ]
       : []),
+    {
+      name: "api-server-launcher",
+      configureServer(server) {
+        if (process.env.NODE_ENV === "production") return;
+        const api = spawn(
+          "pnpm",
+          ["--filter", "@workspace/api-server", "run", "dev"],
+          {
+            cwd: "/home/runner/workspace",
+            env: { ...process.env, PORT: "8080", NODE_ENV: "development" },
+            stdio: "inherit",
+            shell: true,
+          },
+        );
+        api.on("exit", (code) =>
+          console.log(`[vite] API server process exited (${code})`),
+        );
+        server.httpServer?.once("close", () => api.kill());
+      },
+    },
   ],
   resolve: {
     alias: {

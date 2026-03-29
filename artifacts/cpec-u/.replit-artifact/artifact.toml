@@ -10,7 +10,7 @@ name = "react-vite"
 version = "1.0.0"
 
 [[services]]
-localPort = 8082
+localPort = 8081
 name = "web"
 paths = ["/"]
 
@@ -18,7 +18,7 @@ paths = ["/"]
 run = "pnpm --filter @workspace/cpec-u run dev"
 
 [services.env]
-PORT = "8082"
+PORT = "8081"
 BASE_PATH = "/"
 
 [services.production]
