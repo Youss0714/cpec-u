@@ -29,17 +29,34 @@ export function useInstallPrompt() {
       return;
     }
 
-    const handler = (e: Event) => {
-      e.preventDefault();
-      setDeferredPrompt(e as BeforeInstallPromptEvent);
+    // Pick up an event captured before React mounted (stored in main.tsx)
+    const existing = (window as any).__cpecInstallPrompt as BeforeInstallPromptEvent | null;
+    if (existing) {
+      setDeferredPrompt(existing);
       setState("installable");
+    }
+
+    // Also listen for future fires (e.g. re-navigation) or the custom event from main.tsx
+    const onReady = () => {
+      const prompt = (window as any).__cpecInstallPrompt as BeforeInstallPromptEvent | null;
+      if (prompt) {
+        setDeferredPrompt(prompt);
+        setState("installable");
+      }
     };
 
-    window.addEventListener("beforeinstallprompt", handler);
-    window.addEventListener("appinstalled", () => setState("installed"));
+    const onInstalled = () => {
+      (window as any).__cpecInstallPrompt = null;
+      setDeferredPrompt(null);
+      setState("installed");
+    };
+
+    window.addEventListener("cpec-install-ready", onReady);
+    window.addEventListener("cpec-app-installed", onInstalled);
 
     return () => {
-      window.removeEventListener("beforeinstallprompt", handler);
+      window.removeEventListener("cpec-install-ready", onReady);
+      window.removeEventListener("cpec-app-installed", onInstalled);
     };
   }, []);
 
@@ -48,6 +65,7 @@ export function useInstallPrompt() {
     await deferredPrompt.prompt();
     const { outcome } = await deferredPrompt.userChoice;
     if (outcome === "accepted") {
+      (window as any).__cpecInstallPrompt = null;
       setState("installed");
       setDeferredPrompt(null);
     }

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'cpec-u-v5';
+const CACHE_NAME = 'cpec-u-v6';
 const SHELL_ASSETS = [
   '/',
   '/manifest.json',
