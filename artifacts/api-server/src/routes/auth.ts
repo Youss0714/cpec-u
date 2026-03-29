@@ -156,6 +156,43 @@ router.post("/activation-shown", requireAuth, async (req, res) => {
   }
 });
 
+// Validate a manually entered activation key and assign it to the current directeur
+router.post("/validate-activation-key", requireAuth, async (req, res) => {
+  try {
+    const userId = req.session!.userId!;
+    const user = (await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1))[0];
+    if (!user || user.role !== "admin" || user.adminSubRole !== "directeur") {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    const { key } = req.body;
+    if (!key || typeof key !== "string") {
+      res.status(400).json({ error: "Bad Request", message: "Clé requise" });
+      return;
+    }
+    const normalized = key.trim().toUpperCase();
+    const found = await db.select().from(activationKeysTable)
+      .where(and(
+        eq(activationKeysTable.key, normalized),
+        eq(activationKeysTable.status, "available"),
+        isNull(activationKeysTable.assignedToUserId as any)
+      ))
+      .limit(1);
+    if (!found[0]) {
+      res.status(404).json({ error: "Clé invalide ou déjà utilisée" });
+      return;
+    }
+    const [assigned] = await db.update(activationKeysTable)
+      .set({ assignedToUserId: String(userId), assignedAt: new Date(), status: "assigned" })
+      .where(eq(activationKeysTable.id, found[0].id))
+      .returning();
+    res.json(assigned);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
 // Get the activation key assigned to a directeur
 router.get("/my-activation-key", requireAuth, async (req, res) => {
   try {
