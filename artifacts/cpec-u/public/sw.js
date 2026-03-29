@@ -1,5 +1,12 @@
-const CACHE_NAME = 'cpec-u-v3';
-const SHELL_ASSETS = ['/', '/manifest.json', '/images/logo.png', '/images/logo.jpg'];
+const CACHE_NAME = 'cpec-u-v4';
+const SHELL_ASSETS = [
+  '/',
+  '/manifest.json',
+  '/icon-192.png',
+  '/icon-512.png',
+  '/apple-touch-icon.png',
+  '/images/logo.png',
+];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -58,7 +65,7 @@ self.addEventListener('push', (event) => {
     data.body = event.data.text();
   }
 
-  const iconUrl = self.registration.scope + 'images/logo.png';
+  const iconUrl = self.registration.scope + 'icon-192.png';
 
   const options = {
     body: data.body,
