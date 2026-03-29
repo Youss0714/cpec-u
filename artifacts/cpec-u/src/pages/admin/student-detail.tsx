@@ -94,7 +94,7 @@ export default function AdminStudentDetail() {
     }
   };
 
-  const { data, isLoading, isError } = useGetAdminStudentDetail(studentId);
+  const { data, isLoading, isError, error } = useGetAdminStudentDetail(studentId);
 
   if (isLoading) {
     return (
@@ -109,13 +109,24 @@ export default function AdminStudentDetail() {
   }
 
   if (isError || !data) {
+    if (error) console.error("[AdminStudentDetail] Erreur de chargement:", error);
+    const is404 = (error as any)?.status === 404;
     return (
       <AppLayout allowedRoles={["admin"]}>
         <div className="flex flex-col items-center justify-center py-24 gap-4">
-          <AlertCircle className="w-12 h-12 text-muted-foreground" />
-          <p className="text-muted-foreground">Étudiant introuvable ou erreur de chargement.</p>
+          <AlertCircle className="w-12 h-12 text-destructive/60" />
+          <div className="text-center space-y-1">
+            <p className="font-semibold text-foreground">
+              {is404 ? "Étudiant introuvable" : "Erreur de chargement"}
+            </p>
+            <p className="text-sm text-muted-foreground">
+              {is404
+                ? `Aucun étudiant avec l'identifiant #${studentId} n'existe en base.`
+                : "Une erreur est survenue lors du chargement de la fiche. Vérifiez votre connexion et réessayez."}
+            </p>
+          </div>
           <Button variant="outline" onClick={() => navigate("/admin/users")}>
-            <ArrowLeft className="w-4 h-4 mr-2" /> Retour
+            <ArrowLeft className="w-4 h-4 mr-2" /> Retour à la liste
           </Button>
         </div>
       </AppLayout>

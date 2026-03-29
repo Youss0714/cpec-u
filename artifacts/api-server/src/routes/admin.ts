@@ -30,7 +30,7 @@ import {
   housingBuildingsTable,
   cahierDeTexteTable,
 } from "@workspace/db";
-import { eq, and, sql, count, inArray, desc, ne, isNotNull, asc } from "drizzle-orm";
+import { eq, and, sql, count, inArray, desc, ne, isNotNull, asc, ilike, or } from "drizzle-orm";
 import { requireRole } from "../lib/auth.js";
 
 const router = Router();
@@ -62,10 +62,39 @@ async function applyClassFeeToStudent(studentId: number, classId: number) {
 // ─── Users ───────────────────────────────────────────────────────────────────
 router.get("/users", requireRole("admin"), async (req, res) => {
   try {
-    const { role } = req.query;
-    const users = role
-      ? await db.select().from(usersTable).where(eq(usersTable.role, role as any))
-      : await db.select().from(usersTable);
+    const { role, search } = req.query;
+    const conditions: any[] = [];
+    if (role) conditions.push(eq(usersTable.role, role as any));
+
+    let usersByText: typeof usersTable.$inferSelect[] = [];
+    if (search && typeof search === "string" && search.trim()) {
+      const term = `%${search.trim()}%`;
+      // Search by name, email, or matricule (via join with student profiles)
+      const nameEmailConditions = [...conditions, or(ilike(usersTable.name, term), ilike(usersTable.email, term))];
+      const byText = await db.select().from(usersTable).where(and(...nameEmailConditions));
+
+      // Also search by matricule
+      const byMatricule = await db
+        .select({ id: usersTable.id })
+        .from(studentProfilesTable)
+        .innerJoin(usersTable, eq(usersTable.id, studentProfilesTable.studentId))
+        .where(and(
+          ilike(studentProfilesTable.matricule, term),
+          ...(role ? [eq(usersTable.role, role as any)] : [])
+        ));
+      const matriculeIds = new Set(byMatricule.map(r => r.id));
+      const extraIds = [...matriculeIds].filter(id => !byText.some(u => u.id === id));
+      let byMatriculeUsers: typeof usersTable.$inferSelect[] = [];
+      if (extraIds.length) {
+        byMatriculeUsers = await db.select().from(usersTable).where(inArray(usersTable.id, extraIds));
+      }
+      usersByText = [...byText, ...byMatriculeUsers];
+    } else {
+      usersByText = conditions.length
+        ? await db.select().from(usersTable).where(and(...conditions))
+        : await db.select().from(usersTable);
+    }
+    const users = usersByText;
 
     const enrollments = await db
       .select({ studentId: classEnrollmentsTable.studentId, classId: classEnrollmentsTable.classId, className: classesTable.name })

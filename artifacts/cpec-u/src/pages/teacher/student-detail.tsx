@@ -20,7 +20,7 @@ export default function TeacherStudentDetail() {
   const params = useParams<{ id: string }>();
   const studentId = parseInt(params.id ?? "0");
 
-  const { data, isLoading, isError } = useGetTeacherStudentDetail(studentId);
+  const { data, isLoading, isError, error } = useGetTeacherStudentDetail(studentId);
 
   const student = data?.student;
   const enrollment = data?.enrollment;
@@ -64,11 +64,22 @@ export default function TeacherStudentDetail() {
   }
 
   if (isError || !student) {
+    if (error) console.error("[TeacherStudentDetail] Erreur de chargement:", error);
+    const is404 = (error as any)?.status === 404;
     return (
       <AppLayout allowedRoles={["teacher"]}>
-        <div className="flex flex-col items-center justify-center py-20 gap-4 text-center text-muted-foreground">
-          <AlertCircle className="w-12 h-12 opacity-30" />
-          <p className="font-medium">Étudiant introuvable ou accès non autorisé.</p>
+        <div className="flex flex-col items-center justify-center py-20 gap-4 text-center">
+          <AlertCircle className="w-12 h-12 text-destructive/60" />
+          <div className="space-y-1">
+            <p className="font-semibold text-foreground">
+              {is404 ? "Étudiant introuvable" : "Erreur de chargement"}
+            </p>
+            <p className="text-sm text-muted-foreground">
+              {is404
+                ? `Aucun étudiant avec l'identifiant #${studentId}.`
+                : "Une erreur est survenue. Réessayez ou contactez l'administrateur."}
+            </p>
+          </div>
           <Link href="/teacher/students">
             <Button variant="outline" size="sm"><ArrowLeft className="w-4 h-4 mr-2" />Retour</Button>
           </Link>
