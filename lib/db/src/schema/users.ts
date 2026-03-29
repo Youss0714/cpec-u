@@ -16,6 +16,7 @@ export const usersTable = pgTable("users", {
   phone: varchar("phone", { length: 50 }),
   firstLoginAt: timestamp("first_login_at"),
   activationKeyShown: boolean("activation_key_shown").default(false).notNull(),
+  requiresActivationKey: boolean("requires_activation_key").default(false).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

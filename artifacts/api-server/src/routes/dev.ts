@@ -2,7 +2,7 @@ import { Router } from "express";
 import crypto from "crypto";
 import { db } from "@workspace/db";
 import { activationKeysTable, usersTable } from "@workspace/db";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and, isNull } from "drizzle-orm";
 
 const router = Router();
 
@@ -178,6 +178,71 @@ router.post("/keys/:id/extend", requireDev, async (req, res) => {
 });
 
 // --- User Management (directeurs only) ---
+
+router.post("/directeurs", requireDev, async (req, res) => {
+  try {
+    const { name, email, password, activationKeyId } = req.body;
+    if (!name || !email || !password) {
+      res.status(400).json({ error: "name, email et password sont requis" });
+      return;
+    }
+    if (password.length < 6) {
+      res.status(400).json({ error: "Le mot de passe doit contenir au moins 6 caractères" });
+      return;
+    }
+    // Check email uniqueness
+    const existing = await db.select({ id: usersTable.id }).from(usersTable)
+      .where(eq(usersTable.email, email.trim().toLowerCase()))
+      .limit(1);
+    if (existing[0]) {
+      res.status(409).json({ error: "Un utilisateur avec cet email existe déjà" });
+      return;
+    }
+    const hash = crypto.createHash("sha256").update(password + "cpec-u-salt").digest("hex");
+    const [user] = await db.insert(usersTable).values({
+      email: email.trim().toLowerCase(),
+      name: name.trim(),
+      passwordHash: hash,
+      role: "admin",
+      adminSubRole: "directeur",
+      mustChangePassword: true,
+      requiresActivationKey: true,
+    }).returning();
+
+    let assignedKey = null;
+    if (activationKeyId) {
+      // Assign the selected key
+      const [key] = await db.update(activationKeysTable)
+        .set({ assignedToUserId: String(user.id), assignedAt: new Date(), status: "assigned" })
+        .where(and(
+          eq(activationKeysTable.id, Number(activationKeyId)),
+          eq(activationKeysTable.status, "available")
+        ))
+        .returning();
+      assignedKey = key ?? null;
+    } else {
+      // Auto-assign any available key
+      const available = await db.select().from(activationKeysTable)
+        .where(and(
+          eq(activationKeysTable.status, "available"),
+          isNull(activationKeysTable.assignedToUserId as any)
+        ))
+        .limit(1);
+      if (available[0]) {
+        const [key] = await db.update(activationKeysTable)
+          .set({ assignedToUserId: String(user.id), assignedAt: new Date(), status: "assigned" })
+          .where(eq(activationKeysTable.id, available[0].id))
+          .returning();
+        assignedKey = key ?? null;
+      }
+    }
+
+    res.status(201).json({ user, activationKey: assignedKey });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
 
 router.get("/directeurs", requireDev, async (_req, res) => {
   try {

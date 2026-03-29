@@ -77,7 +77,7 @@ router.post("/login", async (req, res) => {
         classId,
         className,
         activationKeyShown: user.activationKeyShown,
-        isFirstLogin,
+        isFirstLogin: !!user.requiresActivationKey && !user.activationKeyShown,
       },
       message: "Login successful",
     });
@@ -127,7 +127,7 @@ router.get("/me", requireAuth, async (req, res) => {
       classId,
       className,
       activationKeyShown: user.activationKeyShown,
-      isFirstLogin: !!(user.firstLoginAt) && !user.activationKeyShown,
+      isFirstLogin: !!(user.firstLoginAt) && !user.activationKeyShown && !!user.requiresActivationKey,
     });
   } catch (err) {
     console.error("Get me error:", err);

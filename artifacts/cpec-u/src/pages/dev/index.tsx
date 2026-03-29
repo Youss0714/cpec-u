@@ -8,6 +8,7 @@ import {
   Key, Plus, Trash2, ShieldCheck, LogOut, Copy, RotateCcw,
   Ban, CheckCircle, Infinity, Calendar, Clock,
   UserCog, RefreshCw, Eye, EyeOff, X, CalendarPlus,
+  UserPlus, Lock, Mail, User, Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -93,6 +94,17 @@ export default function DevDashboard() {
   const [resetLoading, setResetLoading] = useState(false);
   const [resetError, setResetError] = useState("");
   const [resetSuccess, setResetSuccess] = useState("");
+
+  // Create directeur form
+  const [createForm, setCreateForm] = useState(false);
+  const [cdName, setCdName] = useState("");
+  const [cdEmail, setCdEmail] = useState("");
+  const [cdPassword, setCdPassword] = useState("");
+  const [cdShowPwd, setCdShowPwd] = useState(false);
+  const [cdKeyId, setCdKeyId] = useState<string>("auto");
+  const [cdLoading, setCdLoading] = useState(false);
+  const [cdError, setCdError] = useState("");
+  const [cdResult, setCdResult] = useState<{ user: any; activationKey: any } | null>(null);
 
   useEffect(() => {
     fetch(`${API}/me`, { credentials: "include" })
@@ -254,6 +266,39 @@ export default function DevDashboard() {
       setResetError("Erreur réseau");
     } finally {
       setResetLoading(false);
+    }
+  };
+
+  const handleCreateDirecteur = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCdError("");
+    setCdResult(null);
+    if (cdPassword.length < 6) {
+      setCdError("Le mot de passe doit contenir au moins 6 caractères.");
+      return;
+    }
+    setCdLoading(true);
+    try {
+      const body: any = { name: cdName.trim(), email: cdEmail.trim(), password: cdPassword };
+      if (cdKeyId !== "auto") body.activationKeyId = cdKeyId;
+      const r = await fetch(`${API}/directeurs`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const d = await r.json();
+      if (r.ok) {
+        setCdResult(d);
+        setCdName(""); setCdEmail(""); setCdPassword(""); setCdKeyId("auto");
+        await Promise.all([fetchDirecteurs(), fetchKeys()]);
+      } else {
+        setCdError(d.error ?? "Erreur lors de la création");
+      }
+    } catch {
+      setCdError("Erreur réseau");
+    } finally {
+      setCdLoading(false);
     }
   };
 
@@ -584,14 +629,185 @@ export default function DevDashboard() {
                 <UserCog className="w-5 h-5 text-violet-400" />
                 Directeurs de Centre
               </h2>
-              <button
-                onClick={fetchDirecteurs}
-                className="flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-300 transition-colors px-3 py-1.5 rounded-lg hover:bg-zinc-800"
-              >
-                <RefreshCw className="w-3.5 h-3.5" />
-                Actualiser
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={fetchDirecteurs}
+                  className="flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-300 transition-colors px-3 py-1.5 rounded-lg hover:bg-zinc-800"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  Actualiser
+                </button>
+                <Button
+                  onClick={() => { setCreateForm(v => !v); setCdResult(null); setCdError(""); }}
+                  className="bg-violet-600 hover:bg-violet-700 text-white text-sm gap-2"
+                  size="sm"
+                >
+                  <UserPlus className="w-4 h-4" />
+                  Créer un directeur
+                </Button>
+              </div>
             </div>
+
+            {/* Create directeur form */}
+            {createForm && (
+              <div className="bg-zinc-900 border border-violet-500/30 rounded-2xl p-5 space-y-4">
+                <h3 className="text-sm font-semibold text-violet-300 flex items-center gap-2">
+                  <UserPlus className="w-4 h-4" />
+                  Nouveau directeur de centre
+                </h3>
+
+                {cdResult ? (
+                  <div className="space-y-3">
+                    <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-4 space-y-3">
+                      <p className="text-xs font-semibold text-emerald-400 flex items-center gap-2">
+                        <CheckCircle className="w-4 h-4" />
+                        Compte créé avec succès
+                      </p>
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div>
+                          <span className="text-zinc-500">Nom</span>
+                          <p className="text-white font-medium">{cdResult.user.name}</p>
+                        </div>
+                        <div>
+                          <span className="text-zinc-500">Email</span>
+                          <p className="text-white font-medium">{cdResult.user.email}</p>
+                        </div>
+                      </div>
+                      {cdResult.activationKey ? (
+                        <div className="bg-zinc-800 rounded-lg p-3">
+                          <p className="text-xs text-zinc-500 mb-1">Clé d'activation attribuée</p>
+                          <div className="flex items-center justify-between gap-2">
+                            <code className="font-mono text-violet-300 font-bold tracking-widest text-sm">
+                              {cdResult.activationKey.key}
+                            </code>
+                            <button
+                              onClick={() => navigator.clipboard.writeText(cdResult.activationKey.key)}
+                              className="text-zinc-500 hover:text-zinc-300 p-1"
+                            >
+                              <Copy className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                          <p className="text-xs text-zinc-600 mt-1">
+                            Durée : {DURATION_LABELS[cdResult.activationKey.duration] ?? cdResult.activationKey.duration}
+                          </p>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-amber-400">Aucune clé disponible — le directeur devra en saisir une manuellement.</p>
+                      )}
+                      <p className="text-xs text-zinc-500">Le directeur devra changer son mot de passe à la première connexion.</p>
+                    </div>
+                    <Button
+                      onClick={() => { setCdResult(null); setCreateForm(false); }}
+                      className="w-full bg-zinc-800 hover:bg-zinc-700 text-white"
+                      size="sm"
+                    >
+                      Fermer
+                    </Button>
+                  </div>
+                ) : (
+                  <form onSubmit={handleCreateDirecteur} className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs text-zinc-400 flex items-center gap-1.5">
+                          <User className="w-3 h-3" />Nom complet
+                        </Label>
+                        <Input
+                          value={cdName}
+                          onChange={e => setCdName(e.target.value)}
+                          placeholder="Ex. : Amadou Traoré"
+                          className="bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-600"
+                          required
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs text-zinc-400 flex items-center gap-1.5">
+                          <Mail className="w-3 h-3" />Email
+                        </Label>
+                        <Input
+                          type="email"
+                          value={cdEmail}
+                          onChange={e => setCdEmail(e.target.value)}
+                          placeholder="directeur@centre.edu"
+                          className="bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-600"
+                          required
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs text-zinc-400 flex items-center gap-1.5">
+                          <Lock className="w-3 h-3" />Mot de passe provisoire
+                        </Label>
+                        <div className="relative">
+                          <Input
+                            type={cdShowPwd ? "text" : "password"}
+                            value={cdPassword}
+                            onChange={e => setCdPassword(e.target.value)}
+                            placeholder="Minimum 6 caractères"
+                            className="bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-600 pr-9"
+                            required
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setCdShowPwd(v => !v)}
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300"
+                          >
+                            {cdShowPwd ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                          </button>
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs text-zinc-400 flex items-center gap-1.5">
+                          <Key className="w-3 h-3" />Clé d'activation
+                        </Label>
+                        <Select value={cdKeyId} onValueChange={setCdKeyId}>
+                          <SelectTrigger className="bg-zinc-800 border-zinc-700 text-white">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="bg-zinc-800 border-zinc-700 text-white">
+                            <SelectItem value="auto" className="text-white hover:bg-zinc-700">
+                              Auto (première disponible)
+                            </SelectItem>
+                            {keys.filter(k => k.status === "available").map(k => (
+                              <SelectItem key={k.id} value={String(k.id)} className="text-white hover:bg-zinc-700">
+                                <span className="font-mono">{k.key}</span>
+                                <span className="text-zinc-400 ml-2">— {DURATION_LABELS[k.duration] ?? k.duration}</span>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    {cdError && (
+                      <p className="text-xs text-red-400 flex items-center gap-1.5">
+                        <X className="w-3.5 h-3.5" />{cdError}
+                      </p>
+                    )}
+                    <div className="flex gap-3">
+                      <Button
+                        type="button"
+                        onClick={() => { setCreateForm(false); setCdError(""); }}
+                        className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-white"
+                        size="sm"
+                      >
+                        Annuler
+                      </Button>
+                      <Button
+                        type="submit"
+                        disabled={cdLoading}
+                        className="flex-1 bg-violet-600 hover:bg-violet-700 text-white gap-2"
+                        size="sm"
+                      >
+                        {cdLoading
+                          ? <><Loader2 className="w-4 h-4 animate-spin" />Création...</>
+                          : <><UserPlus className="w-4 h-4" />Créer le compte</>
+                        }
+                      </Button>
+                    </div>
+                  </form>
+                )}
+              </div>
+            )}
 
             {directeursLoading ? (
               <div className="text-center py-12 text-zinc-600">Chargement...</div>
