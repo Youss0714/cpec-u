@@ -83,9 +83,12 @@ export interface BulletinData {
 export function generateBulletinHTML(data: BulletinData): string {
   const logo = getLogoBase64();
 
-  const rankStr = data.rank !== null && data.totalStudents !== null
+  // Rank only shown when semester average is fully calculable
+  const rankStr = (data.rank !== null && data.totalStudents !== null && data.averageNette !== null)
     ? `${ordinalStr(data.rank)} sur ${data.totalStudents}`
-    : "— sur —";
+    : "—";
+
+  const notesComplete = data.averageNette !== null;
 
   const decisionLabel = data.decision === "Admis"
     ? "Admis"
@@ -98,6 +101,33 @@ export function generateBulletinHTML(data: BulletinData): string {
     : data.decision === "Ajourné"
     ? "#c0392b"
     : "#b7860b";
+
+  // Jury cell HTML: full (with stamp) when notes are complete, neutral placeholder otherwise
+  function juryHtml(): string {
+    if (!notesComplete) {
+      return `<div class="jury-inner" style="justify-content:center;align-items:center;">
+        <div style="color:#b7860b;font-size:8pt;font-weight:bold;text-align:center;padding:8px;">
+          Notes incomplètes<br/>
+          <span style="font-weight:normal;font-size:7pt;color:#888;">La délibération ne peut<br/>avoir lieu que lorsque<br/>toutes les notes sont saisies.</span>
+        </div>
+      </div>`;
+    }
+    return `<div class="jury-inner">
+      <div class="jury-header">APPRÉCIATIONS DU JURY DU PROGRAMME</div>
+      <div class="jury-decision" style="color:${decisionColor};">${decisionLabel}</div>
+      <div class="jury-signataire">
+        <div class="jury-stamp-label">LE COORDONNATEUR DU CENTRE</div>
+        <div class="jury-stamp-sublabel">P.O LE RESPONSABLE D'ETUDE</div>
+        <div class="jury-stamp">
+          <div class="stamp-circle">
+            <span>ESCAE</span>
+            <span>CPEC-UEMOA</span>
+          </div>
+        </div>
+        <div class="jury-name">Dr. KPOLIE DEFFO CASIMIR</div>
+      </div>
+    </div>`;
+  }
 
   // ── Build table rows HTML ─────────────────────────────────────────────────
   // We need to know total row count ahead of time for rowspan.
@@ -173,27 +203,12 @@ export function generateBulletinHTML(data: BulletinData): string {
   let firstRow = true;
 
   for (const row of rows) {
+    const juryCell = firstRow ? `<td rowspan="${totalRowCount}" class="jury-cell">${juryHtml()}</td>` : "";
     if (row.kind === "bloc") {
       tableRowsHtml += `
         <tr>
           <td colspan="4" class="bloc-title">${row.label}</td>
-          ${firstRow ? `<td rowspan="${totalRowCount}" class="jury-cell">
-            <div class="jury-inner">
-              <div class="jury-header">APPRÉCIATIONS DU JURY DU PROGRAMME</div>
-              <div class="jury-decision" style="color:${decisionColor};">${decisionLabel}</div>
-              <div class="jury-signataire">
-                <div class="jury-stamp-label">LE COORDONNATEUR DU CENTRE</div>
-                <div class="jury-stamp-sublabel">P.O LE RESPONSABLE D'ETUDE</div>
-                <div class="jury-stamp">
-                  <div class="stamp-circle">
-                    <span>ESCAE</span>
-                    <span>CPEC-UEMOA</span>
-                  </div>
-                </div>
-                <div class="jury-name">Dr. KPOLIE DEFFO CASIMIR</div>
-              </div>
-            </div>
-          </td>` : ""}
+          ${juryCell}
         </tr>`;
       firstRow = false;
     } else if (row.kind === "ue") {
@@ -204,23 +219,7 @@ export function generateBulletinHTML(data: BulletinData): string {
           <td class="num ue-num">${fmt(row.note)}</td>
           <td class="num ue-num">${row.coef}</td>
           <td class="num ue-num">${pts}</td>
-          ${firstRow ? `<td rowspan="${totalRowCount}" class="jury-cell">
-            <div class="jury-inner">
-              <div class="jury-header">APPRÉCIATIONS DU JURY DU PROGRAMME</div>
-              <div class="jury-decision" style="color:${decisionColor};">${decisionLabel}</div>
-              <div class="jury-signataire">
-                <div class="jury-stamp-label">LE COORDONNATEUR DU CENTRE</div>
-                <div class="jury-stamp-sublabel">P.O LE RESPONSABLE D'ETUDE</div>
-                <div class="jury-stamp">
-                  <div class="stamp-circle">
-                    <span>ESCAE</span>
-                    <span>CPEC-UEMOA</span>
-                  </div>
-                </div>
-                <div class="jury-name">Dr. KPOLIE DEFFO CASIMIR</div>
-              </div>
-            </div>
-          </td>` : ""}
+          ${juryCell}
         </tr>`;
       firstRow = false;
     } else if (row.kind === "subject") {
@@ -231,23 +230,7 @@ export function generateBulletinHTML(data: BulletinData): string {
           <td class="num">${row.note !== null ? fmt(row.note) : "—"}</td>
           <td class="num">${row.coef}</td>
           <td class="num">${pts}</td>
-          ${firstRow ? `<td rowspan="${totalRowCount}" class="jury-cell">
-            <div class="jury-inner">
-              <div class="jury-header">APPRÉCIATIONS DU JURY DU PROGRAMME</div>
-              <div class="jury-decision" style="color:${decisionColor};">${decisionLabel}</div>
-              <div class="jury-signataire">
-                <div class="jury-stamp-label">LE COORDONNATEUR DU CENTRE</div>
-                <div class="jury-stamp-sublabel">P.O LE RESPONSABLE D'ETUDE</div>
-                <div class="jury-stamp">
-                  <div class="stamp-circle">
-                    <span>ESCAE</span>
-                    <span>CPEC-UEMOA</span>
-                  </div>
-                </div>
-                <div class="jury-name">Dr. KPOLIE DEFFO CASIMIR</div>
-              </div>
-            </div>
-          </td>` : ""}
+          ${juryCell}
         </tr>`;
       firstRow = false;
     } else if (row.kind === "result") {
@@ -257,23 +240,7 @@ export function generateBulletinHTML(data: BulletinData): string {
           <td class="num result-num">${row.val}</td>
           <td class="num result-mid">${row.midLabel}</td>
           <td class="num result-num">${row.midVal}</td>
-          ${firstRow ? `<td rowspan="${totalRowCount}" class="jury-cell">
-            <div class="jury-inner">
-              <div class="jury-header">APPRÉCIATIONS DU JURY DU PROGRAMME</div>
-              <div class="jury-decision" style="color:${decisionColor};">${decisionLabel}</div>
-              <div class="jury-signataire">
-                <div class="jury-stamp-label">LE COORDONNATEUR DU CENTRE</div>
-                <div class="jury-stamp-sublabel">P.O LE RESPONSABLE D'ETUDE</div>
-                <div class="jury-stamp">
-                  <div class="stamp-circle">
-                    <span>ESCAE</span>
-                    <span>CPEC-UEMOA</span>
-                  </div>
-                </div>
-                <div class="jury-name">Dr. KPOLIE DEFFO CASIMIR</div>
-              </div>
-            </div>
-          </td>` : ""}
+          ${juryCell}
         </tr>`;
       firstRow = false;
     }
@@ -283,18 +250,7 @@ export function generateBulletinHTML(data: BulletinData): string {
   if (firstRow) {
     tableRowsHtml = `<tr>
       <td colspan="4" style="text-align:center;padding:8px;font-size:8pt;color:#888;">Aucune matière enregistrée.</td>
-      <td class="jury-cell">
-        <div class="jury-inner">
-          <div class="jury-header">APPRÉCIATIONS DU JURY DU PROGRAMME</div>
-          <div class="jury-decision" style="color:${decisionColor};">${decisionLabel}</div>
-          <div class="jury-signataire">
-            <div class="jury-stamp-label">LE COORDONNATEUR DU CENTRE</div>
-            <div class="jury-stamp-sublabel">P.O LE RESPONSABLE D'ETUDE</div>
-            <div class="jury-stamp"><div class="stamp-circle"><span>ESCAE</span><span>CPEC-UEMOA</span></div></div>
-            <div class="jury-name">Dr. KPOLIE DEFFO CASIMIR</div>
-          </div>
-        </div>
-      </td>
+      <td class="jury-cell">${juryHtml()}</td>
     </tr>`;
   }
 

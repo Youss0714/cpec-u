@@ -1182,11 +1182,12 @@ async function computeStudentResult(studentId: number, semesterId: number) {
   // ── LMD: Group subjects by UE and compute UE averages ───────────────────────
   const ueResults = ues.map((ue) => {
     const ueSubjects = grades.filter(g => g.ueId === ue.id);
-    const gradedUeSubjects = ueSubjects.filter(g => g.value !== null);
+    // UE average is only calculated when ALL subjects in the UE have a grade
+    const allSubjectsGraded = ueSubjects.length > 0 && ueSubjects.every(g => g.value !== null);
     let ueAverage: number | null = null;
-    if (gradedUeSubjects.length > 0) {
-      const totalCoeff = gradedUeSubjects.reduce((s, g) => s + g.coefficient, 0);
-      const totalPoints = gradedUeSubjects.reduce((s, g) => s + g.value! * g.coefficient, 0);
+    if (allSubjectsGraded) {
+      const totalCoeff = ueSubjects.reduce((s, g) => s + g.coefficient, 0);
+      const totalPoints = ueSubjects.reduce((s, g) => s + g.value! * g.coefficient, 0);
       ueAverage = totalCoeff > 0 ? Math.round((totalPoints / totalCoeff) * 100) / 100 : null;
     }
     const acquis = ueAverage !== null && ueAverage >= 10;
@@ -1209,21 +1210,28 @@ async function computeStudentResult(studentId: number, semesterId: number) {
   let decision: "Admis" | "Ajourné" | "En attente" = "En attente";
 
   // Compute semester average from UE averages (weighted by UE credits) + unassigned subjects
-  const gradedSubjects = grades.filter((g) => g.value !== null);
+  // Semester average is ONLY calculated when ALL UEs have their average (cascade rule)
   if (ues.length > 0) {
-    const gradedUes = ueResults.filter(u => u.average !== null);
-    const unassignedGraded = unassignedGrades.filter(g => g.value !== null);
-    const totalCredits = gradedUes.reduce((s, u) => s + u.credits, 0);
-    const totalPoints = gradedUes.reduce((s, u) => s + u.average! * u.credits, 0);
-    const unassignedCoeff = unassignedGraded.reduce((s, g) => s + g.coefficient, 0);
-    const unassignedPoints = unassignedGraded.reduce((s, g) => s + g.value! * g.coefficient, 0);
-    const totalWeight = totalCredits + unassignedCoeff;
-    const total = totalPoints + unassignedPoints;
-    average = totalWeight > 0 ? Math.round((total / totalWeight) * 100) / 100 : null;
-  } else if (gradedSubjects.length > 0) {
-    const totalCoeff = gradedSubjects.reduce((sum, g) => sum + g.coefficient, 0);
-    const totalPoints = gradedSubjects.reduce((sum, g) => sum + (g.value! * g.coefficient), 0);
-    average = totalCoeff > 0 ? Math.round((totalPoints / totalCoeff) * 100) / 100 : null;
+    const allUesHaveAverage = ueResults.every(u => u.average !== null);
+    const unassignedAllGraded = unassignedGrades.length === 0 || unassignedGrades.every(g => g.value !== null);
+    if (allUesHaveAverage && unassignedAllGraded) {
+      const totalCredits = ueResults.reduce((s, u) => s + u.credits, 0);
+      const totalPoints = ueResults.reduce((s, u) => s + u.average! * u.credits, 0);
+      const unassignedCoeff = unassignedGrades.reduce((s, g) => s + g.coefficient, 0);
+      const unassignedPoints = unassignedGrades.reduce((s, g) => s + g.value! * g.coefficient, 0);
+      const totalWeight = totalCredits + unassignedCoeff;
+      const total = totalPoints + unassignedPoints;
+      average = totalWeight > 0 ? Math.round((total / totalWeight) * 100) / 100 : null;
+    }
+    // If any UE is missing grades, average stays null
+  } else {
+    // No UE structure: semester average requires ALL subjects to be graded
+    const allSubjectsGraded = grades.length > 0 && grades.every(g => g.value !== null);
+    if (allSubjectsGraded) {
+      const totalCoeff = grades.reduce((sum, g) => sum + g.coefficient, 0);
+      const totalPoints = grades.reduce((sum, g) => sum + (g.value! * g.coefficient), 0);
+      average = totalCoeff > 0 ? Math.round((totalPoints / totalCoeff) * 100) / 100 : null;
+    }
   }
 
   // Credits validated = sum of UE credits where UE average >= 10
@@ -1262,24 +1270,18 @@ async function computeStudentResult(studentId: number, semesterId: number) {
     average = Math.max(0, Math.round((average - absenceDeduction) * 100) / 100);
   }
 
-  if (ues.length > 0) {
-    // Rule 3: Semester validated if (1) ALL UEs validated (avg >= 10) AND (2) semester avg >= 12
-    const uesWithGrades = ueResults.filter(u => u.average !== null);
-    if (uesWithGrades.length === 0) {
-      decision = "En attente";
-    } else if (uesWithGrades.length < ueResults.length) {
-      // Some UEs still missing grades — can already fail if any graded UE is not acquis
-      const allAcquisSoFar = uesWithGrades.every(u => u.acquis);
-      decision = allAcquisSoFar ? "En attente" : "Ajourné";
-    } else {
-      // All UEs have grades — both conditions must hold
+  // Decision is only definitive when semester average is calculable (all grades present)
+  if (average !== null) {
+    if (ues.length > 0) {
+      // Admis: ALL UEs validated (avg >= 10) AND semester avg >= 12
       const allUesAcquis = ueResults.every(u => u.acquis);
-      const averageOk = average !== null && average >= 12;
-      decision = (allUesAcquis && averageOk) ? "Admis" : "Ajourné";
+      decision = (allUesAcquis && average >= 12) ? "Admis" : "Ajourné";
+    } else {
+      decision = average >= 12 ? "Admis" : "Ajourné";
     }
-  } else if (average !== null) {
-    // No UE structure: fall back to overall average threshold alone
-    decision = average >= 12 ? "Admis" : "Ajourné";
+  } else {
+    // Grades incomplete → no decision yet
+    decision = "En attente";
   }
 
   // Rule 5: Identify failure reasons for non-validated semesters
