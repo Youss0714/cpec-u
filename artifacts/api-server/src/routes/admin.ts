@@ -98,18 +98,92 @@ router.get("/users", requireRole("admin"), async (req, res) => {
   }
 });
 
+// ── Helpers for student validation ────────────────────────────────────────────
+function parseFrenchDate(dateStr: string): Date | null {
+  const m = dateStr.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!m) return null;
+  const [, dd, mm, yyyy] = m;
+  const d = new Date(parseInt(yyyy), parseInt(mm) - 1, parseInt(dd));
+  if (d.getFullYear() !== parseInt(yyyy) || d.getMonth() !== parseInt(mm) - 1 || d.getDate() !== parseInt(dd)) return null;
+  return d;
+}
+function isValidStudentPhone(phone: string): boolean {
+  // At least 7 digits; may contain +, spaces, dashes, dots, parentheses
+  return /^\+?[\d\s\(\)\-\.]{7,25}$/.test(phone) && /\d{7,}/.test(phone.replace(/\D/g, ""));
+}
+
 router.post("/users", requireRole("admin"), async (req, res) => {
   try {
     const cu = req.session?.user as any;
-    const { email, name, password, role, adminSubRole, classId, phone, matricule, dateNaissance, lieuNaissance } = req.body;
-    if (!email || !name || !password || !role) {
-      res.status(400).json({ error: "Bad Request", message: "Missing required fields" });
+    const { email, name, firstName, lastName, password, role, adminSubRole, classId, phone,
+            matricule, dateNaissance, lieuNaissance, parentName, parentPhone } = req.body;
+
+    // ── Generic required fields ────────────────────────────────────────────
+    const resolvedName = (role === "student" && (firstName || lastName))
+      ? `${(firstName ?? "").trim()} ${(lastName ?? "").trim()}`.trim()
+      : name;
+
+    if (!email?.trim() || !resolvedName?.trim() || !password || !role) {
+      res.status(400).json({ error: "Bad Request", message: "Les champs nom, email, mot de passe et rôle sont obligatoires." });
       return;
     }
-    if (role === "student" && !matricule?.trim()) {
-      res.status(400).json({ error: "Bad Request", message: "Le matricule est obligatoire pour un étudiant." });
-      return;
+
+    // ── Student-specific validation ────────────────────────────────────────
+    if (role === "student") {
+      if (!firstName?.trim()) {
+        res.status(400).json({ error: "Bad Request", message: "Le prénom est obligatoire." });
+        return;
+      }
+      if (!lastName?.trim()) {
+        res.status(400).json({ error: "Bad Request", message: "Le nom est obligatoire." });
+        return;
+      }
+      if (!matricule?.trim()) {
+        res.status(400).json({ error: "Bad Request", message: "Le matricule est obligatoire pour un étudiant." });
+        return;
+      }
+      if (!dateNaissance?.trim()) {
+        res.status(400).json({ error: "Bad Request", message: "La date de naissance est obligatoire." });
+        return;
+      }
+      const parsedDOB = parseFrenchDate(dateNaissance.trim());
+      if (!parsedDOB) {
+        res.status(400).json({ error: "Bad Request", message: "La date de naissance est invalide (format attendu : JJ/MM/AAAA)." });
+        return;
+      }
+      if (parsedDOB >= new Date()) {
+        res.status(400).json({ error: "Bad Request", message: "La date de naissance doit être antérieure à aujourd'hui." });
+        return;
+      }
+      if (!lieuNaissance?.trim()) {
+        res.status(400).json({ error: "Bad Request", message: "Le lieu de naissance est obligatoire." });
+        return;
+      }
+      if (!parentName?.trim()) {
+        res.status(400).json({ error: "Bad Request", message: "Le nom du parent/tuteur est obligatoire." });
+        return;
+      }
+      if (!parentPhone?.trim()) {
+        res.status(400).json({ error: "Bad Request", message: "Le contact du parent/tuteur est obligatoire." });
+        return;
+      }
+      if (!isValidStudentPhone(parentPhone.trim())) {
+        res.status(400).json({ error: "Bad Request", message: "Le contact du parent/tuteur n'est pas un numéro de téléphone valide." });
+        return;
+      }
+      // Matricule uniqueness check
+      const existingMatricule = await db
+        .select({ id: studentProfilesTable.studentId })
+        .from(studentProfilesTable)
+        .where(eq(studentProfilesTable.matricule, matricule.trim()))
+        .limit(1);
+      if (existingMatricule.length > 0) {
+        res.status(409).json({ error: "Conflict", message: "Ce matricule est déjà utilisé par un autre étudiant." });
+        return;
+      }
     }
+
+    // ── Access control ─────────────────────────────────────────────────────
     if (role === "admin" && cu?.adminSubRole !== "directeur") {
       res.status(403).json({ error: "Forbidden", message: "Seul le Directeur du Centre peut créer un compte administrateur." });
       return;
@@ -118,9 +192,10 @@ router.post("/users", requireRole("admin"), async (req, res) => {
       res.status(403).json({ error: "Forbidden", message: "L'Assistant(e) de Direction ne peut créer que des comptes étudiants." });
       return;
     }
+
     const passwordHash = hashPassword(password);
     const [user] = await db.insert(usersTable).values({
-      email, name, passwordHash, role,
+      email: email.trim(), name: resolvedName, passwordHash, role,
       adminSubRole: role === "admin" ? (adminSubRole ?? null) : null,
       mustChangePassword: true,
     }).returning();
@@ -133,9 +208,11 @@ router.post("/users", requireRole("admin"), async (req, res) => {
     if (role === "student") {
       await db.insert(studentProfilesTable).values({
         studentId: user.id,
-        matricule: matricule?.trim() || null,
-        dateNaissance: dateNaissance?.trim() || null,
-        lieuNaissance: lieuNaissance?.trim() || null,
+        matricule: matricule.trim(),
+        dateNaissance: dateNaissance.trim(),
+        lieuNaissance: lieuNaissance.trim(),
+        parentName: parentName.trim(),
+        parentPhone: parentPhone.trim(),
       }).onConflictDoNothing();
     }
 
@@ -149,7 +226,7 @@ router.post("/users", requireRole("admin"), async (req, res) => {
     });
   } catch (err: any) {
     if (err?.code === "23505") {
-      res.status(409).json({ error: "Conflict", message: "Email already exists" });
+      res.status(409).json({ error: "Conflict", message: "Un compte avec cet email existe déjà." });
       return;
     }
     console.error(err);

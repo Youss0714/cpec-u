@@ -378,13 +378,13 @@ export default function SharedMessages({ allowedRoles }: { allowedRoles: string[
                     const isMe = m.senderId !== selectedUserId;
                     return (
                       <div key={m.id} className={`flex ${isMe ? "justify-end" : "justify-start"}`}>
-                        <div className={`max-w-[70%] rounded-2xl px-3.5 py-2 text-sm shadow-sm ${
+                        <div className={`max-w-[75%] min-w-0 rounded-2xl px-3.5 py-2 text-sm shadow-sm ${
                           isMe
                             ? "bg-primary text-primary-foreground rounded-br-sm"
                             : "bg-muted text-foreground rounded-bl-sm"
                         }`}>
                           {m.content && !m.content.startsWith("📎") && (
-                            <p className="leading-relaxed whitespace-pre-wrap">{m.content}</p>
+                            <p className="leading-relaxed whitespace-pre-line break-words">{m.content}</p>
                           )}
                           {m.fileUrl && (
                             <FileAttachment
@@ -396,7 +396,7 @@ export default function SharedMessages({ allowedRoles }: { allowedRoles: string[
                             />
                           )}
                           {m.content && m.content.startsWith("📎") && !m.fileUrl && (
-                            <p className="leading-relaxed whitespace-pre-wrap">{m.content}</p>
+                            <p className="leading-relaxed whitespace-pre-line break-words">{m.content}</p>
                           )}
                           <p className={`text-[10px] mt-1 ${isMe ? "text-primary-foreground/60" : "text-muted-foreground"}`}>
                             {formatTime(m.createdAt)}

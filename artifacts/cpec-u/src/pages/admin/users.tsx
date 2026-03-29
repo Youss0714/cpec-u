@@ -691,8 +691,8 @@ export default function AdminUsers() {
   const [editSaving, setEditSaving] = useState(false);
   const [teacherAssignmentRows, setTeacherAssignmentRows] = useState<{ subjectId: string; classId: string; semesterId: string }[]>([]);
   const [createStudentClassId, setCreateStudentClassId] = useState<string>("");
-  const [createProfileForm, setCreateProfileForm] = useState({ matricule: "", dateNaissance: "", lieuNaissance: "", phone: "", address: "", parentName: "", parentPhone: "", parentEmail: "", parentAddress: "" });
-  const emptyCreateProfile = { matricule: "", dateNaissance: "", lieuNaissance: "", phone: "", address: "", parentName: "", parentPhone: "", parentEmail: "", parentAddress: "" };
+  const [createProfileForm, setCreateProfileForm] = useState({ firstName: "", lastName: "", matricule: "", dateNaissance: "", lieuNaissance: "", phone: "", address: "", parentName: "", parentPhone: "", parentEmail: "", parentAddress: "" });
+  const emptyCreateProfile = { firstName: "", lastName: "", matricule: "", dateNaissance: "", lieuNaissance: "", phone: "", address: "", parentName: "", parentPhone: "", parentEmail: "", parentAddress: "" };
   const [viewUser, setViewUser] = useState<any | null>(null);
   const [viewProfile, setViewProfile] = useState<any | null>(null);
   const [viewProfileLoading, setViewProfileLoading] = useState(false);
@@ -717,6 +717,18 @@ export default function AdminUsers() {
   const students = users?.filter((u: any) => u.role === "student") || [];
   const admins = users?.filter((u: any) => u.role === "admin") || [];
 
+  // ── Validation helpers ─────────────────────────────────────────────────────
+  function parseFrenchDateFE(s: string): Date | null {
+    const m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if (!m) return null;
+    const d = new Date(parseInt(m[3]), parseInt(m[2]) - 1, parseInt(m[1]));
+    if (d.getFullYear() !== parseInt(m[3]) || d.getMonth() !== parseInt(m[2]) - 1 || d.getDate() !== parseInt(m[1])) return null;
+    return d;
+  }
+  function isValidPhoneFE(s: string): boolean {
+    return /^\+?[\d\s\(\)\-\.]{7,25}$/.test(s) && s.replace(/\D/g, "").length >= 7;
+  }
+
   const handleCreate = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
@@ -731,19 +743,54 @@ export default function AdminUsers() {
       toast({ title: "Veuillez sélectionner une classe pour l'étudiant.", variant: "destructive" });
       return;
     }
+
+    // ── Client-side validation for students ──────────────────────────────────
+    if (role === "student") {
+      const f = createProfileForm;
+      const missing: string[] = [];
+      if (!f.lastName.trim()) missing.push("Nom");
+      if (!f.firstName.trim()) missing.push("Prénom");
+      if (!f.matricule.trim()) missing.push("Matricule");
+      if (!f.dateNaissance.trim()) missing.push("Date de naissance");
+      if (!f.lieuNaissance.trim()) missing.push("Lieu de naissance");
+      if (!f.parentName.trim()) missing.push("Nom du parent/tuteur");
+      if (!f.parentPhone.trim()) missing.push("Contact du parent/tuteur");
+      if (missing.length > 0) {
+        toast({ title: "Champs obligatoires manquants", description: missing.join(", "), variant: "destructive" });
+        return;
+      }
+      if (!parseFrenchDateFE(f.dateNaissance.trim())) {
+        toast({ title: "Date de naissance invalide", description: "Format attendu : JJ/MM/AAAA", variant: "destructive" });
+        return;
+      }
+      if (parseFrenchDateFE(f.dateNaissance.trim())! >= new Date()) {
+        toast({ title: "Date de naissance invalide", description: "La date doit être antérieure à aujourd'hui.", variant: "destructive" });
+        return;
+      }
+      if (!isValidPhoneFE(f.parentPhone.trim())) {
+        toast({ title: "Contact du parent invalide", description: "Numéro de téléphone invalide (ex : +225 07 00 00 00 00)", variant: "destructive" });
+        return;
+      }
+    }
+
     try {
+      const f = createProfileForm;
       const newUser = await createUser.mutateAsync({
         data: {
-          name: formData.get("name") as string,
+          name: role === "student" ? `${f.firstName.trim()} ${f.lastName.trim()}` : formData.get("name") as string,
+          firstName: role === "student" ? f.firstName.trim() : undefined,
+          lastName: role === "student" ? f.lastName.trim() : undefined,
           email: formData.get("email") as string,
           password: formData.get("password") as string,
           role,
           classId: role === "student" && createStudentClassId ? parseInt(createStudentClassId) : undefined,
           adminSubRole: role === "admin" ? adminSubRole : undefined,
           phone: role === "teacher" && phone ? phone : undefined,
-          matricule: role === "student" && createProfileForm.matricule ? createProfileForm.matricule.trim() : undefined,
-          dateNaissance: role === "student" && createProfileForm.dateNaissance ? createProfileForm.dateNaissance.trim() : undefined,
-          lieuNaissance: role === "student" && createProfileForm.lieuNaissance ? createProfileForm.lieuNaissance.trim() : undefined,
+          matricule: role === "student" ? f.matricule.trim() : undefined,
+          dateNaissance: role === "student" ? f.dateNaissance.trim() : undefined,
+          lieuNaissance: role === "student" ? f.lieuNaissance.trim() : undefined,
+          parentName: role === "student" ? f.parentName.trim() : undefined,
+          parentPhone: role === "student" ? f.parentPhone.trim() : undefined,
         } as any,
       });
 
@@ -954,7 +1001,9 @@ export default function AdminUsers() {
               <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
                 <DialogHeader><DialogTitle>Créer un utilisateur</DialogTitle></DialogHeader>
                 <form onSubmit={handleCreate} className="space-y-4 pt-2" autoComplete="off">
-                  <div className="space-y-1"><Label>Nom complet</Label><Input name="name" required autoComplete="off" /></div>
+                  {selectedRole !== "student" && (
+                    <div className="space-y-1"><Label>Nom complet</Label><Input name="name" required={selectedRole !== "student"} autoComplete="off" /></div>
+                  )}
                   <div className="space-y-1"><Label>Email</Label><Input name="email" type="email" required autoComplete="off" /></div>
                   <div className="space-y-1"><Label>Mot de passe</Label><Input name="password" type="password" required minLength={6} autoComplete="new-password" /></div>
                   <div className="space-y-1">
@@ -971,6 +1020,29 @@ export default function AdminUsers() {
                   </div>
                   {selectedRole === "student" && (
                     <>
+                      {/* ── Identité ── */}
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <Label>Prénom <span className="text-destructive">*</span></Label>
+                          <Input
+                            value={createProfileForm.firstName}
+                            onChange={e => setCreateProfileForm(f => ({ ...f, firstName: e.target.value }))}
+                            placeholder="Ex: Konan"
+                            className={!createProfileForm.firstName.trim() ? "border-destructive/50 focus-visible:ring-destructive/30" : ""}
+                          />
+                          {!createProfileForm.firstName.trim() && <p className="text-xs text-destructive mt-0.5">Requis</p>}
+                        </div>
+                        <div className="space-y-1">
+                          <Label>Nom <span className="text-destructive">*</span></Label>
+                          <Input
+                            value={createProfileForm.lastName}
+                            onChange={e => setCreateProfileForm(f => ({ ...f, lastName: e.target.value }))}
+                            placeholder="Ex: Kouassi"
+                            className={!createProfileForm.lastName.trim() ? "border-destructive/50 focus-visible:ring-destructive/30" : ""}
+                          />
+                          {!createProfileForm.lastName.trim() && <p className="text-xs text-destructive mt-0.5">Requis</p>}
+                        </div>
+                      </div>
                       <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1">
                           <Label>Classe <span className="text-destructive">*</span></Label>
@@ -982,23 +1054,45 @@ export default function AdminUsers() {
                         </div>
                         <div className="space-y-1">
                           <Label className="flex items-center gap-1.5"><School className="w-3.5 h-3.5 text-muted-foreground" /> N° Matricule <span className="text-destructive">*</span></Label>
-                          <Input required value={createProfileForm.matricule} onChange={e => setCreateProfileForm(f => ({ ...f, matricule: e.target.value }))} placeholder="Ex: INP-HB/2024/001" />
+                          <Input
+                            value={createProfileForm.matricule}
+                            onChange={e => setCreateProfileForm(f => ({ ...f, matricule: e.target.value }))}
+                            placeholder="Ex: INP-HB/2024/001"
+                            className={!createProfileForm.matricule.trim() ? "border-destructive/50 focus-visible:ring-destructive/30" : ""}
+                          />
+                          {!createProfileForm.matricule.trim() && <p className="text-xs text-destructive mt-0.5">Requis</p>}
                         </div>
                       </div>
-                      <div className="grid grid-cols-2 gap-3 mt-2">
+                      <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1">
-                          <Label className="flex items-center gap-1.5 text-sm">Date de naissance</Label>
-                          <Input value={createProfileForm.dateNaissance} onChange={e => setCreateProfileForm(f => ({ ...f, dateNaissance: e.target.value }))} placeholder="Ex: 25/10/2001" />
+                          <Label className="text-sm">Date de naissance <span className="text-destructive">*</span></Label>
+                          <Input
+                            value={createProfileForm.dateNaissance}
+                            onChange={e => setCreateProfileForm(f => ({ ...f, dateNaissance: e.target.value }))}
+                            placeholder="JJ/MM/AAAA"
+                            className={!createProfileForm.dateNaissance.trim() ? "border-destructive/50 focus-visible:ring-destructive/30" : ""}
+                          />
+                          {!createProfileForm.dateNaissance.trim() && <p className="text-xs text-destructive mt-0.5">Requis</p>}
+                          {createProfileForm.dateNaissance.trim() && !parseFrenchDateFE(createProfileForm.dateNaissance.trim()) && (
+                            <p className="text-xs text-destructive mt-0.5">Format invalide (JJ/MM/AAAA)</p>
+                          )}
                         </div>
                         <div className="space-y-1">
-                          <Label className="flex items-center gap-1.5 text-sm">Lieu de naissance</Label>
-                          <Input value={createProfileForm.lieuNaissance} onChange={e => setCreateProfileForm(f => ({ ...f, lieuNaissance: e.target.value }))} placeholder="Ex: Abidjan" />
+                          <Label className="text-sm">Lieu de naissance <span className="text-destructive">*</span></Label>
+                          <Input
+                            value={createProfileForm.lieuNaissance}
+                            onChange={e => setCreateProfileForm(f => ({ ...f, lieuNaissance: e.target.value }))}
+                            placeholder="Ex: Abidjan"
+                            className={!createProfileForm.lieuNaissance.trim() ? "border-destructive/50 focus-visible:ring-destructive/30" : ""}
+                          />
+                          {!createProfileForm.lieuNaissance.trim() && <p className="text-xs text-destructive mt-0.5">Requis</p>}
                         </div>
                       </div>
                     </>
                   )}
                   {selectedRole === "student" && (
                     <div className="space-y-3">
+                      {/* ── Contact étudiant (optionnel) ── */}
                       <div className="flex items-center gap-2 pt-1">
                         <div className="h-px flex-1 bg-border" />
                         <span className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Contact <span className="normal-case font-normal">(optionnel)</span></span>
@@ -1014,27 +1108,43 @@ export default function AdminUsers() {
                           <Input value={createProfileForm.address} onChange={e => setCreateProfileForm(f => ({ ...f, address: e.target.value }))} placeholder="Quartier, Ville" />
                         </div>
                       </div>
+                      {/* ── Parent / Tuteur (obligatoire) ── */}
                       <div className="flex items-center gap-2 pt-1">
                         <div className="h-px flex-1 bg-border" />
-                        <span className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Parents / Tuteur <span className="normal-case font-normal">(optionnel)</span></span>
+                        <span className="text-xs font-medium uppercase tracking-wide">Parent / Tuteur <span className="text-destructive">*</span></span>
                         <div className="h-px flex-1 bg-border" />
                       </div>
                       <div className="space-y-1">
-                        <Label className="text-sm">Nom du parent / tuteur</Label>
-                        <Input value={createProfileForm.parentName} onChange={e => setCreateProfileForm(f => ({ ...f, parentName: e.target.value }))} placeholder="Prénom Nom" />
+                        <Label className="text-sm">Nom du parent / tuteur <span className="text-destructive">*</span></Label>
+                        <Input
+                          value={createProfileForm.parentName}
+                          onChange={e => setCreateProfileForm(f => ({ ...f, parentName: e.target.value }))}
+                          placeholder="Prénom Nom"
+                          className={!createProfileForm.parentName.trim() ? "border-destructive/50 focus-visible:ring-destructive/30" : ""}
+                        />
+                        {!createProfileForm.parentName.trim() && <p className="text-xs text-destructive mt-0.5">Requis</p>}
                       </div>
                       <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1">
-                          <Label className="flex items-center gap-1.5 text-sm"><Phone className="w-3.5 h-3.5 text-muted-foreground" /> Tél. parent</Label>
-                          <Input value={createProfileForm.parentPhone} onChange={e => setCreateProfileForm(f => ({ ...f, parentPhone: e.target.value }))} placeholder="+225 07 00 00 00 00" />
+                          <Label className="flex items-center gap-1.5 text-sm"><Phone className="w-3.5 h-3.5 text-muted-foreground" /> Contact parent <span className="text-destructive">*</span></Label>
+                          <Input
+                            value={createProfileForm.parentPhone}
+                            onChange={e => setCreateProfileForm(f => ({ ...f, parentPhone: e.target.value }))}
+                            placeholder="+225 07 00 00 00 00"
+                            className={!createProfileForm.parentPhone.trim() || !isValidPhoneFE(createProfileForm.parentPhone.trim()) ? "border-destructive/50 focus-visible:ring-destructive/30" : ""}
+                          />
+                          {!createProfileForm.parentPhone.trim() && <p className="text-xs text-destructive mt-0.5">Requis</p>}
+                          {createProfileForm.parentPhone.trim() && !isValidPhoneFE(createProfileForm.parentPhone.trim()) && (
+                            <p className="text-xs text-destructive mt-0.5">Numéro invalide</p>
+                          )}
                         </div>
                         <div className="space-y-1">
-                          <Label className="text-sm">Email parent</Label>
-                          <Input type="email" value={createProfileForm.parentEmail} onChange={e => setCreateProfileForm(f => ({ ...f, parentEmail: e.target.value }))} placeholder="prenom.nom@inphb.ci" />
+                          <Label className="text-sm">Email parent <span className="text-muted-foreground font-normal">(optionnel)</span></Label>
+                          <Input type="email" value={createProfileForm.parentEmail} onChange={e => setCreateProfileForm(f => ({ ...f, parentEmail: e.target.value }))} placeholder="prenom.nom@exemple.ci" />
                         </div>
                       </div>
                       <div className="space-y-1">
-                        <Label className="flex items-center gap-1.5 text-sm"><MapPin className="w-3.5 h-3.5 text-muted-foreground" /> Adresse parent</Label>
+                        <Label className="flex items-center gap-1.5 text-sm"><MapPin className="w-3.5 h-3.5 text-muted-foreground" /> Adresse parent <span className="text-muted-foreground font-normal">(optionnel)</span></Label>
                         <Input value={createProfileForm.parentAddress} onChange={e => setCreateProfileForm(f => ({ ...f, parentAddress: e.target.value }))} placeholder="Quartier, Ville" />
                       </div>
                     </div>
@@ -1114,7 +1224,24 @@ export default function AdminUsers() {
                       ))}
                     </div>
                   )}
-                  <Button type="submit" className="w-full" disabled={createUser.isPending}>
+                  <Button
+                    type="submit"
+                    className="w-full"
+                    disabled={
+                      createUser.isPending ||
+                      (selectedRole === "student" && (
+                        !createProfileForm.firstName.trim() ||
+                        !createProfileForm.lastName.trim() ||
+                        !createProfileForm.matricule.trim() ||
+                        !createProfileForm.dateNaissance.trim() ||
+                        !createProfileForm.lieuNaissance.trim() ||
+                        !createProfileForm.parentName.trim() ||
+                        !createProfileForm.parentPhone.trim() ||
+                        !isValidPhoneFE(createProfileForm.parentPhone.trim()) ||
+                        !parseFrenchDateFE(createProfileForm.dateNaissance.trim())
+                      ))
+                    }
+                  >
                     {createUser.isPending ? "Création..." : "Créer l'utilisateur"}
                   </Button>
                 </form>
