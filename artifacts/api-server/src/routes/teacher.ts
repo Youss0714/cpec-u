@@ -16,9 +16,12 @@ import {
   studentProfilesTable,
   attendanceTable,
   cahierDeTexteTable,
+  retakeSessionsTable,
+  retakeGradesTable,
 } from "@workspace/db";
-import { eq, and, sql, inArray, desc, asc } from "drizzle-orm";
+import { eq, and, sql, inArray, desc, asc, lt, isNull, or } from "drizzle-orm";
 import { requireRole } from "../lib/auth.js";
+import { sendPushToUser } from "./push.js";
 
 const router = Router();
 
@@ -851,6 +854,326 @@ router.put("/profile", requireRole("teacher"), async (req, res) => {
       .returning({ id: usersTable.id, name: usersTable.name, email: usersTable.email, phone: usersTable.phone });
 
     res.json(updated);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// ===========================
+// RETAKE SESSION ROUTES (Teacher)
+// ===========================
+
+// GET /teacher/rattrapage/session — Get current open session + eligible students (with < 10 in subject)
+router.get("/rattrapage/session", requireRole("teacher", "admin"), async (req, res) => {
+  try {
+    const teacherId = req.session!.userId!;
+
+    // Find the open retake session (most recent)
+    const openSession = await db
+      .select({
+        id: retakeSessionsTable.id,
+        label: retakeSessionsTable.label,
+        status: retakeSessionsTable.status,
+        semesterId: retakeSessionsTable.semesterId,
+        semesterName: semestersTable.name,
+        openedAt: retakeSessionsTable.openedAt,
+        closedAt: retakeSessionsTable.closedAt,
+      })
+      .from(retakeSessionsTable)
+      .leftJoin(semestersTable, eq(retakeSessionsTable.semesterId, semestersTable.id))
+      .orderBy(desc(retakeSessionsTable.openedAt))
+      .limit(1);
+
+    if (!openSession[0]) return res.json({ session: null, subjects: [] });
+
+    const session = openSession[0];
+
+    // Get teacher's subjects for this semester
+    const assignments = await db
+      .select({
+        subjectId: teacherAssignmentsTable.subjectId,
+        subjectName: subjectsTable.name,
+        classId: teacherAssignmentsTable.classId,
+        className: classesTable.name,
+      })
+      .from(teacherAssignmentsTable)
+      .leftJoin(subjectsTable, eq(teacherAssignmentsTable.subjectId, subjectsTable.id))
+      .leftJoin(classesTable, eq(teacherAssignmentsTable.classId, classesTable.id))
+      .where(and(
+        eq(teacherAssignmentsTable.teacherId, teacherId),
+        eq(teacherAssignmentsTable.semesterId, session.semesterId!),
+      ));
+
+    if (assignments.length === 0) return res.json({ session, subjects: [] });
+
+    const result = [];
+
+    for (const assignment of assignments) {
+      // Get students enrolled in this class
+      const enrolled = await db
+        .select({
+          studentId: classEnrollmentsTable.studentId,
+          studentName: usersTable.name,
+          matricule: studentProfilesTable.matricule,
+        })
+        .from(classEnrollmentsTable)
+        .leftJoin(usersTable, eq(classEnrollmentsTable.studentId, usersTable.id))
+        .leftJoin(studentProfilesTable, eq(studentProfilesTable.studentId, classEnrollmentsTable.studentId))
+        .where(and(
+          eq(classEnrollmentsTable.classId, assignment.classId!),
+          eq(classEnrollmentsTable.semesterId, session.semesterId!),
+        ));
+
+      const students = [];
+      for (const student of enrolled) {
+        // Find all grades for this student in this subject this semester (not evaluationNumber=99)
+        const grades = await db
+          .select({ value: gradesTable.value, evaluationNumber: gradesTable.evaluationNumber })
+          .from(gradesTable)
+          .where(and(
+            eq(gradesTable.studentId, student.studentId!),
+            eq(gradesTable.subjectId, assignment.subjectId!),
+            eq(gradesTable.semesterId, session.semesterId!),
+          ));
+
+        const normalGrades = grades.filter(g => g.evaluationNumber !== 99);
+        if (normalGrades.length === 0) {
+          // No grade at all — eligible (absent)
+          const existingRetake = await db
+            .select()
+            .from(retakeGradesTable)
+            .where(and(
+              eq(retakeGradesTable.sessionId, session.id),
+              eq(retakeGradesTable.studentId, student.studentId!),
+              eq(retakeGradesTable.subjectId, assignment.subjectId!),
+            ))
+            .limit(1);
+          students.push({
+            studentId: student.studentId,
+            studentName: student.studentName,
+            matricule: student.matricule,
+            normalGrade: null,
+            status: "Absent",
+            retakeGrade: existingRetake[0] ?? null,
+          });
+        } else {
+          const avg = normalGrades.reduce((s, g) => s + g.value, 0) / normalGrades.length;
+          if (avg < 10) {
+            const existingRetake = await db
+              .select()
+              .from(retakeGradesTable)
+              .where(and(
+                eq(retakeGradesTable.sessionId, session.id),
+                eq(retakeGradesTable.studentId, student.studentId!),
+                eq(retakeGradesTable.subjectId, assignment.subjectId!),
+              ))
+              .limit(1);
+            students.push({
+              studentId: student.studentId,
+              studentName: student.studentName,
+              matricule: student.matricule,
+              normalGrade: Math.round(avg * 100) / 100,
+              status: "Ajourné",
+              retakeGrade: existingRetake[0] ?? null,
+            });
+          }
+        }
+      }
+
+      if (students.length > 0) {
+        result.push({
+          subjectId: assignment.subjectId,
+          subjectName: assignment.subjectName,
+          classId: assignment.classId,
+          className: assignment.className,
+          students,
+        });
+      }
+    }
+
+    res.json({ session, subjects: result });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// PUT /teacher/rattrapage/:sessionId/grades — Save draft grades (upsert)
+router.put("/rattrapage/:sessionId/grades", requireRole("teacher", "admin"), async (req, res) => {
+  try {
+    const teacherId = req.session!.userId!;
+    const sessionId = parseInt(req.params.sessionId);
+    const { grades } = req.body; // [{ studentId, subjectId, value, observation }]
+
+    if (!Array.isArray(grades)) return res.status(400).json({ error: "grades doit être un tableau" });
+
+    const session = await db.select().from(retakeSessionsTable).where(eq(retakeSessionsTable.id, sessionId)).limit(1);
+    if (!session[0]) return res.status(404).json({ error: "Session introuvable" });
+    if (session[0].status === "closed") return res.status(403).json({ error: "Session clôturée" });
+
+    for (const g of grades) {
+      const { studentId, subjectId, value, observation } = g;
+      if (!studentId || !subjectId) continue;
+      if (value !== null && value !== undefined && (value < 0 || value > 20)) {
+        return res.status(400).json({ error: `Note invalide pour étudiant ${studentId}: doit être entre 0 et 20` });
+      }
+
+      const existing = await db
+        .select()
+        .from(retakeGradesTable)
+        .where(and(
+          eq(retakeGradesTable.sessionId, sessionId),
+          eq(retakeGradesTable.studentId, studentId),
+          eq(retakeGradesTable.subjectId, subjectId),
+        ))
+        .limit(1);
+
+      if (existing[0]) {
+        if (existing[0].submissionStatus === "submitted" || existing[0].submissionStatus === "validated") continue;
+        await db.update(retakeGradesTable).set({
+          value: value ?? null,
+          observation: observation ?? null,
+          updatedAt: new Date(),
+        }).where(eq(retakeGradesTable.id, existing[0].id));
+      } else {
+        await db.insert(retakeGradesTable).values({
+          sessionId,
+          studentId,
+          subjectId,
+          teacherId,
+          value: value ?? null,
+          observation: observation ?? null,
+          submissionStatus: "draft",
+        });
+      }
+    }
+
+    res.json({ saved: grades.length });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// POST /teacher/rattrapage/:sessionId/submit — Submit grades for a subject
+router.post("/rattrapage/:sessionId/submit", requireRole("teacher", "admin"), async (req, res) => {
+  try {
+    const teacherId = req.session!.userId!;
+    const sessionId = parseInt(req.params.sessionId);
+    const { subjectId } = req.body;
+
+    const session = await db.select().from(retakeSessionsTable).where(eq(retakeSessionsTable.id, sessionId)).limit(1);
+    if (!session[0]) return res.status(404).json({ error: "Session introuvable" });
+    if (session[0].status === "closed") return res.status(403).json({ error: "Session clôturée" });
+
+    // Get all retake grades for this teacher/session/subject
+    const draftGrades = await db
+      .select()
+      .from(retakeGradesTable)
+      .where(and(
+        eq(retakeGradesTable.sessionId, sessionId),
+        eq(retakeGradesTable.teacherId, teacherId),
+        eq(retakeGradesTable.subjectId, subjectId),
+      ));
+
+    // Check for missing grades (no value and no "Absent" observation)
+    const missing = draftGrades.filter(g => g.value === null && (!g.observation || !g.observation.toLowerCase().includes("absent")));
+    if (missing.length > 0) {
+      return res.status(400).json({
+        error: `${missing.length} étudiant(s) n'ont pas de note et ne sont pas marqués absents.`,
+        missingCount: missing.length,
+      });
+    }
+
+    // Mark all as submitted
+    await db.update(retakeGradesTable)
+      .set({ submissionStatus: "submitted", submittedAt: new Date(), updatedAt: new Date() })
+      .where(and(
+        eq(retakeGradesTable.sessionId, sessionId),
+        eq(retakeGradesTable.teacherId, teacherId),
+        eq(retakeGradesTable.subjectId, subjectId),
+      ));
+
+    // Notify admin
+    const admins = await db
+      .select({ id: usersTable.id })
+      .from(usersTable)
+      .where(eq(usersTable.role, "admin"));
+
+    const subject = await db.select({ name: subjectsTable.name }).from(subjectsTable).where(eq(subjectsTable.id, subjectId)).limit(1);
+    const subjectName = subject[0]?.name ?? "matière";
+    const teacher = await db.select({ name: usersTable.name }).from(usersTable).where(eq(usersTable.id, teacherId)).limit(1);
+    const teacherName = teacher[0]?.name ?? "Enseignant";
+
+    if (admins.length > 0) {
+      await db.insert(notificationsTable).values(
+        admins.map(a => ({
+          userId: a.id,
+          type: "retake_submitted",
+          title: "Notes de rattrapage soumises",
+          message: `${teacherName} a soumis ${draftGrades.length} note(s) de rattrapage pour ${subjectName}.`,
+          read: false,
+        }))
+      );
+    }
+
+    res.json({ submitted: draftGrades.length });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// GET /teacher/rattrapage/history — Past retake sessions with grades
+router.get("/rattrapage/history", requireRole("teacher", "admin"), async (req, res) => {
+  try {
+    const teacherId = req.session!.userId!;
+
+    const sessions = await db
+      .select({
+        id: retakeSessionsTable.id,
+        label: retakeSessionsTable.label,
+        status: retakeSessionsTable.status,
+        semesterId: retakeSessionsTable.semesterId,
+        semesterName: semestersTable.name,
+        openedAt: retakeSessionsTable.openedAt,
+        closedAt: retakeSessionsTable.closedAt,
+      })
+      .from(retakeSessionsTable)
+      .leftJoin(semestersTable, eq(retakeSessionsTable.semesterId, semestersTable.id))
+      .orderBy(desc(retakeSessionsTable.openedAt));
+
+    const result = [];
+    for (const session of sessions) {
+      const grades = await db
+        .select({
+          id: retakeGradesTable.id,
+          studentId: retakeGradesTable.studentId,
+          studentName: usersTable.name,
+          subjectId: retakeGradesTable.subjectId,
+          subjectName: subjectsTable.name,
+          value: retakeGradesTable.value,
+          observation: retakeGradesTable.observation,
+          submissionStatus: retakeGradesTable.submissionStatus,
+          submittedAt: retakeGradesTable.submittedAt,
+          validatedAt: retakeGradesTable.validatedAt,
+        })
+        .from(retakeGradesTable)
+        .leftJoin(usersTable, eq(retakeGradesTable.studentId, usersTable.id))
+        .leftJoin(subjectsTable, eq(retakeGradesTable.subjectId, subjectsTable.id))
+        .where(and(
+          eq(retakeGradesTable.sessionId, session.id),
+          eq(retakeGradesTable.teacherId, teacherId),
+        ))
+        .orderBy(asc(usersTable.name));
+
+      if (grades.length > 0) {
+        result.push({ ...session, grades });
+      }
+    }
+
+    res.json(result);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Internal Server Error" });

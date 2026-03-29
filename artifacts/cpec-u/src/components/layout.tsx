@@ -38,6 +38,7 @@ import {
   UserCircle,
   BookText,
   TrendingUp,
+  RotateCcw,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
@@ -172,6 +173,7 @@ export function AppLayout({ children, allowedRoles, noScroll = false }: AppLayou
     { name: "Cahiers de texte", href: "/admin/cahier-de-texte", icon: BookText },
     { name: "Suivi des Heures", href: "/admin/suivi-heures", icon: TrendingUp },
     { name: "Journal d'Activité", href: "/admin/activity-log", icon: ScrollText },
+    { name: "Rattrapage", href: "/admin/rattrapage", icon: RotateCcw },
     { name: "Messages", href: "/admin/messages", icon: MessageSquare, badge: unreadMsgCount > 0 ? unreadMsgCount : undefined },
   ];
 
@@ -210,6 +212,7 @@ export function AppLayout({ children, allowedRoles, noScroll = false }: AppLayou
     { name: "Journal d'Activité", href: "/admin/activity-log", icon: ScrollText },
     { name: "Hébergement", href: "/admin/housing", icon: Building2 },
     { name: "Honoraires", href: "/admin/honoraires", icon: Wallet },
+    { name: "Rattrapage", href: "/admin/rattrapage", icon: RotateCcw },
     { name: "Messages", href: "/admin/messages", icon: MessageSquare, badge: unreadMsgCount > 0 ? unreadMsgCount : undefined },
     { name: "Changer mon mot de passe", href: "/change-password", icon: KeyRound, badge: null },
   ];
@@ -234,6 +237,7 @@ export function AppLayout({ children, allowedRoles, noScroll = false }: AppLayou
           { name: "Mon Planning", href: "/teacher/schedule", icon: CalendarDays },
           { name: "Gestion des Présences", href: "/teacher/attendance", icon: ClipboardList },
           { name: "Saisie des Notes", href: "/teacher/grades", icon: PenTool },
+          { name: "Rattrapage", href: "/teacher/rattrapage", icon: RotateCcw },
           { name: "Cahier de texte", href: "/teacher/cahier-de-texte", icon: BookText },
           { name: "Mes Étudiants", href: "/teacher/students", icon: Users },
           { name: "Mon Profil", href: "/teacher/profile", icon: UserCircle },

@@ -46,6 +46,8 @@ import ArchivesPage from "@/pages/admin/archives";
 import AdminStudentDetail from "@/pages/admin/student-detail";
 import AdminCahierDeTexte from "@/pages/admin/cahier-de-texte";
 import AdminSuiviHeures from "@/pages/admin/suivi-heures";
+import AdminRattrapage from "@/pages/admin/rattrapage";
+import TeacherRattrapage from "@/pages/teacher/rattrapage";
 import StudentCahierDeTexte from "@/pages/student/cahier-de-texte";
 import DevDashboard from "@/pages/dev/index";
 
@@ -99,6 +101,7 @@ function Router() {
       <Route path="/admin/students/:id" component={AdminStudentDetail} />
       <Route path="/admin/cahier-de-texte" component={AdminCahierDeTexte} />
       <Route path="/admin/suivi-heures" component={AdminSuiviHeures} />
+      <Route path="/admin/rattrapage" component={AdminRattrapage} />
 
       {/* Teacher Routes */}
       <Route path="/teacher" component={TeacherDashboard} />
@@ -108,6 +111,7 @@ function Router() {
       <Route path="/teacher/profile" component={TeacherProfile} />
       <Route path="/teacher/students" component={TeacherStudents} />
       <Route path="/teacher/students/:id" component={TeacherStudentDetail} />
+      <Route path="/teacher/rattrapage" component={TeacherRattrapage} />
       <Route path="/teacher/cahier-de-texte" component={CahierDeTexte} />
       <Route path="/teacher/notifications" component={TeacherNotifications} />
       <Route path="/teacher/messages">

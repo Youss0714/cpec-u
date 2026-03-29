@@ -40,7 +40,8 @@ The system is built as a monorepo using `pnpm workspaces`, separating the fronte
     - **Directeur du Centre**: Super-admin with full access, manages other admin accounts.
     - **Responsable de Scolarité**: Manages students, grades, classes, subjects; handles grade approvals, derogations, and results publication. Responsible for annual promotions and archiving.
     - **Planificateur**: Manages timetables, rooms, and teacher assignments; includes conflict detection and publication of schedules.
-- **Teacher Features**: Enters grades for assigned subjects, manages attendance, views assigned students and their details (grades, absences), and receives schedule update notifications.
+- **Teacher Features**: Enters grades for assigned subjects, manages attendance, views assigned students and their details (grades, absences), and receives schedule update notifications. Can access retake session module to submit makeup exam grades.
+- **Retake Session (Rattrapage)**: Admin opens a session de rattrapage per semester; teachers enter grades for students with normal grade < 10; submission blocked if any student missing grade without "Absent" annotation; admin validates submitted grades → automatically updates main grades table (evaluationNumber=99) and notifies students. Two new DB tables: `retake_sessions` and `retake_grades`.
 - **Student Features**: Views own grades, averages, and ranks (when published); receives notifications for absence justification status.
 - **Annual Promotion & Archiving**: System for promoting students to the next academic year and archiving past academic years.
 - **Messaging**: Integrated messaging system with file attachment support and contact picker for new conversations.

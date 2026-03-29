@@ -29,6 +29,8 @@ import {
   housingRoomsTable,
   housingBuildingsTable,
   cahierDeTexteTable,
+  retakeSessionsTable,
+  retakeGradesTable,
 } from "@workspace/db";
 import { eq, and, sql, count, inArray, desc, ne, isNotNull, asc, ilike, or } from "drizzle-orm";
 import { requireRole } from "../lib/auth.js";
@@ -2527,6 +2529,214 @@ router.get("/cahier-de-texte", requireRole("admin"), async (req, res) => {
       : await query;
 
     res.json(entries);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// ===========================
+// RETAKE SESSION ROUTES (Admin)
+// ===========================
+
+// GET /admin/retake-sessions — List all retake sessions
+router.get("/retake-sessions", requireRole("admin"), async (req, res) => {
+  try {
+    const sessions = await db
+      .select({
+        id: retakeSessionsTable.id,
+        label: retakeSessionsTable.label,
+        status: retakeSessionsTable.status,
+        semesterId: retakeSessionsTable.semesterId,
+        semesterName: semestersTable.name,
+        createdBy: retakeSessionsTable.createdBy,
+        createdByName: usersTable.name,
+        openedAt: retakeSessionsTable.openedAt,
+        closedAt: retakeSessionsTable.closedAt,
+        createdAt: retakeSessionsTable.createdAt,
+      })
+      .from(retakeSessionsTable)
+      .leftJoin(semestersTable, eq(retakeSessionsTable.semesterId, semestersTable.id))
+      .leftJoin(usersTable, eq(retakeSessionsTable.createdBy, usersTable.id))
+      .orderBy(desc(retakeSessionsTable.createdAt));
+    res.json(sessions);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// POST /admin/retake-sessions — Create and open a new retake session
+router.post("/retake-sessions", requireRole("admin"), async (req, res) => {
+  try {
+    const adminId = req.session!.userId!;
+    const { label, semesterId } = req.body;
+    if (!label || !semesterId) return res.status(400).json({ error: "label et semesterId requis" });
+
+    const [session] = await db.insert(retakeSessionsTable).values({
+      label,
+      semesterId: parseInt(semesterId),
+      status: "open",
+      createdBy: adminId,
+      openedAt: new Date(),
+    }).returning();
+
+    // Notify all teachers of this semester
+    const teachers = await db
+      .select({ teacherId: teacherAssignmentsTable.teacherId })
+      .from(teacherAssignmentsTable)
+      .where(eq(teacherAssignmentsTable.semesterId, parseInt(semesterId)));
+
+    const uniqueTeacherIds = [...new Set(teachers.map(t => t.teacherId))];
+    if (uniqueTeacherIds.length > 0) {
+      await db.insert(notificationsTable).values(
+        uniqueTeacherIds.map(tid => ({
+          userId: tid,
+          type: "retake_session_open",
+          title: "Session de rattrapage ouverte",
+          message: `La session de rattrapage "${label}" est maintenant ouverte. Vous pouvez saisir les notes de rattrapage.`,
+          read: false,
+        }))
+      );
+      for (const tid of uniqueTeacherIds) {
+        sendPushToUser(tid, {
+          title: "Session de rattrapage ouverte",
+          body: `La session "${label}" est maintenant ouverte.`,
+          type: "retake_session_open",
+        }).catch(() => {});
+      }
+    }
+
+    res.status(201).json(session);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// PATCH /admin/retake-sessions/:id/close — Close a retake session
+router.patch("/retake-sessions/:id/close", requireRole("admin"), async (req, res) => {
+  try {
+    const sessionId = parseInt(req.params.id);
+    const [updated] = await db
+      .update(retakeSessionsTable)
+      .set({ status: "closed", closedAt: new Date(), updatedAt: new Date() })
+      .where(eq(retakeSessionsTable.id, sessionId))
+      .returning();
+    if (!updated) return res.status(404).json({ error: "Session introuvable" });
+
+    // Notify teachers that session is closed
+    const teachers = await db
+      .select({ teacherId: retakeGradesTable.teacherId })
+      .from(retakeGradesTable)
+      .where(eq(retakeGradesTable.sessionId, sessionId));
+    const uniqueTeacherIds = [...new Set(teachers.map(t => t.teacherId))];
+    if (uniqueTeacherIds.length > 0) {
+      await db.insert(notificationsTable).values(
+        uniqueTeacherIds.map(tid => ({
+          userId: tid,
+          type: "retake_session_closed",
+          title: "Session de rattrapage clôturée",
+          message: `La session de rattrapage "${updated.label}" a été clôturée. Aucune modification n'est plus possible.`,
+          read: false,
+        }))
+      );
+    }
+    res.json(updated);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// GET /admin/retake-sessions/:id/grades — View all submitted grades for a session
+router.get("/retake-sessions/:id/grades", requireRole("admin"), async (req, res) => {
+  try {
+    const sessionId = parseInt(req.params.id);
+    const grades = await db
+      .select({
+        id: retakeGradesTable.id,
+        studentId: retakeGradesTable.studentId,
+        studentName: usersTable.name,
+        subjectId: retakeGradesTable.subjectId,
+        subjectName: subjectsTable.name,
+        teacherId: retakeGradesTable.teacherId,
+        value: retakeGradesTable.value,
+        observation: retakeGradesTable.observation,
+        submissionStatus: retakeGradesTable.submissionStatus,
+        submittedAt: retakeGradesTable.submittedAt,
+        validatedAt: retakeGradesTable.validatedAt,
+      })
+      .from(retakeGradesTable)
+      .leftJoin(usersTable, eq(retakeGradesTable.studentId, usersTable.id))
+      .leftJoin(subjectsTable, eq(retakeGradesTable.subjectId, subjectsTable.id))
+      .where(eq(retakeGradesTable.sessionId, sessionId))
+      .orderBy(asc(usersTable.name));
+    res.json(grades);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// POST /admin/retake-sessions/:id/validate — Validate submitted grades (copy to main grades table)
+router.post("/retake-sessions/:id/validate", requireRole("admin"), async (req, res) => {
+  try {
+    const sessionId = parseInt(req.params.id);
+
+    const session = await db.select().from(retakeSessionsTable).where(eq(retakeSessionsTable.id, sessionId)).limit(1);
+    if (!session[0]) return res.status(404).json({ error: "Session introuvable" });
+
+    const submittedGrades = await db
+      .select()
+      .from(retakeGradesTable)
+      .where(and(eq(retakeGradesTable.sessionId, sessionId), eq(retakeGradesTable.submissionStatus, "submitted")));
+
+    if (submittedGrades.length === 0) return res.status(400).json({ error: "Aucune note soumise à valider" });
+
+    for (const rg of submittedGrades) {
+      if (rg.value !== null && rg.value !== undefined) {
+        // Upsert into main grades table with evaluationNumber=99 (rattrapage)
+        await db
+          .insert(gradesTable)
+          .values({
+            studentId: rg.studentId,
+            subjectId: rg.subjectId,
+            semesterId: session[0].semesterId,
+            evaluationNumber: 99,
+            value: rg.value,
+          })
+          .onConflictDoUpdate({
+            target: [gradesTable.studentId, gradesTable.subjectId, gradesTable.semesterId, gradesTable.evaluationNumber],
+            set: { value: rg.value, updatedAt: new Date() },
+          });
+      }
+
+      // Mark as validated
+      await db
+        .update(retakeGradesTable)
+        .set({ submissionStatus: "validated", validatedAt: new Date(), updatedAt: new Date() })
+        .where(eq(retakeGradesTable.id, rg.id));
+
+      // Notify student
+      if (rg.value !== null && rg.value !== undefined) {
+        const subject = await db.select({ name: subjectsTable.name }).from(subjectsTable).where(eq(subjectsTable.id, rg.subjectId)).limit(1);
+        await db.insert(notificationsTable).values({
+          userId: rg.studentId,
+          type: "retake_grade_validated",
+          title: "Note de rattrapage publiée",
+          message: `Votre note de rattrapage en ${subject[0]?.name ?? "matière"} est de ${rg.value}/20.`,
+          read: false,
+        });
+        sendPushToUser(rg.studentId, {
+          title: "Note de rattrapage publiée",
+          body: `Votre note de rattrapage en ${subject[0]?.name ?? "matière"} est de ${rg.value}/20.`,
+          type: "retake_grade_validated",
+        }).catch(() => {});
+      }
+    }
+
+    res.json({ validated: submittedGrades.length });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Internal Server Error" });

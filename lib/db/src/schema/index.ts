@@ -23,3 +23,5 @@ export * from "./absence_justifications";
 export * from "./push_subscriptions";
 export * from "./cahier_de_texte";
 export * from "./activation_keys";
+export * from "./retake_sessions";
+export * from "./retake_grades";
