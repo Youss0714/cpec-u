@@ -39,6 +39,9 @@ import {
   BookText,
   TrendingUp,
   RotateCcw,
+  ChevronRight,
+  ChevronDown,
+  Layers,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
@@ -63,6 +66,10 @@ export function AppLayout({ children, allowedRoles, noScroll = false }: AppLayou
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showFarewell, setShowFarewell] = useState(false);
   const [farewellSubRole, setFarewellSubRole] = useState<string | null>(null);
+  const isOnClassesOrSubjects = location === "/admin/classes" || location === "/admin/subjects" ||
+    location.startsWith("/admin/classes/") || location.startsWith("/admin/subjects/");
+  const [classesGroupOpen, setClassesGroupOpen] = useState(false);
+  const effectiveClassesOpen = classesGroupOpen || isOnClassesOrSubjects;
   const [isDark, setIsDark] = useState(() => {
     if (typeof window !== "undefined") {
       const stored = localStorage.getItem("cpec-dark-mode");
@@ -159,11 +166,20 @@ export function AppLayout({ children, allowedRoles, noScroll = false }: AppLayou
 
   const adminSubRole = (user as any).adminSubRole as string | null | undefined;
 
+  const classesMatieresGroup = {
+    type: "group" as const,
+    name: "Classes & Matières",
+    icon: Layers,
+    children: [
+      { name: "Classes", href: "/admin/classes", icon: School },
+      { name: "Matières", href: "/admin/subjects", icon: BookOpen },
+    ],
+  };
+
   const scolariteNavItems = [
     { name: "Tableau de bord", href: "/admin", icon: LayoutDashboard },
     { name: "Utilisateurs", href: "/admin/users", icon: Users },
-    { name: "Classes", href: "/admin/classes", icon: School },
-    { name: "Matières", href: "/admin/subjects", icon: BookOpen },
+    classesMatieresGroup,
     { name: "Semestres", href: "/admin/semesters", icon: Calendar },
     { name: "Feuilles de Présence", href: "/admin/attendance", icon: ClipboardList },
     { name: "Bilan des Absences", href: "/admin/attendance/summary", icon: BarChart3, badge: absenceAlertCount > 0 ? absenceAlertCount : undefined },
@@ -184,8 +200,7 @@ export function AppLayout({ children, allowedRoles, noScroll = false }: AppLayou
     { name: "Salles", href: "/admin/rooms", icon: DoorOpen },
     { name: "Vacances & Jours Fériés", href: "/admin/blocked-dates", icon: CalendarOff },
     { name: "Affectations", href: "/admin/assignments", icon: ClipboardList },
-    { name: "Classes", href: "/admin/classes", icon: School },
-    { name: "Matières", href: "/admin/subjects", icon: BookOpen },
+    classesMatieresGroup,
     { name: "Semestres", href: "/admin/semesters", icon: Calendar },
     { name: "Utilisateurs", href: "/admin/users", icon: Users },
     { name: "Cahiers de texte", href: "/admin/cahier-de-texte", icon: BookText },
@@ -197,8 +212,7 @@ export function AppLayout({ children, allowedRoles, noScroll = false }: AppLayou
   const directeurNavItems = [
     { name: "Tableau de bord", href: "/admin", icon: LayoutDashboard },
     { name: "Utilisateurs", href: "/admin/users", icon: Users },
-    { name: "Classes", href: "/admin/classes", icon: School },
-    { name: "Matières", href: "/admin/subjects", icon: BookOpen },
+    classesMatieresGroup,
     { name: "Semestres", href: "/admin/semesters", icon: Calendar },
     { name: "Emplois du temps", href: "/admin/schedules", icon: CalendarDays },
     { name: "Salles", href: "/admin/rooms", icon: DoorOpen },
@@ -320,31 +334,83 @@ export function AppLayout({ children, allowedRoles, noScroll = false }: AppLayou
 
       <nav className="flex-1 px-4 space-y-1 mt-2 overflow-y-auto">
         {navItems.map((item) => {
+          // ── Groupe accordéon (ex: Classes & Matières) ──
+          if ((item as any).type === "group") {
+            const group = item as typeof classesMatieresGroup;
+            const isGroupActive = group.children.some(
+              (child) => location === child.href || location.startsWith(child.href + "/")
+            );
+            const isOpen = effectiveClassesOpen;
+            return (
+              <div key={group.name}>
+                <button
+                  onClick={() => setClassesGroupOpen((o) => !o)}
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 ${
+                    isGroupActive
+                      ? "bg-sidebar-primary/15 text-sidebar-primary"
+                      : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                  }`}
+                >
+                  <group.icon className={`w-5 h-5 ${isGroupActive ? "" : "opacity-70"}`} />
+                  <span className="font-medium text-sm flex-1 text-left">{group.name}</span>
+                  {isOpen
+                    ? <ChevronDown className="w-4 h-4 opacity-50 shrink-0" />
+                    : <ChevronRight className="w-4 h-4 opacity-50 shrink-0" />
+                  }
+                </button>
+                {isOpen && (
+                  <div className="ml-4 mt-1 space-y-1 border-l-2 border-sidebar-border/40 pl-3">
+                    {group.children.map((child) => {
+                      const isChildActive = location === child.href || location.startsWith(child.href + "/");
+                      return (
+                        <Link
+                          key={child.name}
+                          href={child.href}
+                          className={`flex items-center gap-3 px-3 py-2 rounded-xl transition-all duration-200 ${
+                            isChildActive
+                              ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-md shadow-primary/20"
+                              : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                          }`}
+                        >
+                          <child.icon className={`w-4 h-4 ${isChildActive ? "" : "opacity-70"}`} />
+                          <span className="font-medium text-sm flex-1">{child.name}</span>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          }
+
+          // ── Élément simple ──
+          const simpleItem = item as any;
+          const ItemIcon = simpleItem.icon;
           const rootExclusions = ["/", "/teacher", "/admin", "/student"];
-          const prefixMatch = !rootExclusions.includes(item.href) &&
-            location.startsWith(item.href + "/") &&
+          const prefixMatch = !rootExclusions.includes(simpleItem.href) &&
+            location.startsWith(simpleItem.href + "/") &&
             !navItems.some(
               (other) =>
-                other.href !== item.href &&
-                location.startsWith(other.href) &&
-                other.href.startsWith(item.href)
+                (other as any).href !== simpleItem.href &&
+                location.startsWith((other as any).href) &&
+                (other as any).href?.startsWith(simpleItem.href)
             );
-          const isActive = location === item.href || location.startsWith(item.href + "?") || prefixMatch;
+          const isActive = location === simpleItem.href || location.startsWith(simpleItem.href + "?") || prefixMatch;
           return (
             <Link
-              key={item.name}
-              href={item.href}
+              key={simpleItem.name}
+              href={simpleItem.href}
               className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 ${
                 isActive
                   ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-md shadow-primary/20"
                   : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
               }`}
             >
-              <item.icon className={`w-5 h-5 ${isActive ? "" : "opacity-70"}`} />
-              <span className="font-medium text-sm flex-1">{item.name}</span>
-              {(item as any).badge != null && (
+              <ItemIcon className={`w-5 h-5 ${isActive ? "" : "opacity-70"}`} />
+              <span className="font-medium text-sm flex-1">{simpleItem.name}</span>
+              {simpleItem.badge != null && (
                 <span className="min-w-[1.25rem] h-5 px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
-                  {(item as any).badge > 9 ? "9+" : (item as any).badge}
+                  {simpleItem.badge > 9 ? "9+" : simpleItem.badge}
                 </span>
               )}
             </Link>
