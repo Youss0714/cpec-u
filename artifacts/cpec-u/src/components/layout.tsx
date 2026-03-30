@@ -51,6 +51,9 @@ import {
   DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
 
+// Persist sidebar scroll position across route-driven remounts
+let _sidebarScrollTop = 0;
+
 interface AppLayoutProps {
   children: ReactNode;
   allowedRoles: ("admin" | "teacher" | "student")[];
@@ -335,7 +338,11 @@ export function AppLayout({ children, allowedRoles, noScroll = false }: AppLayou
         </div>
       )}
 
-      <nav className="flex-1 px-4 space-y-1 mt-2 overflow-y-auto">
+      <nav
+        className="flex-1 px-4 space-y-1 mt-2 overflow-y-auto"
+        ref={(el) => { if (el) el.scrollTop = _sidebarScrollTop; }}
+        onScroll={(e) => { _sidebarScrollTop = (e.currentTarget as HTMLElement).scrollTop; }}
+      >
         {navItems.map((item) => {
           // ── Groupe accordéon (ex: Classes & Matières) ──
           if ((item as any).type === "group") {
