@@ -16,6 +16,7 @@ import messagesRouter from "./messages.js";
 import housingRouter from "./housing.js";
 import pushRouter from "./push.js";
 import devRouter from "./dev.js";
+import specialJuryRouter from "./special_jury.js";
 
 const router: IRouter = Router();
 
@@ -36,5 +37,6 @@ router.use(attendanceRouter);
 router.use(messagesRouter);
 router.use(housingRouter);
 router.use("/push", pushRouter);
+router.use("/admin", specialJuryRouter);
 
 export default router;

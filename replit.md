@@ -10,6 +10,7 @@ CPEC-U is a comprehensive academic management Progressive Web App (PWA) for educ
 - **Scheduling & attendance**: Timetable management with conflict detection, attendance tracking with justification workflows
 - **Communication**: Integrated messaging with file attachments and push notifications (Web Push / VAPID)
 - **PWA capabilities**: Offline sync support, mobile-friendly design
+- **Jury Spécial**: End-of-year special jury module with deliberation, traceability, bulletin auto-update, and PDF PV generation
 
 ## Architecture
 

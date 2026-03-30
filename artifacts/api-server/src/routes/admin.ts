@@ -31,6 +31,8 @@ import {
   cahierDeTexteTable,
   retakeSessionsTable,
   retakeGradesTable,
+  specialJurySessionsTable,
+  specialJuryDecisionsTable,
 } from "@workspace/db";
 import { eq, and, sql, count, inArray, desc, ne, isNotNull, asc, ilike, or } from "drizzle-orm";
 import { requireRole } from "../lib/auth.js";
@@ -1398,14 +1400,44 @@ async function computeStudentResult(studentId: number, semesterId: number) {
     .map(u => ({ ueId: u.ueId, ueCode: u.ueCode, ueName: u.ueName, average: u.average, acquis: false }));
   const averageFailed = decision === "Ajourné" && average !== null && average < 12;
 
+  // ── Jury Spécial override: if a closed jury has validated this student for this semester ──
+  let juryOverride: { newAverage: number; decision: string; justification: string } | null = null;
+  const juryDecision = await db
+    .select({
+      newAverage: specialJuryDecisionsTable.newAverage,
+      decision: specialJuryDecisionsTable.decision,
+      justification: specialJuryDecisionsTable.justification,
+      sessionStatus: specialJurySessionsTable.status,
+    })
+    .from(specialJuryDecisionsTable)
+    .innerJoin(specialJurySessionsTable, eq(specialJurySessionsTable.id, specialJuryDecisionsTable.sessionId))
+    .where(and(
+      eq(specialJuryDecisionsTable.studentId, studentId),
+      eq(specialJuryDecisionsTable.semesterId, semesterId),
+      eq(specialJurySessionsTable.status, "closed")
+    ))
+    .orderBy(desc(specialJuryDecisionsTable.decidedAt))
+    .limit(1);
+
+  if (juryDecision.length > 0) {
+    const jd = juryDecision[0];
+    if ((jd.decision === "validated" || jd.decision === "conditional") && jd.newAverage !== null) {
+      juryOverride = { newAverage: jd.newAverage, decision: "Admis", justification: jd.justification ?? "" };
+    }
+  }
+
+  const finalAverage = juryOverride ? juryOverride.newAverage : average;
+  const finalDecision = juryOverride ? (juryOverride.decision as any) : decision;
+
   return {
     studentId, studentName: student.name,
     classId, className,
     semesterId, semesterName: semester.name,
-    average, decision, grades,
+    average: finalAverage, decision: finalDecision, grades,
     ueResults, creditsValidated, totalCredits,
     absenceDeductionHours, absenceDeduction,
-    failedUes, averageFailed,
+    failedUes, averageFailed: juryOverride ? false : averageFailed,
+    juryOverride,
     rank: null, totalStudents: null,
   };
 }

@@ -25,3 +25,4 @@ export * from "./cahier_de_texte";
 export * from "./activation_keys";
 export * from "./retake_sessions";
 export * from "./retake_grades";
+export * from "./special_jury";

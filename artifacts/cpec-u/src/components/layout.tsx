@@ -42,6 +42,7 @@ import {
   ChevronRight,
   ChevronDown,
   Layers,
+  Gavel,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
@@ -190,6 +191,7 @@ export function AppLayout({ children, allowedRoles, noScroll = false }: AppLayou
     { name: "Suivi des Heures", href: "/admin/suivi-heures", icon: TrendingUp },
     { name: "Journal d'Activité", href: "/admin/activity-log", icon: ScrollText },
     { name: "Rattrapage", href: "/admin/rattrapage", icon: RotateCcw },
+    { name: "Jury Spécial", href: "/admin/jury-special", icon: Gavel },
     { name: "Messages", href: "/admin/messages", icon: MessageSquare, badge: unreadMsgCount > 0 ? unreadMsgCount : undefined },
   ];
 
@@ -227,6 +229,7 @@ export function AppLayout({ children, allowedRoles, noScroll = false }: AppLayou
     { name: "Hébergement", href: "/admin/housing", icon: Building2 },
     { name: "Honoraires", href: "/admin/honoraires", icon: Wallet },
     { name: "Rattrapage", href: "/admin/rattrapage", icon: RotateCcw },
+    { name: "Jury Spécial", href: "/admin/jury-special", icon: Gavel },
     { name: "Messages", href: "/admin/messages", icon: MessageSquare, badge: unreadMsgCount > 0 ? unreadMsgCount : undefined },
     { name: "Changer mon mot de passe", href: "/change-password", icon: KeyRound, badge: null },
   ];

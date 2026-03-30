@@ -48,6 +48,7 @@ import AdminCahierDeTexte from "@/pages/admin/cahier-de-texte";
 import AdminSuiviHeures from "@/pages/admin/suivi-heures";
 import AdminRattrapage from "@/pages/admin/rattrapage";
 import TeacherRattrapage from "@/pages/teacher/rattrapage";
+import JurySpecial from "@/pages/admin/jury-special";
 import StudentCahierDeTexte from "@/pages/student/cahier-de-texte";
 import DevDashboard from "@/pages/dev/index";
 
@@ -102,6 +103,7 @@ function Router() {
       <Route path="/admin/cahier-de-texte" component={AdminCahierDeTexte} />
       <Route path="/admin/suivi-heures" component={AdminSuiviHeures} />
       <Route path="/admin/rattrapage" component={AdminRattrapage} />
+      <Route path="/admin/jury-special" component={JurySpecial} />
 
       {/* Teacher Routes */}
       <Route path="/teacher" component={TeacherDashboard} />

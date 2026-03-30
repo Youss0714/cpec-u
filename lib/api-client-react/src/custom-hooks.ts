@@ -1005,3 +1005,103 @@ export const useGetStudentBalance = (options?: QueryOpts<StudentBalance>) =>
     queryFn: () => customFetch<StudentBalance>("/api/student/balance"),
     ...options,
   });
+
+// ── Jury Spécial ──────────────────────────────────────────────────────────────
+
+export type SpecialJurySession = {
+  id: number;
+  academicYear: string;
+  status: "active" | "closed";
+  activatedBy: number | null;
+  closedAt: string | null;
+  notes: string | null;
+  createdAt: string;
+};
+
+export type JurySemesterResult = {
+  semesterId: number;
+  semesterName: string;
+  average: number | null;
+  validated: boolean;
+  decision: SpecialJuryDecision | null;
+};
+
+export type SpecialJuryEligibleStudent = {
+  studentId: number;
+  studentName: string;
+  email: string;
+  semesters: JurySemesterResult[];
+  annualAverage: number | null;
+  failedSemesters: string[];
+};
+
+export type SpecialJuryDecision = {
+  id: number;
+  sessionId: number;
+  studentId: number;
+  semesterId: number;
+  decision: "validated" | "failed" | "conditional";
+  previousAverage: number | null;
+  newAverage: number | null;
+  justification: string;
+  source: string;
+  decidedAt: string;
+  notified: boolean;
+};
+
+export type RecordJuryDecisionRequest = {
+  studentId: number;
+  semesterId: number;
+  decision: "validated" | "failed" | "conditional";
+  newAverage?: number;
+  justification: string;
+};
+
+export const useListJurySessions = (options?: QueryOpts<SpecialJurySession[]>) =>
+  useQuery<SpecialJurySession[], Error>({
+    queryKey: ["/api/admin/jury-special/sessions"],
+    queryFn: () => customFetch<SpecialJurySession[]>("/api/admin/jury-special/sessions"),
+    ...options,
+  });
+
+export const useActivateJurySession = () =>
+  useMutation<SpecialJurySession, Error, { academicYear: string; notes?: string }>({
+    mutationFn: (body) =>
+      customFetch<SpecialJurySession>("/api/admin/jury-special/sessions", {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+  });
+
+export const useGetJuryEligibleStudents = (sessionId: number | null, options?: QueryOpts<SpecialJuryEligibleStudent[]>) =>
+  useQuery<SpecialJuryEligibleStudent[], Error>({
+    queryKey: ["/api/admin/jury-special/sessions", sessionId, "eligible"],
+    queryFn: () => customFetch<SpecialJuryEligibleStudent[]>(`/api/admin/jury-special/sessions/${sessionId}/eligible`),
+    enabled: !!sessionId,
+    ...options,
+  });
+
+export const useRecordJuryDecision = (sessionId: number | null) =>
+  useMutation<SpecialJuryDecision, Error, RecordJuryDecisionRequest>({
+    mutationFn: (body) =>
+      customFetch<SpecialJuryDecision>(`/api/admin/jury-special/sessions/${sessionId}/decisions`, {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+  });
+
+export const useCloseJurySession = () =>
+  useMutation<SpecialJurySession & { notifiedCount: number }, Error, number>({
+    mutationFn: (sessionId) =>
+      customFetch<SpecialJurySession & { notifiedCount: number }>(`/api/admin/jury-special/sessions/${sessionId}/close`, {
+        method: "POST",
+      }),
+  });
+
+export const useGetJuryPVData = (sessionId: number | null, options?: QueryOpts<any>) =>
+  useQuery<any, Error>({
+    queryKey: ["/api/admin/jury-special/sessions", sessionId, "pv"],
+    queryFn: () => customFetch<any>(`/api/admin/jury-special/sessions/${sessionId}/pv`),
+    enabled: false,
+    ...options,
+  });
