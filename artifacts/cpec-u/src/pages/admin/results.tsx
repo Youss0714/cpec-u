@@ -520,7 +520,11 @@ export default function AdminResults() {
                                     <XCircle className="w-3 h-3 shrink-0" />
                                     {ue.ueCode ? `${ue.ueCode} – ` : ""}{ue.ueName}
                                     <span className="font-bold ml-0.5">{ue.average?.toFixed(2)}/20</span>
-                                    <span className="text-red-400">(Non validée)</span>
+                                    {ue.eliminatorySubjectName ? (
+                                      <span className="text-red-500 font-semibold">⚠ Note éliminatoire : {ue.eliminatorySubjectName}</span>
+                                    ) : (
+                                      <span className="text-red-400">(Non validée)</span>
+                                    )}
                                   </span>
                                 ))}
                                 {res.averageFailed && (

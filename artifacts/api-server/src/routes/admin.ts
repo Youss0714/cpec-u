@@ -1300,7 +1300,9 @@ async function computeStudentResult(studentId: number, semesterId: number) {
       const totalPoints = ueSubjects.reduce((s, g) => s + g.value! * g.coefficient, 0);
       ueAverage = totalCoeff > 0 ? Math.round((totalPoints / totalCoeff) * 100) / 100 : null;
     }
-    const acquis = ueAverage !== null && ueAverage >= 10;
+    // ── Règle éliminatoire : toute note ≤ 6/20 invalide automatiquement l'UE ──
+    const eliminatorySubject = ueSubjects.find(g => g.value !== null && g.value <= 6) ?? null;
+    const acquis = ueAverage !== null && ueAverage >= 10 && !eliminatorySubject;
     return {
       ueId: ue.id,
       ueCode: ue.code,
@@ -1309,6 +1311,7 @@ async function computeStudentResult(studentId: number, semesterId: number) {
       coefficient: ue.coefficient,
       average: ueAverage,
       acquis,
+      eliminatorySubjectName: eliminatorySubject ? eliminatorySubject.subjectName : null,
       subjects: ueSubjects,
     };
   });
@@ -1397,7 +1400,14 @@ async function computeStudentResult(studentId: number, semesterId: number) {
   // Rule 5: Identify failure reasons for non-validated semesters
   const failedUes = ueResults
     .filter(u => u.average !== null && !u.acquis)
-    .map(u => ({ ueId: u.ueId, ueCode: u.ueCode, ueName: u.ueName, average: u.average, acquis: false }));
+    .map(u => ({
+      ueId: u.ueId,
+      ueCode: u.ueCode,
+      ueName: u.ueName,
+      average: u.average,
+      acquis: false,
+      eliminatorySubjectName: u.eliminatorySubjectName ?? null,
+    }));
   const averageFailed = decision === "Ajourné" && average !== null && average < 12;
 
   // ── Jury Spécial override: if a closed jury has validated this student for this semester ──

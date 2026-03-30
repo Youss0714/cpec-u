@@ -40,6 +40,7 @@ export interface BulletinUE {
   coefficient: number;
   average: number | null;
   acquis: boolean;
+  eliminatorySubjectName?: string | null;
   subjects: Array<{
     subjectId: number;
     subjectName: string;
@@ -134,8 +135,8 @@ export function generateBulletinHTML(data: BulletinData): string {
   // Collect rows as objects first, then render.
   type Row =
     | { kind: "bloc"; label: string }
-    | { kind: "ue"; label: string; note: number | null; coef: number }
-    | { kind: "subject"; name: string; note: number | null; coef: number }
+    | { kind: "ue"; label: string; note: number | null; coef: number; acquis: boolean; eliminatorySubjectName?: string | null }
+    | { kind: "subject"; name: string; note: number | null; coef: number; eliminatory?: boolean }
     | { kind: "result"; label: string; val: string; midLabel: string; midVal: string; bold?: boolean };
 
   const rows: Row[] = [];
@@ -160,18 +161,18 @@ export function generateBulletinHTML(data: BulletinData): string {
     if (!ues || ues.length === 0) continue;
     rows.push({ kind: "bloc", label: CAT_LABELS[cat] });
     for (const ue of ues) {
-      rows.push({ kind: "ue", label: `UE ${ueIndex}`, note: ue.average, coef: ue.coefficient });
+      rows.push({ kind: "ue", label: `UE ${ueIndex}`, note: ue.average, coef: ue.coefficient, acquis: ue.acquis, eliminatorySubjectName: ue.eliminatorySubjectName });
       ueIndex++;
       for (const sub of ue.subjects) {
-        rows.push({ kind: "subject", name: sub.subjectName, note: sub.value, coef: sub.coefficient });
+        rows.push({ kind: "subject", name: sub.subjectName, note: sub.value, coef: sub.coefficient, eliminatory: sub.value !== null && sub.value <= 6 });
       }
     }
   }
   for (const ue of uncategorized) {
-    rows.push({ kind: "ue", label: `UE ${ueIndex}`, note: ue.average, coef: ue.coefficient });
+    rows.push({ kind: "ue", label: `UE ${ueIndex}`, note: ue.average, coef: ue.coefficient, acquis: ue.acquis, eliminatorySubjectName: ue.eliminatorySubjectName });
     ueIndex++;
     for (const sub of ue.subjects) {
-      rows.push({ kind: "subject", name: sub.subjectName, note: sub.value, coef: sub.coefficient });
+      rows.push({ kind: "subject", name: sub.subjectName, note: sub.value, coef: sub.coefficient, eliminatory: sub.value !== null && sub.value <= 6 });
     }
   }
   for (const sub of data.unassignedSubjects) {
@@ -213,9 +214,12 @@ export function generateBulletinHTML(data: BulletinData): string {
       firstRow = false;
     } else if (row.kind === "ue") {
       const pts = row.note !== null ? fmt(row.note * row.coef) : "—";
+      const eliminMsg = !row.acquis && row.eliminatorySubjectName
+        ? `<div style="color:#c0392b;font-size:6.5pt;font-style:italic;margin-top:2px;">⚠ Note éliminatoire — ${row.eliminatorySubjectName}</div>`
+        : "";
       tableRowsHtml += `
         <tr class="ue-row">
-          <td class="ue-label">${row.label}</td>
+          <td class="ue-label">${row.label}${eliminMsg}</td>
           <td class="num ue-num">${fmt(row.note)}</td>
           <td class="num ue-num">${row.coef}</td>
           <td class="num ue-num">${pts}</td>
@@ -224,10 +228,12 @@ export function generateBulletinHTML(data: BulletinData): string {
       firstRow = false;
     } else if (row.kind === "subject") {
       const pts = row.note !== null ? fmt(row.note * row.coef) : "—";
+      const elimStyle = row.eliminatory ? ' style="background:#fff0f0;color:#c0392b;font-weight:bold;"' : "";
+      const elimIcon = row.eliminatory ? " ⚠" : "";
       tableRowsHtml += `
-        <tr class="subject-row">
-          <td class="subject-name">${row.name}</td>
-          <td class="num">${row.note !== null ? fmt(row.note) : "—"}</td>
+        <tr class="subject-row"${row.eliminatory ? ' style="background:#fff8f8;"' : ""}>
+          <td class="subject-name"${elimStyle}>${row.name}${elimIcon}</td>
+          <td class="num"${elimStyle}>${row.note !== null ? fmt(row.note) : "—"}</td>
           <td class="num">${row.coef}</td>
           <td class="num">${pts}</td>
           ${juryCell}
