@@ -168,6 +168,17 @@ router.post("/messages/class/:classId", requireAuth, async (req, res) => {
       return;
     }
 
+    // Students are not allowed to broadcast
+    const [senderUser] = await db
+      .select({ role: usersTable.role })
+      .from(usersTable)
+      .where(eq(usersTable.id, senderId))
+      .limit(1);
+    if (senderUser?.role === "student") {
+      res.status(403).json({ error: "Les étudiants ne sont pas autorisés à envoyer des messages" });
+      return;
+    }
+
     // Get all students enrolled in this class
     const enrollments = await db
       .select({ studentId: classEnrollmentsTable.studentId })
@@ -237,7 +248,17 @@ router.get("/messages/download/:filename", requireAuth, (req, res) => {
 });
 
 // ─── Upload file for message attachment (MUST be before /:userId) ─────────────
-router.post("/messages/upload", requireAuth, (req, res) => {
+router.post("/messages/upload", requireAuth, async (req, res) => {
+  const senderId = req.session!.userId!;
+  const [sender] = await db
+    .select({ role: usersTable.role })
+    .from(usersTable)
+    .where(eq(usersTable.id, senderId))
+    .limit(1);
+  if (sender?.role === "student") {
+    res.status(403).json({ error: "Les étudiants ne sont pas autorisés à envoyer des messages" });
+    return;
+  }
   upload.single("file")(req, res, (err) => {
     if (err) {
       res.status(400).json({ error: err.message });
@@ -324,12 +345,18 @@ router.post("/messages", requireAuth, async (req, res) => {
       return;
     }
 
-    // Get sender name
+    // Get sender info (name + role)
     const [sender] = await db
-      .select({ name: usersTable.name })
+      .select({ name: usersTable.name, role: usersTable.role })
       .from(usersTable)
       .where(eq(usersTable.id, senderId))
       .limit(1);
+
+    // Students are not allowed to send messages
+    if (sender?.role === "student") {
+      res.status(403).json({ error: "Les étudiants ne sont pas autorisés à envoyer des messages" });
+      return;
+    }
 
     const [msg] = await db
       .insert(messagesTable)

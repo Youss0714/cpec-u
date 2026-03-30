@@ -130,7 +130,7 @@ export default function SharedMessages({ allowedRoles }: { allowedRoles: string[
   }, [selectedUserId]);
 
   const { data: currentUser } = useGetCurrentUser();
-  void currentUser;
+  const isStudent = (currentUser as any)?.role === "student";
 
   const { data: conversations = [] } = useQuery({
     queryKey: ["/api/messages"],
@@ -256,7 +256,11 @@ export default function SharedMessages({ allowedRoles }: { allowedRoles: string[
             <MessageSquare className="w-8 h-8 text-primary" />
             Messages
           </h1>
-          <p className="text-muted-foreground text-sm">Vos échanges avec l'administration.</p>
+          <p className="text-muted-foreground text-sm">
+            {isStudent
+              ? "Consultez les messages reçus de l'administration et des enseignants."
+              : "Vos échanges avec l'administration et les étudiants."}
+          </p>
         </div>
 
         <div className="flex flex-1 gap-4 min-h-0 rounded-2xl border border-border overflow-hidden bg-card shadow-sm">
@@ -264,13 +268,15 @@ export default function SharedMessages({ allowedRoles }: { allowedRoles: string[
           <div className="w-64 flex-shrink-0 border-r border-border flex flex-col">
             <div className="px-3 py-2 border-b border-border flex items-center justify-between gap-1">
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Conversations</p>
-              <button
-                onClick={() => setShowContactPicker(v => !v)}
-                title="Nouveau message"
-                className={`w-6 h-6 rounded-lg flex items-center justify-center transition-colors ${showContactPicker ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-primary hover:bg-primary/10"}`}
-              >
-                <Plus className="w-3.5 h-3.5" />
-              </button>
+              {!isStudent && (
+                <button
+                  onClick={() => setShowContactPicker(v => !v)}
+                  title="Nouveau message"
+                  className={`w-6 h-6 rounded-lg flex items-center justify-center transition-colors ${showContactPicker ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-primary hover:bg-primary/10"}`}
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
 
             {showContactPicker ? (
@@ -315,13 +321,15 @@ export default function SharedMessages({ allowedRoles }: { allowedRoles: string[
                   <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-3 px-4 text-center">
                     <MessageSquare className="w-7 h-7 opacity-20" />
                     <p className="text-xs">Aucune conversation.</p>
-                    <button
-                      onClick={() => setShowContactPicker(true)}
-                      className="flex items-center gap-1.5 text-xs text-primary font-medium hover:underline"
-                    >
-                      <Plus className="w-3 h-3" />
-                      Nouveau message
-                    </button>
+                    {!isStudent && (
+                      <button
+                        onClick={() => setShowContactPicker(true)}
+                        className="flex items-center gap-1.5 text-xs text-primary font-medium hover:underline"
+                      >
+                        <Plus className="w-3 h-3" />
+                        Nouveau message
+                      </button>
+                    )}
                   </div>
                 ) : (
                   convs.map((c: any) => (
@@ -422,45 +430,53 @@ export default function SharedMessages({ allowedRoles }: { allowedRoles: string[
                   </div>
                 )}
 
-                <div className="px-4 py-3 border-t border-border flex-shrink-0">
-                  <div className="flex items-center gap-2 bg-muted/50 rounded-2xl px-3 py-1.5 border border-border focus-within:border-primary focus-within:bg-background transition-colors max-w-2xl mx-auto">
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      className="hidden"
-                      accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
-                      onChange={handleFileSelect}
-                    />
-                    <button
-                      type="button"
-                      className="flex-shrink-0 text-muted-foreground hover:text-primary transition-colors p-1 rounded-lg hover:bg-primary/10"
-                      onClick={() => fileInputRef.current?.click()}
-                      title="Joindre un fichier (PDF, Word, Excel, PowerPoint)"
-                    >
-                      <Paperclip className="w-4 h-4" />
-                    </button>
-                    <input
-                      ref={messageInputRef}
-                      placeholder={pendingFile ? "Ajouter un message (optionnel)…" : "Écrire un message…"}
-                      value={messageText}
-                      onChange={(e) => setMessageText(e.target.value)}
-                      onKeyDown={handleKeyDown}
-                      disabled={sending || uploading}
-                      className="flex-1 bg-transparent outline-none text-sm placeholder:text-muted-foreground text-foreground py-1.5"
-                    />
-                    <button
-                      onClick={handleSend}
-                      disabled={!canSend}
-                      className={`flex-shrink-0 w-8 h-8 rounded-xl flex items-center justify-center transition-all ${canSend ? "bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm" : "bg-muted text-muted-foreground cursor-not-allowed"}`}
-                    >
-                      {uploading ? (
-                        <span className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                      ) : (
-                        <Send className="w-3.5 h-3.5" />
-                      )}
-                    </button>
+                {isStudent ? (
+                  <div className="px-4 py-3 border-t border-border flex-shrink-0">
+                    <p className="text-xs text-muted-foreground text-center italic py-1">
+                      Lecture seule — vous ne pouvez pas répondre à ce message.
+                    </p>
                   </div>
-                </div>
+                ) : (
+                  <div className="px-4 py-3 border-t border-border flex-shrink-0">
+                    <div className="flex items-center gap-2 bg-muted/50 rounded-2xl px-3 py-1.5 border border-border focus-within:border-primary focus-within:bg-background transition-colors max-w-2xl mx-auto">
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        className="hidden"
+                        accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
+                        onChange={handleFileSelect}
+                      />
+                      <button
+                        type="button"
+                        className="flex-shrink-0 text-muted-foreground hover:text-primary transition-colors p-1 rounded-lg hover:bg-primary/10"
+                        onClick={() => fileInputRef.current?.click()}
+                        title="Joindre un fichier (PDF, Word, Excel, PowerPoint)"
+                      >
+                        <Paperclip className="w-4 h-4" />
+                      </button>
+                      <input
+                        ref={messageInputRef}
+                        placeholder={pendingFile ? "Ajouter un message (optionnel)…" : "Écrire un message…"}
+                        value={messageText}
+                        onChange={(e) => setMessageText(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        disabled={sending || uploading}
+                        className="flex-1 bg-transparent outline-none text-sm placeholder:text-muted-foreground text-foreground py-1.5"
+                      />
+                      <button
+                        onClick={handleSend}
+                        disabled={!canSend}
+                        className={`flex-shrink-0 w-8 h-8 rounded-xl flex items-center justify-center transition-all ${canSend ? "bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm" : "bg-muted text-muted-foreground cursor-not-allowed"}`}
+                      >
+                        {uploading ? (
+                          <span className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                        ) : (
+                          <Send className="w-3.5 h-3.5" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </>
             )}
           </div>
