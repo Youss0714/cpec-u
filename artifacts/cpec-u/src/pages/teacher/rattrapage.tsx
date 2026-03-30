@@ -216,7 +216,7 @@ export default function TeacherRattrapage() {
 
   if (isLoading) {
     return (
-      <AppLayout>
+      <AppLayout allowedRoles={["teacher"]}>
         <div className="flex items-center justify-center h-screen text-muted-foreground">Chargement...</div>
       </AppLayout>
     );
@@ -224,7 +224,7 @@ export default function TeacherRattrapage() {
 
   if (error) {
     return (
-      <AppLayout>
+      <AppLayout allowedRoles={["teacher"]}>
         <div className="flex flex-col items-center justify-center h-screen gap-2 text-destructive">
           <AlertCircle className="w-8 h-8" />
           <p>Erreur de chargement du module de rattrapage.</p>
@@ -234,7 +234,7 @@ export default function TeacherRattrapage() {
   }
 
   return (
-    <AppLayout>
+    <AppLayout allowedRoles={["teacher"]}>
       <div className="h-screen overflow-hidden flex flex-col">
         {/* Header */}
         <div className="px-6 pt-6 pb-4 border-b bg-background shrink-0">

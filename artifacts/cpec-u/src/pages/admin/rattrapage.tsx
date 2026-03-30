@@ -222,7 +222,7 @@ export default function AdminRattrapage() {
   const closedSessions = sessions.filter(s => s.status === "closed");
 
   return (
-    <AppLayout>
+    <AppLayout allowedRoles={["admin"]}>
       <div className="h-screen overflow-hidden flex flex-col">
         {/* Header */}
         <div className="px-6 pt-6 pb-4 border-b bg-background shrink-0">
