@@ -149,7 +149,7 @@ router.post("/users", requireRole("admin"), async (req, res) => {
   try {
     const cu = req.session?.user as any;
     const { email, name, firstName, lastName, password, role, adminSubRole, classId, phone,
-            matricule, dateNaissance, lieuNaissance, parentName, parentPhone } = req.body;
+            matricule, dateNaissance, lieuNaissance, parentName, parentPhone, sexe } = req.body;
 
     // ── Generic required fields ────────────────────────────────────────────
     const resolvedName = (role === "student" && (firstName || lastName))
@@ -246,6 +246,7 @@ router.post("/users", requireRole("admin"), async (req, res) => {
         lieuNaissance: lieuNaissance.trim(),
         parentName: parentName.trim(),
         parentPhone: parentPhone.trim(),
+        sexe: sexe?.trim() || null,
       }).onConflictDoNothing();
     }
 
@@ -368,7 +369,7 @@ router.get("/students/:id/profile", requireRole("admin"), async (req, res) => {
 router.put("/students/:id/profile", requireRole("admin"), async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    const { phone, address, parentName, parentPhone, parentEmail, parentAddress, matricule, dateNaissance, lieuNaissance } = req.body;
+    const { phone, address, parentName, parentPhone, parentEmail, parentAddress, matricule, dateNaissance, lieuNaissance, sexe } = req.body;
     const [existing] = await db.select().from(studentProfilesTable).where(eq(studentProfilesTable.studentId, id)).limit(1);
     const data: any = {
       matricule: matricule?.trim() || null,
@@ -377,6 +378,7 @@ router.put("/students/:id/profile", requireRole("admin"), async (req, res) => {
       phone: phone ?? null, address: address ?? null,
       parentName: parentName ?? null, parentPhone: parentPhone ?? null,
       parentEmail: parentEmail ?? null, parentAddress: parentAddress ?? null,
+      sexe: sexe?.trim() || null,
       updatedAt: new Date(),
     };
     let profile;

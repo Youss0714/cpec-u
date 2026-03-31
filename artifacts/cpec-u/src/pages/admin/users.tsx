@@ -688,13 +688,13 @@ export default function AdminUsers() {
   const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
   const [editUser, setEditUser] = useState<any | null>(null);
   const [editForm, setEditForm] = useState({ name: "", email: "", password: "" });
-  const [editProfileForm, setEditProfileForm] = useState({ matricule: "", dateNaissance: "", lieuNaissance: "", phone: "", address: "", parentName: "", parentPhone: "", parentEmail: "", parentAddress: "" });
+  const [editProfileForm, setEditProfileForm] = useState({ matricule: "", dateNaissance: "", lieuNaissance: "", sexe: "", phone: "", address: "", parentName: "", parentPhone: "", parentEmail: "", parentAddress: "" });
   const [editProfileLoading, setEditProfileLoading] = useState(false);
   const [editSaving, setEditSaving] = useState(false);
   const [teacherAssignmentRows, setTeacherAssignmentRows] = useState<{ subjectId: string; classId: string; semesterId: string }[]>([]);
   const [createStudentClassId, setCreateStudentClassId] = useState<string>("");
-  const [createProfileForm, setCreateProfileForm] = useState({ firstName: "", lastName: "", matricule: "", dateNaissance: "", lieuNaissance: "", phone: "", address: "", parentName: "", parentPhone: "", parentEmail: "", parentAddress: "" });
-  const emptyCreateProfile = { firstName: "", lastName: "", matricule: "", dateNaissance: "", lieuNaissance: "", phone: "", address: "", parentName: "", parentPhone: "", parentEmail: "", parentAddress: "" };
+  const [createProfileForm, setCreateProfileForm] = useState({ firstName: "", lastName: "", sexe: "", matricule: "", dateNaissance: "", lieuNaissance: "", phone: "", address: "", parentName: "", parentPhone: "", parentEmail: "", parentAddress: "" });
+  const emptyCreateProfile = { firstName: "", lastName: "", sexe: "", matricule: "", dateNaissance: "", lieuNaissance: "", phone: "", address: "", parentName: "", parentPhone: "", parentEmail: "", parentAddress: "" };
   const [viewUser, setViewUser] = useState<any | null>(null);
   const [viewProfile, setViewProfile] = useState<any | null>(null);
   const [viewProfileLoading, setViewProfileLoading] = useState(false);
@@ -752,6 +752,7 @@ export default function AdminUsers() {
       const missing: string[] = [];
       if (!f.lastName.trim()) missing.push("Nom");
       if (!f.firstName.trim()) missing.push("Prénom");
+      if (!f.sexe.trim()) missing.push("Sexe");
       if (!f.matricule.trim()) missing.push("Matricule");
       if (!f.dateNaissance.trim()) missing.push("Date de naissance");
       if (!f.lieuNaissance.trim()) missing.push("Lieu de naissance");
@@ -788,6 +789,7 @@ export default function AdminUsers() {
           classId: role === "student" && createStudentClassId ? parseInt(createStudentClassId) : undefined,
           adminSubRole: role === "admin" ? adminSubRole : undefined,
           phone: role === "teacher" && phone ? phone : undefined,
+          sexe: role === "student" ? f.sexe.trim() : undefined,
           matricule: role === "student" ? f.matricule.trim() : undefined,
           dateNaissance: role === "student" ? f.dateNaissance.trim() : undefined,
           lieuNaissance: role === "student" ? f.lieuNaissance.trim() : undefined,
@@ -874,7 +876,7 @@ export default function AdminUsers() {
 
   const openEdit = async (u: any) => {
     setEditForm({ name: u.name, email: u.email, password: "" });
-    setEditProfileForm({ phone: "", address: "", parentName: "", parentPhone: "", parentEmail: "", parentAddress: "" });
+    setEditProfileForm({ matricule: "", dateNaissance: "", lieuNaissance: "", sexe: "", phone: "", address: "", parentName: "", parentPhone: "", parentEmail: "", parentAddress: "" });
     setEditUser(u);
     if (u.role === "student") {
       setEditProfileLoading(true);
@@ -886,6 +888,7 @@ export default function AdminUsers() {
             matricule: p.matricule ?? "",
             dateNaissance: p.dateNaissance ?? "",
             lieuNaissance: p.lieuNaissance ?? "",
+            sexe: p.sexe ?? "",
             phone: p.phone ?? "",
             address: p.address ?? "",
             parentName: p.parentName ?? "",
@@ -922,6 +925,7 @@ export default function AdminUsers() {
             matricule: editProfileForm.matricule.trim() || null,
             dateNaissance: editProfileForm.dateNaissance.trim() || null,
             lieuNaissance: editProfileForm.lieuNaissance.trim() || null,
+            sexe: editProfileForm.sexe.trim() || null,
             phone: editProfileForm.phone.trim() || null,
             address: editProfileForm.address.trim() || null,
             parentName: editProfileForm.parentName.trim() || null,
@@ -1044,6 +1048,17 @@ export default function AdminUsers() {
                           />
                           {!createProfileForm.lastName.trim() && <p className="text-xs text-destructive mt-0.5">Requis</p>}
                         </div>
+                      </div>
+                      <div className="space-y-1">
+                        <Label>Sexe <span className="text-destructive">*</span></Label>
+                        <Select value={createProfileForm.sexe} onValueChange={v => setCreateProfileForm(f => ({ ...f, sexe: v }))}>
+                          <SelectTrigger className={!createProfileForm.sexe ? "border-destructive/50" : ""}><SelectValue placeholder="Sélectionner le sexe..." /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="M">Masculin</SelectItem>
+                            <SelectItem value="F">Féminin</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        {!createProfileForm.sexe && <p className="text-xs text-destructive mt-0.5">Requis</p>}
                       </div>
                       <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1">
@@ -1234,6 +1249,7 @@ export default function AdminUsers() {
                       (selectedRole === "student" && (
                         !createProfileForm.firstName.trim() ||
                         !createProfileForm.lastName.trim() ||
+                        !createProfileForm.sexe.trim() ||
                         !createProfileForm.matricule.trim() ||
                         !createProfileForm.dateNaissance.trim() ||
                         !createProfileForm.lieuNaissance.trim() ||
@@ -1440,6 +1456,16 @@ export default function AdminUsers() {
                           <Label className="text-sm">Lieu de naissance</Label>
                           <Input value={editProfileForm.lieuNaissance} onChange={e => setEditProfileForm(f => ({ ...f, lieuNaissance: e.target.value }))} placeholder="Ex: Abidjan" />
                         </div>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="flex items-center gap-1.5 text-sm">Sexe</Label>
+                        <Select value={editProfileForm.sexe} onValueChange={v => setEditProfileForm(f => ({ ...f, sexe: v }))}>
+                          <SelectTrigger><SelectValue placeholder="Sélectionner..." /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="M">Masculin</SelectItem>
+                            <SelectItem value="F">Féminin</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
                     </>
                   )}

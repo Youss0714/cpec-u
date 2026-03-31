@@ -34,6 +34,7 @@ export const studentProfilesTable = pgTable("student_profiles", {
   parentEmail: varchar("parent_email", { length: 255 }),
   parentAddress: text("parent_address"),
   photoUrl: text("photo_url"),
+  sexe: varchar("sexe", { length: 1 }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
