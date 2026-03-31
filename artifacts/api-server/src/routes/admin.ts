@@ -2048,12 +2048,13 @@ router.get("/students/:id/detail", requireRole("admin"), async (req, res) => {
         email: usersTable.email,
         phone: studentProfilesTable.phone,
         address: studentProfilesTable.address,
-        birthDate: studentProfilesTable.birthDate,
-        nationality: studentProfilesTable.nationality,
+        dateNaissance: studentProfilesTable.dateNaissance,
+        lieuNaissance: studentProfilesTable.lieuNaissance,
+        matricule: studentProfilesTable.matricule,
         photoUrl: studentProfilesTable.photoUrl,
       })
       .from(usersTable)
-      .leftJoin(studentProfilesTable, eq(studentProfilesTable.userId, usersTable.id))
+      .leftJoin(studentProfilesTable, eq(studentProfilesTable.studentId, usersTable.id))
       .where(and(eq(usersTable.id, studentId), eq(usersTable.role, "student")))
       .limit(1);
 
@@ -2064,12 +2065,12 @@ router.get("/students/:id/detail", requireRole("admin"), async (req, res) => {
       .select({
         classId: classEnrollmentsTable.classId,
         className: classesTable.name,
-        enrollmentYear: classEnrollmentsTable.enrollmentYear,
+        enrolledAt: classEnrollmentsTable.enrolledAt,
       })
       .from(classEnrollmentsTable)
       .innerJoin(classesTable, eq(classesTable.id, classEnrollmentsTable.classId))
       .where(eq(classEnrollmentsTable.studentId, studentId))
-      .orderBy(desc(classEnrollmentsTable.enrollmentYear));
+      .orderBy(desc(classEnrollmentsTable.enrolledAt));
 
     // Résultats par semestre (notes + décision)
     const semesters = await db.select().from(semestersTable).orderBy(semestersTable.startDate);

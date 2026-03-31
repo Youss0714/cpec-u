@@ -13,7 +13,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from "@/components/ui/dialog";
 import {
-  ArrowLeft, User, Mail, Phone, MapPin, Calendar, Globe, GraduationCap,
+  ArrowLeft, User, Mail, Phone, MapPin, Calendar, GraduationCap,
   BookOpen, AlertCircle, CheckCircle2, Wallet, Home, TrendingUp, Clock, Plus, Trash2,
   CreditCard, Download, RefreshCw, XCircle, QrCode,
 } from "lucide-react";
@@ -618,8 +618,8 @@ export default function AdminStudentDetail() {
                       { label: "Email", value: student.email, icon: Mail },
                       { label: "Téléphone", value: student.phone || "—", icon: Phone },
                       { label: "Adresse", value: student.address || "—", icon: MapPin },
-                      { label: "Date de naissance", value: fmtDate(student.birthDate), icon: Calendar },
-                      { label: "Nationalité", value: student.nationality || "—", icon: Globe },
+                      { label: "Date de naissance", value: student.dateNaissance || "—", icon: Calendar },
+                      { label: "Lieu de naissance", value: student.lieuNaissance || "—", icon: MapPin },
                     ].map(({ label, value, icon: Icon }, i) => (
                       <div key={i} className="flex items-start gap-3">
                         <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
@@ -642,7 +642,7 @@ export default function AdminStudentDetail() {
                         {enrollments.map((e: any, i: number) => (
                           <Badge key={i} variant="outline" className="gap-1.5">
                             <Clock className="w-3 h-3" />
-                            {e.className} — {e.enrollmentYear}
+                            {e.className} — {e.enrolledAt ? fmtDate(e.enrolledAt) : "—"}
                           </Badge>
                         ))}
                       </div>
