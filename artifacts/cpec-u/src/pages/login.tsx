@@ -23,7 +23,7 @@ type LoginForm = z.infer<typeof loginSchema>;
 
 const SLIDES = [
   { src: "images/login-bg.jpg", alt: "Étudiants CPEC-Digital", quote: "L'Excellence Académique au Quotidien." },
-  { src: "images/student-1.jpg", alt: "Étudiante CPEC-Digital", quote: "CPEC-Digital : L'expertise comptable à l'ère du futur." },
+  { src: "images/student-1.jpg", alt: "Étudiante CPEC-Digital", quote: "CPEC-Digital : L'expertise comptable à l'ère du numérique." },
   { src: "images/student-2.jpg", alt: "Étudiant CPEC-Digital", quote: "Plus qu'un centre, un accélérateur de compétences." },
   { src: "images/student-3.jpg", alt: "Étudiante CPEC-Digital", quote: "La comptabilité, une science au service de l'avenir." },
   { src: "images/group-1.jpg", alt: "Promotion CPEC-Digital", quote: "L'excellence comptable commence au CPEC-Digital." },
