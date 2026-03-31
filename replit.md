@@ -11,6 +11,7 @@ CPEC-U is a comprehensive academic management Progressive Web App (PWA) for educ
 - **Communication**: Integrated messaging with file attachments and push notifications (Web Push / VAPID)
 - **PWA capabilities**: Offline sync support, mobile-friendly design
 - **Jury Spécial**: End-of-year special jury module with deliberation, traceability, bulletin auto-update, and PDF PV generation
+- **Carte Étudiante Numérique**: Digital student ID card with QR code generation, public verification page (`/verify/:hash`), admin generation/invalidation, student self-service, and HTML/print export
 
 ## Architecture
 

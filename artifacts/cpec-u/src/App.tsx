@@ -51,6 +51,8 @@ import TeacherRattrapage from "@/pages/teacher/rattrapage";
 import JurySpecial from "@/pages/admin/jury-special";
 import StudentCahierDeTexte from "@/pages/student/cahier-de-texte";
 import DevDashboard from "@/pages/dev/index";
+import StudentCard from "@/pages/student/card";
+import VerifyCard from "@/pages/verify";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -127,9 +129,13 @@ function Router() {
       <Route path="/student/schedule" component={StudentSchedule} />
       <Route path="/student/grades" component={StudentGrades} />
       <Route path="/student/notifications" component={StudentNotifications} />
+      <Route path="/student/card" component={StudentCard} />
       <Route path="/student/messages">
         {() => <SharedMessages allowedRoles={["student"]} />}
       </Route>
+
+      {/* Public: Card verification (no auth required) */}
+      <Route path="/verify/:hash" component={VerifyCard} />
 
       {/* Developer portal — hidden from navigation */}
       <Route path="/dev" component={DevDashboard} />
@@ -142,8 +148,9 @@ function Router() {
 
 function App() {
   const isDevPortal = window.location.pathname.endsWith("/dev") || window.location.pathname.includes("/dev/");
+  const isPublicPage = window.location.pathname.includes("/verify/");
   const [showSplash, setShowSplash] = useState(() => {
-    if (isDevPortal) return false;
+    if (isDevPortal || isPublicPage) return false;
     const seen = sessionStorage.getItem("cpec_splash_seen");
     return !seen;
   });

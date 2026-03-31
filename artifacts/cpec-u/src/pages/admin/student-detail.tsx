@@ -15,9 +15,10 @@ import {
 import {
   ArrowLeft, User, Mail, Phone, MapPin, Calendar, Globe, GraduationCap,
   BookOpen, AlertCircle, CheckCircle2, Wallet, Home, TrendingUp, Clock, Plus, Trash2,
+  CreditCard, Download, RefreshCw, XCircle, QrCode,
 } from "lucide-react";
 import { motion } from "framer-motion";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 
 function fmt(n: number) {
@@ -33,6 +34,138 @@ function DecisionBadge({ decision }: { decision: string }) {
   if (decision === "Admis") return <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400">Admis</Badge>;
   if (decision === "Ajourné") return <Badge variant="destructive">Ajourné</Badge>;
   return <Badge variant="secondary">En attente</Badge>;
+}
+
+function AdminStudentCardTab({ studentId, studentName }: { studentId: number; studentName: string }) {
+  const { toast } = useToast();
+  const [generating, setGenerating] = useState(false);
+  const [invalidating, setInvalidating] = useState(false);
+
+  const { data: cardData, isLoading: cardLoading, refetch } = useQuery<any>({
+    queryKey: [`/api/admin/students/${studentId}/card`],
+    queryFn: async () => {
+      const res = await fetch(`/api/admin/students/${studentId}/card`, { credentials: "include" });
+      if (res.status === 404) return null;
+      if (!res.ok) throw new Error("Erreur chargement carte");
+      return res.json();
+    },
+    retry: false,
+  });
+
+  const handleGenerate = async () => {
+    setGenerating(true);
+    try {
+      const res = await fetch(`/api/admin/students/${studentId}/card/generate`, {
+        method: "POST", credentials: "include",
+      });
+      if (!res.ok) { const e = await res.json(); throw new Error(e.error ?? "Erreur génération"); }
+      await refetch();
+      toast({ title: "Carte générée", description: `La carte de ${studentName} a été créée.` });
+    } catch (err: any) {
+      toast({ title: "Erreur", description: err.message, variant: "destructive" });
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const handleInvalidate = async () => {
+    setInvalidating(true);
+    try {
+      const res = await fetch(`/api/admin/students/${studentId}/card/invalidate`, {
+        method: "POST", credentials: "include",
+      });
+      if (!res.ok) { const e = await res.json(); throw new Error(e.error ?? "Erreur"); }
+      await refetch();
+      toast({ title: "Carte invalidée", description: "La carte a été marquée comme expirée." });
+    } catch (err: any) {
+      toast({ title: "Erreur", description: err.message, variant: "destructive" });
+    } finally {
+      setInvalidating(false);
+    }
+  };
+
+  if (cardLoading) return (
+    <Card><CardContent className="py-10 text-center text-muted-foreground">Chargement…</CardContent></Card>
+  );
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <CreditCard className="w-5 h-5 text-primary" />
+          Carte Étudiante Numérique
+        </CardTitle>
+        <div className="flex gap-2">
+          {cardData ? (
+            <>
+              <Button size="sm" variant="outline" asChild>
+                <a href={`/api/admin/students/${studentId}/card/pdf`} target="_blank" rel="noreferrer" className="flex items-center gap-1.5">
+                  <Download className="w-3.5 h-3.5" /> PDF
+                </a>
+              </Button>
+              <Button size="sm" variant="outline" onClick={handleGenerate} disabled={generating}>
+                <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
+                {generating ? "Renouvellement…" : "Renouveler"}
+              </Button>
+              {cardData.status === "active" && (
+                <Button size="sm" variant="destructive" onClick={handleInvalidate} disabled={invalidating}>
+                  <XCircle className="w-3.5 h-3.5 mr-1.5" />
+                  {invalidating ? "…" : "Invalider"}
+                </Button>
+              )}
+            </>
+          ) : (
+            <Button size="sm" onClick={handleGenerate} disabled={generating}>
+              <QrCode className="w-3.5 h-3.5 mr-1.5" />
+              {generating ? "Génération…" : "Générer la carte"}
+            </Button>
+          )}
+        </div>
+      </CardHeader>
+      <CardContent>
+        {cardData ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between py-1.5 border-b border-border">
+                <span className="text-muted-foreground">Statut</span>
+                <Badge className={cardData.status === "active"
+                  ? "bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400"
+                  : "bg-red-100 text-red-700 border-red-200"}>
+                  {cardData.status === "active" ? "Active" : "Expirée / Invalidée"}
+                </Badge>
+              </div>
+              <div className="flex items-center justify-between py-1.5 border-b border-border">
+                <span className="text-muted-foreground">Année académique</span>
+                <span className="font-medium">{cardData.academicYear}</span>
+              </div>
+              <div className="flex items-center justify-between py-1.5 border-b border-border">
+                <span className="text-muted-foreground">Valable jusqu'au</span>
+                <span className="font-medium">{fmtDate(cardData.expiresAt)}</span>
+              </div>
+              <div className="flex items-center justify-between py-1.5 border-b border-border">
+                <span className="text-muted-foreground">Générée le</span>
+                <span className="font-medium">{fmtDate(cardData.issuedAt)}</span>
+              </div>
+            </div>
+            <div className="flex flex-col items-center justify-center gap-3 bg-muted/30 rounded-xl p-4">
+              {cardData.qrCodeDataUrl ? (
+                <img src={cardData.qrCodeDataUrl} alt="QR Code carte" className="w-32 h-32" />
+              ) : (
+                <QrCode className="w-16 h-16 text-muted-foreground" />
+              )}
+              <p className="text-xs text-muted-foreground text-center">Scanner pour vérifier l'authenticité</p>
+            </div>
+          </div>
+        ) : (
+          <div className="py-12 text-center space-y-3">
+            <CreditCard className="w-12 h-12 text-muted-foreground/40 mx-auto" />
+            <p className="text-muted-foreground">Aucune carte générée pour cet étudiant.</p>
+            <p className="text-xs text-muted-foreground/70">Cliquez sur "Générer la carte" pour en créer une.</p>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
 }
 
 export default function AdminStudentDetail() {
@@ -243,6 +376,9 @@ export default function AdminStudentDetail() {
               <TabsTrigger value="scolarite" className="rounded-lg text-xs sm:text-sm">Scolarité</TabsTrigger>
               <TabsTrigger value="housing" className="rounded-lg text-xs sm:text-sm">Hébergement</TabsTrigger>
               <TabsTrigger value="infos" className="rounded-lg text-xs sm:text-sm">Infos personnelles</TabsTrigger>
+              {canRecordPayment && (
+                <TabsTrigger value="carte" className="rounded-lg text-xs sm:text-sm">Carte Étudiante</TabsTrigger>
+              )}
             </TabsList>
 
             {/* ── Notes & Résultats ── */}
@@ -515,6 +651,13 @@ export default function AdminStudentDetail() {
                 </CardContent>
               </Card>
             </TabsContent>
+
+            {/* ── Carte Étudiante ── */}
+            {canRecordPayment && (
+              <TabsContent value="carte" className="space-y-4">
+                <AdminStudentCardTab studentId={studentId} studentName={student.name} />
+              </TabsContent>
+            )}
           </Tabs>
         </motion.div>
       </div>

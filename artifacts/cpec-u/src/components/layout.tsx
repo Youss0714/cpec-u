@@ -43,6 +43,7 @@ import {
   ChevronDown,
   Layers,
   Gavel,
+  CreditCard,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
@@ -271,6 +272,7 @@ export function AppLayout({ children, allowedRoles, noScroll = false }: AppLayou
           { name: "Mes Absences", href: "/student/absences", icon: CalendarOff, badge: null },
           { name: "Cahier de texte", href: "/student/cahier-de-texte", icon: BookText, badge: null },
           { name: "Notifications", href: "/student/notifications", icon: Bell, badge: (unreadData?.count ?? 0) > 0 ? unreadData!.count : null },
+          { name: "Ma Carte Étudiante", href: "/student/card", icon: CreditCard, badge: null },
           { name: "Messages", href: "/student/messages", icon: MessageSquare, badge: unreadMsgCount > 0 ? unreadMsgCount : undefined },
           { name: "Changer mon mot de passe", href: "/change-password", icon: KeyRound, badge: null },
         ];
