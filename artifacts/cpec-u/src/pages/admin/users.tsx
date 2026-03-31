@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
@@ -1011,7 +1012,7 @@ export default function AdminUsers() {
                     <div className="space-y-1"><Label>Nom complet</Label><Input name="name" required={selectedRole !== "student"} autoComplete="off" /></div>
                   )}
                   <div className="space-y-1"><Label>Email</Label><Input name="email" type="email" required autoComplete="off" /></div>
-                  <div className="space-y-1"><Label>Mot de passe</Label><Input name="password" type="password" required minLength={6} autoComplete="new-password" /></div>
+                  <div className="space-y-1"><Label>Mot de passe</Label><PasswordInput name="password" required minLength={6} autoComplete="new-password" /></div>
                   <div className="space-y-1">
                     <Label>Rôle</Label>
                     <Select name="role" value={selectedRole} onValueChange={(v) => { setSelectedRole(v); setTeacherAssignmentRows([]); }}>
@@ -1471,7 +1472,7 @@ export default function AdminUsers() {
                   )}
                   <div className="space-y-1">
                     <Label>Nouveau mot de passe <span className="text-muted-foreground text-xs">(laisser vide pour ne pas changer)</span></Label>
-                    <Input type="password" value={editForm.password} onChange={e => setEditForm(f => ({ ...f, password: e.target.value }))} placeholder="••••••" />
+                    <PasswordInput value={editForm.password} onChange={e => setEditForm(f => ({ ...f, password: e.target.value }))} placeholder="Nouveau mot de passe" />
                   </div>
                 </TabsContent>
 
@@ -1529,7 +1530,7 @@ export default function AdminUsers() {
                 </div>
                 <div className="space-y-1">
                   <Label>Nouveau mot de passe <span className="text-muted-foreground text-xs">(laisser vide pour ne pas changer)</span></Label>
-                  <Input type="password" value={editForm.password} onChange={e => setEditForm(f => ({ ...f, password: e.target.value }))} placeholder="••••••" />
+                  <PasswordInput value={editForm.password} onChange={e => setEditForm(f => ({ ...f, password: e.target.value }))} placeholder="Nouveau mot de passe" />
                 </div>
               </div>
             )}
