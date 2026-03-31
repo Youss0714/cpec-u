@@ -343,4 +343,102 @@ router.get("/admin/classes/:classId/cards", requireRole("admin"), async (req, re
   }
 });
 
+// ── ADMIN: List all classes (for filter) ──────────────────────────────────────
+router.get("/admin/classes-list", requireRole("admin"), async (req, res) => {
+  try {
+    const cu = req.session.user!;
+    if (cu.adminSubRole !== "scolarite" && cu.adminSubRole !== "directeur") {
+      res.status(403).json({ error: "Réservé à la Scolarité et au Directeur." });
+      return;
+    }
+    const classList = await db.select({ id: classesTable.id, name: classesTable.name, filiere: classesTable.filiere }).from(classesTable);
+    res.json(classList);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// ── ADMIN: List all students with card status ──────────────────────────────────
+router.get("/admin/cards/students", requireRole("admin"), async (req, res) => {
+  try {
+    const cu = req.session.user!;
+    if (cu.adminSubRole !== "scolarite" && cu.adminSubRole !== "directeur") {
+      res.status(403).json({ error: "Réservé à la Scolarité et au Directeur." });
+      return;
+    }
+
+    const classIdParam = req.query.classId ? parseInt(req.query.classId as string) : null;
+
+    const students = await (classIdParam
+      ? db
+          .select({
+            studentId: usersTable.id,
+            studentName: usersTable.name,
+            matricule: studentProfilesTable.matricule,
+            classId: classEnrollmentsTable.classId,
+            className: classesTable.name,
+          })
+          .from(usersTable)
+          .leftJoin(studentProfilesTable, eq(studentProfilesTable.studentId, usersTable.id))
+          .leftJoin(classEnrollmentsTable, eq(classEnrollmentsTable.studentId, usersTable.id))
+          .leftJoin(classesTable, eq(classesTable.id, classEnrollmentsTable.classId))
+          .where(and(eq(usersTable.role, "student"), eq(classEnrollmentsTable.classId, classIdParam)))
+      : db
+          .select({
+            studentId: usersTable.id,
+            studentName: usersTable.name,
+            matricule: studentProfilesTable.matricule,
+            classId: classEnrollmentsTable.classId,
+            className: classesTable.name,
+          })
+          .from(usersTable)
+          .leftJoin(studentProfilesTable, eq(studentProfilesTable.studentId, usersTable.id))
+          .leftJoin(classEnrollmentsTable, eq(classEnrollmentsTable.studentId, usersTable.id))
+          .leftJoin(classesTable, eq(classesTable.id, classEnrollmentsTable.classId))
+          .where(eq(usersTable.role, "student"))
+    );
+
+    const academicYear = getCurrentAcademicYear();
+    const results = await Promise.all(
+      students.map(async (s) => {
+        const [card] = await db
+          .select()
+          .from(studentCardsTable)
+          .where(and(eq(studentCardsTable.studentId, s.studentId), eq(studentCardsTable.academicYear, academicYear)))
+          .limit(1);
+
+        let cardEntry = null;
+        if (card) {
+          const isExpired = new Date() > card.expiresAt;
+          const status = !card.isValid ? "invalidated" : isExpired ? "expired" : "active";
+          cardEntry = {
+            id: card.id,
+            hash: card.hash,
+            academicYear: card.academicYear,
+            issuedAt: card.issuedAt,
+            expiresAt: card.expiresAt,
+            isValid: card.isValid,
+            isExpired,
+            status,
+          };
+        }
+
+        return {
+          studentId: s.studentId,
+          studentName: s.studentName,
+          matricule: s.matricule ?? null,
+          className: s.className ?? null,
+          card: cardEntry,
+        };
+      })
+    );
+
+    res.json(results);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
 export default router;

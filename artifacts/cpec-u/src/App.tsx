@@ -53,6 +53,7 @@ import StudentCahierDeTexte from "@/pages/student/cahier-de-texte";
 import DevDashboard from "@/pages/dev/index";
 import StudentCard from "@/pages/student/card";
 import VerifyCard from "@/pages/verify";
+import AdminCards from "@/pages/admin/cards";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -133,6 +134,8 @@ function Router() {
       <Route path="/student/messages">
         {() => <SharedMessages allowedRoles={["student"]} />}
       </Route>
+
+      <Route path="/admin/cards" component={AdminCards} />
 
       {/* Public: Card verification (no auth required) */}
       <Route path="/verify/:hash" component={VerifyCard} />

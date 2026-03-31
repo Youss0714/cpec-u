@@ -196,6 +196,7 @@ export function AppLayout({ children, allowedRoles, noScroll = false }: AppLayou
     { name: "Journal d'Activité", href: "/admin/activity-log", icon: ScrollText },
     { name: "Rattrapage", href: "/admin/rattrapage", icon: RotateCcw },
     { name: "Jury Spécial", href: "/admin/jury-special", icon: Gavel },
+    { name: "Cartes Étudiantes", href: "/admin/cards", icon: CreditCard },
     { name: "Messages", href: "/admin/messages", icon: MessageSquare, badge: unreadMsgCount > 0 ? unreadMsgCount : undefined },
   ];
 
@@ -234,6 +235,7 @@ export function AppLayout({ children, allowedRoles, noScroll = false }: AppLayou
     { name: "Honoraires", href: "/admin/honoraires", icon: Wallet },
     { name: "Rattrapage", href: "/admin/rattrapage", icon: RotateCcw },
     { name: "Jury Spécial", href: "/admin/jury-special", icon: Gavel },
+    { name: "Cartes Étudiantes", href: "/admin/cards", icon: CreditCard },
     { name: "Messages", href: "/admin/messages", icon: MessageSquare, badge: unreadMsgCount > 0 ? unreadMsgCount : undefined },
     { name: "Changer mon mot de passe", href: "/change-password", icon: KeyRound, badge: null },
   ];
