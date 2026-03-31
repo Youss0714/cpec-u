@@ -14,9 +14,7 @@ export const teacherAssignmentsTable = pgTable("teacher_assignments", {
   semesterId: integer("semester_id").notNull().references(() => semestersTable.id, { onDelete: "cascade" }),
   plannedHours: integer("planned_hours").notNull().default(30),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-}, (table) => ({
-  uniqueSubjectSemester: unique("teacher_assignments_subject_semester_unique").on(table.subjectId, table.semesterId),
-}));
+});
 
 export const insertTeacherAssignmentSchema = createInsertSchema(teacherAssignmentsTable).omit({ id: true, createdAt: true });
 export type InsertTeacherAssignment = z.infer<typeof insertTeacherAssignmentSchema>;
