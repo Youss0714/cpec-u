@@ -91,6 +91,35 @@ router.post("/", requirePlanificateur, async (req, res) => {
     if (!teacherId || !subjectId || !classId || !semesterId) {
       return res.status(400).json({ error: "Champs obligatoires manquants" });
     }
+
+    // ── Règle métier : une matière = un seul enseignant (par semestre) ─────
+    const existing = await db
+      .select({
+        id: teacherAssignmentsTable.id,
+        teacherName: usersTable.name,
+        subjectName: subjectsTable.name,
+      })
+      .from(teacherAssignmentsTable)
+      .innerJoin(usersTable, eq(usersTable.id, teacherAssignmentsTable.teacherId))
+      .innerJoin(subjectsTable, eq(subjectsTable.id, teacherAssignmentsTable.subjectId))
+      .where(
+        and(
+          eq(teacherAssignmentsTable.subjectId, parseInt(subjectId)),
+          eq(teacherAssignmentsTable.semesterId, parseInt(semesterId)),
+        )
+      )
+      .limit(1);
+
+    if (existing.length > 0) {
+      const { teacherName, subjectName } = existing[0];
+      return res.status(409).json({
+        error: "Conflict",
+        message: `Cette matière (${subjectName}) est déjà attribuée à ${teacherName}. Veuillez d'abord retirer cette affectation avant d'en créer une nouvelle.`,
+        existingTeacherName: teacherName,
+        subjectName,
+      });
+    }
+
     const [row] = await db
       .insert(teacherAssignmentsTable)
       .values({ teacherId, subjectId, classId, semesterId, plannedHours: plannedHours ?? 30 })
@@ -98,7 +127,14 @@ router.post("/", requirePlanificateur, async (req, res) => {
     const rows = await getEnriched();
     const result = rows.find((r) => r.id === row.id)!;
     res.status(201).json({ ...result, completedHours: 0 });
-  } catch (err) {
+  } catch (err: any) {
+    // Catch DB-level unique violation as safety net
+    if (err?.code === "23505") {
+      return res.status(409).json({
+        error: "Conflict",
+        message: "Cette matière est déjà attribuée à un enseignant pour ce semestre.",
+      });
+    }
     console.error(err);
     res.status(500).json({ error: "Internal Server Error" });
   }

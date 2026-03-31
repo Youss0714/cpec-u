@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { AppLayout } from "@/components/layout";
 import {
   useListPlanningAssignments,
@@ -16,8 +16,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Trash2, Pencil, AlertCircle, CheckCircle } from "lucide-react";
+import { Plus, Trash2, Pencil, AlertCircle, CheckCircle, Lock } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
 
 const QK = ["/api/admin/teacher-assignments"];
 
@@ -40,13 +41,24 @@ export default function PlanningAssignments() {
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<any>(null);
-  const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<any | null>(null);
   const [form, setForm] = useState({
     teacherId: "", subjectId: "", classId: "", semesterId: "", plannedHours: "30",
   });
   const [editHours, setEditHours] = useState("30");
 
   const resetForm = () => setForm({ teacherId: "", subjectId: "", classId: "", semesterId: "", plannedHours: "30" });
+
+  // ── Map: subjectId → assignment (for the selected semester) ──────────────
+  const assignedBySubjectInSemester = useMemo(() => {
+    if (!form.semesterId) return new Map<number, any>();
+    const semId = parseInt(form.semesterId);
+    const map = new Map<number, any>();
+    (assignments as any[]).forEach((a) => {
+      if (a.semesterId === semId) map.set(a.subjectId, a);
+    });
+    return map;
+  }, [assignments, form.semesterId]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -62,12 +74,13 @@ export default function PlanningAssignments() {
         semesterId: parseInt(form.semesterId),
         plannedHours: parseInt(form.plannedHours),
       });
-      toast({ title: "Affectation créée" });
+      toast({ title: "Affectation créée avec succès" });
       invalidate();
       setIsCreateOpen(false);
       resetForm();
-    } catch {
-      toast({ title: "Erreur lors de la création", variant: "destructive" });
+    } catch (err: any) {
+      const msg = err?.data?.message ?? err?.message ?? "Erreur lors de la création de l'affectation.";
+      toast({ title: "Affectation impossible", description: msg, variant: "destructive" });
     }
   };
 
@@ -80,7 +93,7 @@ export default function PlanningAssignments() {
       invalidate();
       setEditingItem(null);
     } catch {
-      toast({ title: "Erreur", variant: "destructive" });
+      toast({ title: "Erreur lors de la mise à jour", variant: "destructive" });
     }
   };
 
@@ -89,8 +102,9 @@ export default function PlanningAssignments() {
       await deleteAssign.mutateAsync({ id });
       toast({ title: "Affectation supprimée" });
       invalidate();
+      setPendingDelete(null);
     } catch {
-      toast({ title: "Erreur", variant: "destructive" });
+      toast({ title: "Erreur lors de la suppression", variant: "destructive" });
     }
   };
 
@@ -109,40 +123,112 @@ export default function PlanningAssignments() {
             <DialogContent>
               <DialogHeader><DialogTitle>Créer une affectation</DialogTitle></DialogHeader>
               <form onSubmit={handleCreate} className="space-y-4 mt-4">
+
+                {/* ── Enseignant ── */}
                 <div className="space-y-2">
                   <Label>Enseignant</Label>
                   <Select value={form.teacherId} onValueChange={(v) => setForm({ ...form, teacherId: v })}>
                     <SelectTrigger><SelectValue placeholder="Choisir un enseignant" /></SelectTrigger>
-                    <SelectContent>{teachers.map((t: any) => <SelectItem key={t.id} value={String(t.id)}>{t.name}</SelectItem>)}</SelectContent>
+                    <SelectContent>
+                      {teachers.map((t: any) => (
+                        <SelectItem key={t.id} value={String(t.id)}>{t.name}</SelectItem>
+                      ))}
+                    </SelectContent>
                   </Select>
                 </div>
+
+                {/* ── Semestre (avant Matière pour alimenter le filtre) ── */}
+                <div className="space-y-2">
+                  <Label>Semestre</Label>
+                  <Select value={form.semesterId} onValueChange={(v) => setForm({ ...form, semesterId: v, subjectId: "" })}>
+                    <SelectTrigger><SelectValue placeholder="Choisir un semestre" /></SelectTrigger>
+                    <SelectContent>
+                      {(semesters as any[]).map((s: any) => (
+                        <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* ── Matière (filtrée selon le semestre sélectionné) ── */}
                 <div className="space-y-2">
                   <Label>Matière</Label>
-                  <Select value={form.subjectId} onValueChange={(v) => setForm({ ...form, subjectId: v })}>
+                  {!form.semesterId && (
+                    <p className="text-xs text-muted-foreground italic">Sélectionnez d'abord un semestre pour voir la disponibilité des matières.</p>
+                  )}
+                  <Select
+                    value={form.subjectId}
+                    onValueChange={(v) => {
+                      if (assignedBySubjectInSemester.has(parseInt(v))) return;
+                      setForm({ ...form, subjectId: v });
+                    }}
+                    disabled={!form.semesterId}
+                  >
                     <SelectTrigger><SelectValue placeholder="Choisir une matière" /></SelectTrigger>
-                    <SelectContent>{subjects.map((s: any) => <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>)}</SelectContent>
+                    <SelectContent>
+                      {(subjects as any[]).map((s: any) => {
+                        const existingAssignment = assignedBySubjectInSemester.get(s.id);
+                        const isAssigned = !!existingAssignment;
+                        return (
+                          <SelectItem
+                            key={s.id}
+                            value={String(s.id)}
+                            disabled={isAssigned}
+                            className={isAssigned ? "opacity-50 cursor-not-allowed" : ""}
+                          >
+                            <span className="flex items-center gap-2">
+                              {isAssigned && <Lock className="w-3 h-3 shrink-0 text-muted-foreground" />}
+                              <span>{s.name}</span>
+                              {isAssigned && (
+                                <span className="text-xs text-muted-foreground ml-1">
+                                  — {existingAssignment.teacherName}
+                                </span>
+                              )}
+                            </span>
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectContent>
                   </Select>
+
+                  {/* Avertissement si la matière sélectionnée est déjà attribuée */}
+                  {form.subjectId && assignedBySubjectInSemester.has(parseInt(form.subjectId)) && (
+                    <p className="text-xs text-destructive flex items-center gap-1">
+                      <AlertCircle className="w-3 h-3" />
+                      Cette matière est déjà attribuée à {assignedBySubjectInSemester.get(parseInt(form.subjectId))?.teacherName}.
+                    </p>
+                  )}
                 </div>
+
+                {/* ── Classe ── */}
                 <div className="space-y-2">
                   <Label>Classe</Label>
                   <Select value={form.classId} onValueChange={(v) => setForm({ ...form, classId: v })}>
                     <SelectTrigger><SelectValue placeholder="Choisir une classe" /></SelectTrigger>
-                    <SelectContent>{classes.map((c: any) => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}</SelectContent>
+                    <SelectContent>
+                      {(classes as any[]).map((c: any) => (
+                        <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
+                      ))}
+                    </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-2">
-                  <Label>Semestre</Label>
-                  <Select value={form.semesterId} onValueChange={(v) => setForm({ ...form, semesterId: v })}>
-                    <SelectTrigger><SelectValue placeholder="Choisir un semestre" /></SelectTrigger>
-                    <SelectContent>{semesters.map((s: any) => <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>)}</SelectContent>
-                  </Select>
-                </div>
+
+                {/* ── Volume horaire ── */}
                 <div className="space-y-2">
                   <Label>Volume horaire prévu (heures)</Label>
                   <Input type="number" min="1" max="200" value={form.plannedHours}
                     onChange={(e) => setForm({ ...form, plannedHours: e.target.value })} />
                 </div>
-                <Button type="submit" className="w-full" disabled={createAssign.isPending}>
+
+                <Button
+                  type="submit"
+                  className="w-full"
+                  disabled={
+                    createAssign.isPending ||
+                    !form.teacherId || !form.subjectId || !form.classId || !form.semesterId ||
+                    assignedBySubjectInSemester.has(parseInt(form.subjectId || "0"))
+                  }
+                >
                   {createAssign.isPending ? "Création..." : "Créer l'affectation"}
                 </Button>
               </form>
@@ -150,7 +236,23 @@ export default function PlanningAssignments() {
           </Dialog>
         </div>
 
-        {/* Edit dialog */}
+        {/* ── Légende ── */}
+        <div className="flex items-center gap-4 text-xs text-muted-foreground">
+          <span className="flex items-center gap-1.5">
+            <Lock className="w-3 h-3" />
+            Matière déjà attribuée (non sélectionnable)
+          </span>
+          <span className="flex items-center gap-1.5">
+            <AlertCircle className="w-3 h-3 text-amber-500" />
+            Heures restantes
+          </span>
+          <span className="flex items-center gap-1.5">
+            <CheckCircle className="w-3 h-3 text-green-500" />
+            Volume complété
+          </span>
+        </div>
+
+        {/* ── Edit dialog ── */}
         <Dialog open={!!editingItem} onOpenChange={(o) => { if (!o) setEditingItem(null); }}>
           <DialogContent>
             <DialogHeader><DialogTitle>Modifier le volume horaire</DialogTitle></DialogHeader>
@@ -170,6 +272,7 @@ export default function PlanningAssignments() {
           </DialogContent>
         </Dialog>
 
+        {/* ── Tableau des affectations ── */}
         <div className="bg-card rounded-2xl shadow-sm border border-border overflow-hidden">
           <Table>
             <TableHeader className="bg-secondary/50">
@@ -186,17 +289,24 @@ export default function PlanningAssignments() {
             <TableBody>
               {isLoading ? (
                 <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Chargement...</TableCell></TableRow>
-              ) : assignments.length === 0 ? (
+              ) : (assignments as any[]).length === 0 ? (
                 <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Aucune affectation.</TableCell></TableRow>
               ) : (
-                assignments.map((a: any) => {
+                (assignments as any[]).map((a: any) => {
                   const pct = Math.min(100, Math.round((a.completedHours / a.plannedHours) * 100));
                   const isComplete = a.completedHours >= a.plannedHours;
                   const remaining = Math.max(0, a.plannedHours - a.completedHours);
                   return (
                     <TableRow key={a.id}>
                       <TableCell className="font-semibold">{a.teacherName}</TableCell>
-                      <TableCell>{a.subjectName}</TableCell>
+                      <TableCell>
+                        <span className="flex items-center gap-2">
+                          {a.subjectName}
+                          <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-normal text-muted-foreground">
+                            1 enseignant
+                          </Badge>
+                        </span>
+                      </TableCell>
                       <TableCell>{a.className}</TableCell>
                       <TableCell className="text-muted-foreground">{a.semesterName}</TableCell>
                       <TableCell className="min-w-[180px]">
@@ -226,7 +336,7 @@ export default function PlanningAssignments() {
                             <Pencil className="w-4 h-4" />
                           </Button>
                           <Button variant="ghost" size="icon" className="text-destructive hover:bg-destructive/10"
-                            onClick={() => setPendingDeleteId(a.id)}>
+                            onClick={() => setPendingDelete(a)}>
                             <Trash2 className="w-4 h-4" />
                           </Button>
                         </div>
@@ -239,12 +349,19 @@ export default function PlanningAssignments() {
           </Table>
         </div>
       </div>
+
+      {/* ── Confirmation de suppression avec noms ── */}
       <ConfirmDialog
-        open={pendingDeleteId !== null}
-        onOpenChange={(open) => { if (!open) setPendingDeleteId(null); }}
-        onConfirm={() => handleDelete(pendingDeleteId!)}
-        title="Supprimer le volume horaire"
-        description="Cette affectation de volume horaire sera définitivement supprimée."
+        open={pendingDelete !== null}
+        onOpenChange={(open) => { if (!open) setPendingDelete(null); }}
+        onConfirm={() => handleDelete(pendingDelete!.id)}
+        title="Retirer l'affectation"
+        description={
+          pendingDelete
+            ? `Êtes-vous sûr de vouloir retirer ${pendingDelete.teacherName} de la matière "${pendingDelete.subjectName}" (${pendingDelete.semesterName}) ? Cette action libérera la matière pour une nouvelle affectation.`
+            : "Cette action est irréversible."
+        }
+        confirmLabel="Retirer"
       />
     </AppLayout>
   );
