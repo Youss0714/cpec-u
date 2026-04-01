@@ -109,11 +109,12 @@ router.get("/users", requireRole("admin"), async (req, res) => {
       .innerJoin(classesTable, eq(classesTable.id, classEnrollmentsTable.classId));
     const enrollmentMap = new Map(enrollments.map((e) => [e.studentId, { classId: e.classId, className: e.className }]));
 
-    const profiles = await db.select({ studentId: studentProfilesTable.studentId, matricule: studentProfilesTable.matricule }).from(studentProfilesTable);
-    const profileMap = new Map(profiles.map((p) => [p.studentId, p.matricule]));
+    const profiles = await db.select({ studentId: studentProfilesTable.studentId, matricule: studentProfilesTable.matricule, sexe: studentProfilesTable.sexe }).from(studentProfilesTable);
+    const profileMap = new Map(profiles.map((p) => [p.studentId, { matricule: p.matricule, sexe: p.sexe }]));
 
     const result = users.map((u) => {
       const enroll = enrollmentMap.get(u.id);
+      const prof = profileMap.get(u.id);
       return {
         id: u.id,
         email: u.email,
@@ -122,7 +123,8 @@ router.get("/users", requireRole("admin"), async (req, res) => {
         adminSubRole: u.adminSubRole ?? null,
         classId: enroll?.classId ?? null,
         className: enroll?.className ?? null,
-        matricule: profileMap.get(u.id) ?? null,
+        matricule: prof?.matricule ?? null,
+        sexe: prof?.sexe ?? null,
         createdAt: u.createdAt,
       };
     });
@@ -407,7 +409,23 @@ router.get("/classes", requireRole("admin", "teacher"), async (req, res) => {
       .from(classEnrollmentsTable)
       .groupBy(classEnrollmentsTable.classId);
     const countMap = new Map(enrollCounts.map((e) => [e.classId, Number(e.cnt)]));
-    const result = classes.map((c) => ({ ...c, studentCount: countMap.get(c.id) ?? 0 }));
+
+    const genderRows = allRows(await db.execute(sql`
+      SELECT ce.class_id,
+        COUNT(CASE WHEN sp.sexe = 'M' THEN 1 END)::int AS garcons,
+        COUNT(CASE WHEN sp.sexe = 'F' THEN 1 END)::int AS filles
+      FROM class_enrollments ce
+      LEFT JOIN student_profiles sp ON sp.student_id = ce.student_id
+      GROUP BY ce.class_id
+    `));
+    const genderMap = new Map(genderRows.map((r: any) => [Number(r.class_id), { garcons: Number(r.garcons ?? 0), filles: Number(r.filles ?? 0) }]));
+
+    const result = classes.map((c) => ({
+      ...c,
+      studentCount: countMap.get(c.id) ?? 0,
+      garcons: genderMap.get(c.id)?.garcons ?? 0,
+      filles: genderMap.get(c.id)?.filles ?? 0,
+    }));
     res.json(result);
   } catch (err) {
     console.error(err);
@@ -2988,7 +3006,10 @@ router.get("/reports/overview", requireRole("admin"), async (req, res) => {
         (SELECT COUNT(*) FROM users WHERE role = 'student')::int AS total_students,
         (SELECT COUNT(*) FROM users WHERE role = 'teacher')::int AS total_teachers,
         (SELECT COUNT(*) FROM users WHERE role = 'admin')::int  AS total_admins,
-        (SELECT COUNT(*) FROM housing_assignments WHERE status = 'active')::int AS housing_students
+        (SELECT COUNT(*) FROM housing_assignments WHERE status = 'active')::int AS housing_students,
+        (SELECT COUNT(*) FROM student_profiles WHERE sexe = 'M')::int AS garcons,
+        (SELECT COUNT(*) FROM student_profiles WHERE sexe = 'F')::int AS filles,
+        (SELECT COUNT(*) FROM student_profiles WHERE sexe IS NOT NULL)::int AS total_with_sexe
     `));
 
     // Taux de réussite global
@@ -3035,6 +3056,8 @@ router.get("/reports/overview", requireRole("admin"), async (req, res) => {
         c.id   AS class_id,
         c.name AS class_name,
         COUNT(DISTINCT ce.student_id)::int AS student_count,
+        COUNT(DISTINCT CASE WHEN sp.sexe = 'M' THEN ce.student_id END)::int AS garcons,
+        COUNT(DISTINCT CASE WHEN sp.sexe = 'F' THEN ce.student_id END)::int AS filles,
         ROUND(AVG(g.value)::numeric, 2) AS avg_grade,
         ROUND(
           100.0 * SUM(CASE WHEN a.status = 'present' THEN 1 ELSE 0 END)::numeric
@@ -3042,6 +3065,7 @@ router.get("/reports/overview", requireRole("admin"), async (req, res) => {
         ) AS presence_rate
       FROM classes c
       LEFT JOIN class_enrollments ce ON ce.class_id = c.id
+      LEFT JOIN student_profiles sp ON sp.student_id = ce.student_id
       LEFT JOIN grades g ON g.student_id = ce.student_id ${semesterId ? sql`AND g.semester_id = ${parseInt(semesterId as string)}` : sql``}
       LEFT JOIN attendance a ON a.class_id = c.id
       GROUP BY c.id, c.name
@@ -3055,11 +3079,18 @@ router.get("/reports/overview", requireRole("admin"), async (req, res) => {
     const totalDue = Number(financialData.total_due ?? 0);
     const totalPaid = Number(financialData.total_paid ?? 0);
 
+    const garcons = Number(counts.garcons ?? 0);
+    const filles = Number(counts.filles ?? 0);
+    const totalWithSexe = Number(counts.total_with_sexe ?? 0);
+
     res.json({
       totalStudents: Number(counts.total_students ?? 0),
       totalTeachers: Number(counts.total_teachers ?? 0),
       totalAdmins: Number(counts.total_admins ?? 0),
       housingStudents: Number(counts.housing_students ?? 0),
+      garcons,
+      filles,
+      totalWithSexe,
       successRate: total > 0 ? Math.round((passed / total) * 1000) / 10 : 0,
       avgGrade: Number(successData.avg_grade ?? 0),
       presenceRate: presenceTotal > 0 ? Math.round((presencePresent / presenceTotal) * 1000) / 10 : 0,

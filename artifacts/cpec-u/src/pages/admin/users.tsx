@@ -701,6 +701,7 @@ export default function AdminUsers() {
   const [viewProfile, setViewProfile] = useState<any | null>(null);
   const [viewProfileLoading, setViewProfileLoading] = useState(false);
   const [filterClass, setFilterClass] = useState<string>("all");
+  const [filterSexe, setFilterSexe] = useState<string>("all");
   const [searchStudent, setSearchStudent] = useState("");
   const [searchTeacher, setSearchTeacher] = useState("");
   const { data: currentUser } = useGetCurrentUser();
@@ -993,14 +994,25 @@ export default function AdminUsers() {
     ...(!isScolarite ? [{ key: "honoraires" as Tab, label: "Honoraires", icon: Wallet }] : []),
   ];
 
+  const genderStats = useMemo(() => {
+    const garcons = students.filter((u: any) => u.sexe === "M").length;
+    const filles = students.filter((u: any) => u.sexe === "F").length;
+    const total = students.length;
+    const unknown = total - garcons - filles;
+    const pctG = total > 0 ? Math.round((garcons / total) * 100) : 0;
+    const pctF = total > 0 ? Math.round((filles / total) * 100) : 0;
+    return { garcons, filles, total, unknown, pctG, pctF };
+  }, [students]);
+
   const listToShow = useMemo(() => {
     const base = activeTab === "teachers" ? teachers : activeTab === "responsables" ? admins : students;
     if (activeTab === "students") {
       return base.filter((u: any) => {
         const matchesClass = filterClass === "all" || u.className === filterClass;
+        const matchesSexe = filterSexe === "all" || u.sexe === filterSexe;
         const q = searchStudent.toLowerCase();
         const matchesSearch = !q || u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q);
-        return matchesClass && matchesSearch;
+        return matchesClass && matchesSexe && matchesSearch;
       });
     }
     if (activeTab === "teachers") {
@@ -1010,7 +1022,7 @@ export default function AdminUsers() {
       );
     }
     return base;
-  }, [activeTab, teachers, admins, students, filterClass, searchStudent, searchTeacher]);
+  }, [activeTab, teachers, admins, students, filterClass, filterSexe, searchStudent, searchTeacher]);
 
   return (
     <AppLayout allowedRoles={["admin"]}>
@@ -1321,6 +1333,36 @@ export default function AdminUsers() {
         {/* Honoraires tab */}
         {activeTab === "honoraires" && <HonorairesTab />}
 
+        {/* Gender stats — students only */}
+        {activeTab === "students" && (
+          <div className="grid grid-cols-3 gap-3">
+            <div className="flex items-center gap-3 bg-primary/5 border border-primary/15 rounded-xl px-4 py-3">
+              <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center text-lg shrink-0">👥</div>
+              <div>
+                <p className="text-xs text-muted-foreground font-medium">Total</p>
+                <p className="text-xl font-bold text-foreground leading-tight">{genderStats.total}</p>
+                <p className="text-xs text-muted-foreground">étudiant{genderStats.total !== 1 ? "s" : ""}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 bg-blue-50 border border-blue-100 rounded-xl px-4 py-3">
+              <div className="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center text-lg shrink-0">👨</div>
+              <div>
+                <p className="text-xs text-blue-600 font-medium">Garçons</p>
+                <p className="text-xl font-bold text-blue-800 leading-tight">{genderStats.garcons}</p>
+                <p className="text-xs text-blue-500">{genderStats.pctG}% des étudiants</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 bg-pink-50 border border-pink-100 rounded-xl px-4 py-3">
+              <div className="w-9 h-9 rounded-full bg-pink-100 flex items-center justify-center text-lg shrink-0">👩</div>
+              <div>
+                <p className="text-xs text-pink-600 font-medium">Filles</p>
+                <p className="text-xl font-bold text-pink-800 leading-tight">{genderStats.filles}</p>
+                <p className="text-xs text-pink-500">{genderStats.pctF}% des étudiants</p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Teachers / Students / Responsables tab */}
         {(activeTab === "teachers" || activeTab === "students" || activeTab === "responsables") && (
           <div className="space-y-3">
@@ -1348,7 +1390,7 @@ export default function AdminUsers() {
                 className="w-56"
               />
               <Select value={filterClass} onValueChange={setFilterClass}>
-                <SelectTrigger className="w-52">
+                <SelectTrigger className="w-48">
                   <SelectValue placeholder="Toutes les classes" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1358,9 +1400,19 @@ export default function AdminUsers() {
                   ))}
                 </SelectContent>
               </Select>
-              {(filterClass !== "all" || searchStudent) && (
+              <Select value={filterSexe} onValueChange={setFilterSexe}>
+                <SelectTrigger className="w-36">
+                  <SelectValue placeholder="Genre" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tous les genres</SelectItem>
+                  <SelectItem value="M">👨 Garçons</SelectItem>
+                  <SelectItem value="F">👩 Filles</SelectItem>
+                </SelectContent>
+              </Select>
+              {(filterClass !== "all" || filterSexe !== "all" || searchStudent) && (
                 <button
-                  onClick={() => { setFilterClass("all"); setSearchStudent(""); }}
+                  onClick={() => { setFilterClass("all"); setFilterSexe("all"); setSearchStudent(""); }}
                   className="text-xs text-muted-foreground hover:text-foreground underline"
                 >
                   Réinitialiser

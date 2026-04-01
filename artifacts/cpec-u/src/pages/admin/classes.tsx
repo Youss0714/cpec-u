@@ -478,18 +478,30 @@ export default function AdminClasses() {
                   </p>
                 </div>
 
-                <div className="mt-6 flex items-center justify-between">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <div className="flex items-center gap-1.5 text-sm font-semibold text-primary bg-primary/5 px-3 py-1.5 rounded-lg">
-                      <Users className="w-4 h-4" />
-                      {cls.studentCount} Étudiant{cls.studentCount !== 1 ? "s" : ""}
+                <div className="mt-6 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <div className="flex items-center gap-1.5 text-sm font-semibold text-primary bg-primary/5 px-3 py-1.5 rounded-lg">
+                        <Users className="w-4 h-4" />
+                        {cls.studentCount} Étudiant{cls.studentCount !== 1 ? "s" : ""}
+                      </div>
+                      <div className="flex items-center gap-1.5 text-sm font-semibold text-violet-700 bg-violet-50 px-3 py-1.5 rounded-lg">
+                        <BookOpen className="w-4 h-4" />
+                        {subjectCountByClass[cls.id] ?? 0} Matière{(subjectCountByClass[cls.id] ?? 0) !== 1 ? "s" : ""}
+                      </div>
                     </div>
-                    <div className="flex items-center gap-1.5 text-sm font-semibold text-violet-700 bg-violet-50 px-3 py-1.5 rounded-lg">
-                      <BookOpen className="w-4 h-4" />
-                      {subjectCountByClass[cls.id] ?? 0} Matière{(subjectCountByClass[cls.id] ?? 0) !== 1 ? "s" : ""}
-                    </div>
+                    <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors" />
                   </div>
-                  <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors" />
+                  {((cls as any).garcons > 0 || (cls as any).filles > 0) && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full font-medium">
+                        👨 {(cls as any).garcons ?? 0} garçon{(cls as any).garcons !== 1 ? "s" : ""}
+                      </span>
+                      <span className="text-xs text-pink-600 bg-pink-50 px-2 py-0.5 rounded-full font-medium">
+                        👩 {(cls as any).filles ?? 0} fille{(cls as any).filles !== 1 ? "s" : ""}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
             ))

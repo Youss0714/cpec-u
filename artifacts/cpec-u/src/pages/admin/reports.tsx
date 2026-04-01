@@ -215,6 +215,81 @@ export default function ReportsPage() {
                 sub={fmtCurrency(overview?.totalPaid ?? 0)} />
             </div>
 
+            {/* Genre Pie chart */}
+            {!loadingOverview && (overview?.garcons > 0 || overview?.filles > 0) && (() => {
+              const genderPie = [
+                { name: "Garçons", value: overview?.garcons ?? 0 },
+                { name: "Filles", value: overview?.filles ?? 0 },
+              ];
+              const GENRE_COLORS = ["#3b82f6", "#ec4899"];
+              const gTotal = (overview?.garcons ?? 0) + (overview?.filles ?? 0);
+              return (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                  <Card className="p-5">
+                    <h2 className="font-bold text-base mb-3">Répartition Filles / Garçons</h2>
+                    <div className="flex items-center gap-6">
+                      <ResponsiveContainer width={140} height={140}>
+                        <PieChart>
+                          <Pie data={genderPie} dataKey="value" cx="50%" cy="50%" outerRadius={60} innerRadius={30}
+                            label={({ percent }) => `${(percent * 100).toFixed(0)}%`} labelLine={false}>
+                            {genderPie.map((_, i) => <Cell key={i} fill={GENRE_COLORS[i]} />)}
+                          </Pie>
+                          <Tooltip formatter={(v: any, name: string) => [`${v} étudiant${Number(v) !== 1 ? "s" : ""}`, name]} />
+                        </PieChart>
+                      </ResponsiveContainer>
+                      <div className="space-y-3 flex-1">
+                        <div className="flex items-center gap-2">
+                          <div className="w-3 h-3 rounded-full bg-blue-500 shrink-0" />
+                          <div>
+                            <p className="text-sm font-semibold text-blue-700">Garçons</p>
+                            <p className="text-xs text-muted-foreground">{overview?.garcons ?? 0} — {gTotal > 0 ? Math.round(((overview?.garcons ?? 0) / gTotal) * 100) : 0}%</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="w-3 h-3 rounded-full bg-pink-500 shrink-0" />
+                          <div>
+                            <p className="text-sm font-semibold text-pink-700">Filles</p>
+                            <p className="text-xs text-muted-foreground">{overview?.filles ?? 0} — {gTotal > 0 ? Math.round(((overview?.filles ?? 0) / gTotal) * 100) : 0}%</p>
+                          </div>
+                        </div>
+                        {(overview?.totalStudents ?? 0) > (overview?.totalWithSexe ?? 0) && (
+                          <p className="text-xs text-amber-600 bg-amber-50 rounded-lg px-2 py-1">
+                            {(overview?.totalStudents ?? 0) - (overview?.totalWithSexe ?? 0)} genre(s) non renseigné(s)
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </Card>
+                  {/* Genre par classe */}
+                  {(overview?.kpisByClass?.filter((c: any) => c.garcons > 0 || c.filles > 0).length ?? 0) > 0 && (
+                    <Card className="p-5">
+                      <h2 className="font-bold text-base mb-3">Genre par classe</h2>
+                      <div className="space-y-2">
+                        {overview.kpisByClass.map((cls: any) => {
+                          const t = (cls.garcons ?? 0) + (cls.filles ?? 0);
+                          if (t === 0) return null;
+                          const pG = Math.round(((cls.garcons ?? 0) / t) * 100);
+                          const pF = 100 - pG;
+                          return (
+                            <div key={cls.class_id} className="space-y-1">
+                              <div className="flex justify-between text-xs">
+                                <span className="font-medium truncate max-w-[120px]">{cls.class_name}</span>
+                                <span className="text-muted-foreground">👨{cls.garcons ?? 0} · 👩{cls.filles ?? 0}</span>
+                              </div>
+                              <div className="flex h-2 rounded-full overflow-hidden bg-muted">
+                                <div className="bg-blue-400 h-full transition-all" style={{ width: `${pG}%` }} />
+                                <div className="bg-pink-400 h-full transition-all" style={{ width: `${pF}%` }} />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </Card>
+                  )}
+                </div>
+              );
+            })()}
+
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* KPIs secondaires */}
               <Card className="p-5 space-y-4">
