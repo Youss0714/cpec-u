@@ -1,5 +1,7 @@
+import http from "http";
 import crypto from "crypto";
 import app from "./app";
+import { initSocketIO } from "./lib/socket.js";
 import { db } from "@workspace/db";
 import { usersTable } from "@workspace/db";
 import { sql } from "drizzle-orm";
@@ -42,7 +44,10 @@ async function seedInitialAdmin() {
   }
 }
 
-app.listen(port, () => {
+const httpServer = http.createServer(app);
+initSocketIO(httpServer);
+
+httpServer.listen(port, () => {
   console.log(`Server listening on port ${port}`);
   seedInitialAdmin();
 });

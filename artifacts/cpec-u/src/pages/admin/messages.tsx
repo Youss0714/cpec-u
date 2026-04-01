@@ -130,14 +130,14 @@ export default function AdminMessages() {
   const { data: conversations = [] } = useQuery({
     queryKey: ["/api/messages"],
     queryFn: () => apiFetch("/messages"),
-    refetchInterval: 8000,
+    refetchInterval: 60000,
   });
 
   const { data: thread } = useQuery({
     queryKey: ["/api/messages", selectedUserId],
     queryFn: () => apiFetch(`/messages/${selectedUserId}`),
     enabled: selectedUserId !== null,
-    refetchInterval: 5000,
+    refetchInterval: 30000,
   });
 
   const { data: contacts = [] } = useQuery({

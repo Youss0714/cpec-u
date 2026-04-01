@@ -147,7 +147,7 @@ export default function SharedMessages({ allowedRoles }: { allowedRoles: string[
   const { data: conversations = [] } = useQuery({
     queryKey: ["/api/messages"],
     queryFn: () => apiFetch("/messages"),
-    refetchInterval: 8000,
+    refetchInterval: 60000,
   });
 
   const { data: allContacts = [] } = useQuery({
@@ -166,7 +166,7 @@ export default function SharedMessages({ allowedRoles }: { allowedRoles: string[
     queryKey: ["/api/messages", selectedUserId],
     queryFn: () => apiFetch(`/messages/${selectedUserId}`),
     enabled: selectedUserId !== null,
-    refetchInterval: 5000,
+    refetchInterval: 30000,
   });
 
   useEffect(() => {

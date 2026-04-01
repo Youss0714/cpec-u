@@ -8,6 +8,7 @@ import { messagesTable, usersTable, classesTable, classEnrollmentsTable, notific
 import { eq, and, or, desc, isNull, sql } from "drizzle-orm";
 import { requireAuth } from "../lib/auth.js";
 import { sendPushToUsers, sendPushToUser } from "./push.js";
+import { emitToUser, emitToUsers } from "../lib/socket.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const UPLOADS_DIR = path.join(__dirname, "../../uploads");
@@ -224,6 +225,8 @@ router.post("/messages/class/:classId", requireAuth, async (req, res) => {
 
     const studentIds = enrollments.map(e => e.studentId);
     sendPushToUsers(studentIds, { title: `Nouveau message de ${senderName}`, body: preview, type: "message" }).catch(() => {});
+    emitToUsers(studentIds, "message:new", { senderId });
+    emitToUsers(studentIds, "notification:new");
 
     res.json({ sent: enrollments.length });
   } catch (err) {
@@ -382,6 +385,8 @@ router.post("/messages", requireAuth, async (req, res) => {
     });
 
     sendPushToUser(recipientId, { title: msgTitle, body: preview, type: "message" }).catch(() => {});
+    emitToUser(recipientId, "message:new", { senderId });
+    emitToUser(recipientId, "notification:new");
 
     res.json(msg);
   } catch (err) {

@@ -2,6 +2,7 @@ import { ReactNode, useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useGetCurrentUser, useLogout, useGetUnreadNotificationCount, useGetPendingGradeSubmissionsCount, useGetUnreadMessageCount, useStudentEvaluationsCurrent } from "@workspace/api-client-react";
+import { useSocket } from "@/hooks/use-socket";
 import { GlobalSearch } from "@/components/GlobalSearch";
 import { ActivationKeyModal } from "@/components/activation-key-modal";
 import { InstallButton, InstallBannerMobile } from "@/components/install-banner";
@@ -70,6 +71,9 @@ export function AppLayout({ children, allowedRoles, noScroll = false }: AppLayou
   const { data: user, isLoading, isError } = useGetCurrentUser({
     query: { retry: false, staleTime: 30_000 } as any,
   });
+
+  useSocket((user as any)?.id);
+
   const [loadingTimedOut, setLoadingTimedOut] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showFarewell, setShowFarewell] = useState(false);

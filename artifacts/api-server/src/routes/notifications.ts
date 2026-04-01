@@ -4,6 +4,7 @@ import { notificationsTable, classEnrollmentsTable, scheduleEntriesTable, usersT
 import { eq, and, desc, inArray } from "drizzle-orm";
 import { requireRole } from "../lib/auth.js";
 import { sendPushToUsers } from "./push.js";
+import { emitToUsers } from "../lib/socket.js";
 
 const router = Router();
 
@@ -92,8 +93,9 @@ export async function notifyStudentsOfClasses(
     studentIds.map(userId => ({ userId, type, title, message }))
   );
 
-  // Also send push notifications (fire and forget)
+  // Also send push notifications and socket events (fire and forget)
   sendPushToUsers(studentIds, { title, body: message, type }).catch(() => {});
+  emitToUsers(studentIds, "notification:new");
 }
 
 // ─── Helper: notify all students (no filter) ──────────────────────────────────
@@ -109,6 +111,7 @@ export async function notifyAllStudents(type: string, title: string, message: st
 
   const studentIds = students.map(s => s.id);
   sendPushToUsers(studentIds, { title, body: message, type }).catch(() => {});
+  emitToUsers(studentIds, "notification:new");
 }
 
 // ─── Helper: notify students enrolled in classes that have entries for a semester ─
