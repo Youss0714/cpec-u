@@ -11,6 +11,7 @@ import {
   Users, Search, LayoutList, QrCode, ExternalLink,
 } from "lucide-react";
 import { useLocation } from "wouter";
+import { downloadCardAsPdf } from "@/lib/download-card-pdf";
 
 type CardEntry = {
   studentId: number;
@@ -58,6 +59,7 @@ export default function AdminCards() {
   const [selectedClassId, setSelectedClassId] = useState<number | null>(null);
   const [bulkLoading, setBulkLoading] = useState(false);
   const [generatingId, setGeneratingId] = useState<number | null>(null);
+  const [downloadingId, setDownloadingId] = useState<number | null>(null);
 
   const { data: classes } = useQuery<ClassInfo[]>({
     queryKey: ["/api/admin/cards/classes"],
@@ -105,6 +107,33 @@ export default function AdminCards() {
       toast({ title: "Erreur", description: err.message, variant: "destructive" });
     } finally {
       setGeneratingId(null);
+    }
+  };
+
+  const handleDownloadCard = async (entry: CardEntry) => {
+    setDownloadingId(entry.studentId);
+    try {
+      const r = await fetch(`/api/admin/students/${entry.studentId}/card`, { credentials: "include" });
+      if (!r.ok) throw new Error((await r.json()).error ?? "Erreur récupération carte");
+      const data = await r.json();
+      await downloadCardAsPdf({
+        studentName: data.studentName,
+        matricule: data.matricule,
+        className: data.className,
+        filiere: data.filiere,
+        academicYear: data.academicYear,
+        photoUrl: data.photoUrl,
+        dateNaissance: data.dateNaissance,
+        issuedAt: data.issuedAt,
+        expiresAt: data.expiresAt,
+        isValid: data.isValid,
+        isExpired: data.isExpired,
+        verifyUrl: data.verifyUrl,
+      });
+    } catch (err: any) {
+      toast({ title: "Erreur PDF", description: err.message, variant: "destructive" });
+    } finally {
+      setDownloadingId(null);
     }
   };
 
@@ -252,10 +281,17 @@ export default function AdminCards() {
                         <td className="px-4 py-3">
                           <div className="flex items-center justify-end gap-1.5">
                             {entry.card && (
-                              <Button size="sm" variant="ghost" asChild className="h-7 px-2">
-                                <a href={`/api/admin/students/${entry.studentId}/card/pdf`} target="_blank" rel="noreferrer">
-                                  <Download className="w-3.5 h-3.5" />
-                                </a>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 px-2"
+                                disabled={downloadingId === entry.studentId}
+                                onClick={() => handleDownloadCard(entry)}
+                                title="Télécharger PDF"
+                              >
+                                {downloadingId === entry.studentId
+                                  ? <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                  : <Download className="w-3.5 h-3.5" />}
                               </Button>
                             )}
                             <Button

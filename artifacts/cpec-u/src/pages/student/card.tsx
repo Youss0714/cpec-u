@@ -9,6 +9,7 @@ import {
   CreditCard, Download, RefreshCw, CheckCircle2, XCircle,
   Clock, QrCode, User, Calendar, GraduationCap,
 } from "lucide-react";
+import { downloadCardAsPdf } from "@/lib/download-card-pdf";
 
 function getApiBase() {
   return import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -18,6 +19,7 @@ export default function StudentCard() {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [generating, setGenerating] = useState(false);
+  const [downloading, setDownloading] = useState(false);
 
   const { data: card, isLoading, error } = useQuery<any>({
     queryKey: ["/api/student/card"],
@@ -47,12 +49,29 @@ export default function StudentCard() {
     }
   };
 
-  const handleDownload = () => {
-    window.open(`${getApiBase()}/api/student/card/pdf`, "_blank");
-  };
-
-  const handlePrint = () => {
-    window.open(`${getApiBase()}/api/student/card/pdf?print=1`, "_blank");
+  const handleDownload = async () => {
+    if (!card) return;
+    setDownloading(true);
+    try {
+      await downloadCardAsPdf({
+        studentName: card.studentName,
+        matricule: card.matricule,
+        className: card.className,
+        filiere: card.filiere,
+        academicYear: card.academicYear,
+        photoUrl: card.photoUrl,
+        dateNaissance: card.dateNaissance,
+        issuedAt: card.issuedAt,
+        expiresAt: card.expiresAt,
+        isValid: card.isValid,
+        isExpired: card.isExpired,
+        verifyUrl: card.verifyUrl,
+      });
+    } catch (err: any) {
+      toast({ title: "Erreur PDF", description: "Impossible de générer le PDF. Réessayez.", variant: "destructive" });
+    } finally {
+      setDownloading(false);
+    }
   };
 
   const isExpired = card?.isExpired;
@@ -126,12 +145,11 @@ export default function StudentCard() {
                   <RefreshCw className={`w-4 h-4 mr-1.5 ${generating ? "animate-spin" : ""}`} />
                   Régénérer
                 </Button>
-                <Button variant="outline" size="sm" onClick={handlePrint}>
-                  🖨️ Imprimer
-                </Button>
-                <Button size="sm" onClick={handleDownload}>
-                  <Download className="w-4 h-4 mr-1.5" />
-                  Télécharger PDF
+                <Button size="sm" onClick={handleDownload} disabled={downloading}>
+                  {downloading
+                    ? <RefreshCw className="w-4 h-4 mr-1.5 animate-spin" />
+                    : <Download className="w-4 h-4 mr-1.5" />}
+                  {downloading ? "Génération…" : "Télécharger PDF"}
                 </Button>
               </div>
             </div>
