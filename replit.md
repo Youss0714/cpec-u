@@ -13,6 +13,7 @@ CPEC-U is a comprehensive academic management Progressive Web App (PWA) for educ
 - **Jury Spécial**: End-of-year special jury module with deliberation, traceability, bulletin auto-update, and PDF PV generation
 - **Carte Étudiante Numérique**: Digital student ID card with QR code generation, public verification page (`/verify/:hash`), admin generation/invalidation, student self-service, and HTML/print export
 - **QR Code Bulletin**: Each generated grade report (bulletin) embeds a unique QR code pointing to `/verify/bulletin/:token`. Tokens are stored in `bulletin_tokens` table with a JSON snapshot of key data. Old tokens are invalidated on each regeneration. Public verification page at `/verify/bulletin/:token` (no auth required, logs IP+timestamp in `bulletin_verification_logs`).
+- **Évaluation des Enseignants par les Étudiants**: Anonymous teacher evaluation module. Admin (Scolarité/Directeur) creates evaluation periods per semester with a deadline. Students submit star ratings (1–5) on 6 criteria (clarity, mastery, availability, program adherence, punctuality, overall) plus an optional comment. Results are strictly anonymous (no studentId stored in `teacher_evaluations` table; duplicate prevention handled via separate `evaluation_submissions` table). Teacher results only visible after minimum 5 evaluations threshold. The student nav item appears only when an active (non-expired) period exists. Tables: `evaluation_periods`, `teacher_evaluations`, `evaluation_submissions`.
 
 ## Architecture
 

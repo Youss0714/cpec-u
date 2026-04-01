@@ -1126,3 +1126,142 @@ export const useGetJuryPVData = (sessionId: number | null, options?: QueryOpts<a
     enabled: false,
     ...options,
   });
+
+// ─── Évaluations des enseignants ─────────────────────────────────────────────
+
+export type EvaluationPeriodSummary = {
+  id: number;
+  semesterId: number;
+  semesterName: string | null;
+  deadline: string;
+  isActive: boolean;
+  resultsVisible: boolean;
+  createdAt: string;
+  evaluationCount: number;
+  submitterCount: number;
+};
+
+export type EvaluationTeacher = {
+  teacherId: number;
+  teacherName: string | null;
+  subjectId: number;
+  subjectName: string | null;
+  submitted: boolean;
+};
+
+export type StudentEvaluationsCurrentResponse = {
+  period: (EvaluationPeriodSummary & { expired?: boolean }) | null;
+  teachers: EvaluationTeacher[];
+  classId?: number;
+};
+
+export type SubmitEvaluationRequest = {
+  periodId: number;
+  teacherId: number;
+  subjectId: number;
+  classId: number;
+  clarityScore: number;
+  masteryScore: number;
+  availabilityScore: number;
+  programScore: number;
+  punctualityScore: number;
+  overallScore: number;
+  comment?: string;
+};
+
+export type EvaluationResultRow = {
+  teacherId: number;
+  teacherName: string | null;
+  subjectId: number;
+  subjectName: string | null;
+  classId: number;
+  className: string | null;
+  evaluationCount: number;
+  avgClarity: number | null;
+  avgMastery: number | null;
+  avgAvailability: number | null;
+  avgProgram: number | null;
+  avgPunctuality: number | null;
+  avgOverall: number | null;
+  globalAvg: number | null;
+  comments: string[];
+};
+
+export type AdminEvaluationResultsResponse = {
+  period: EvaluationPeriodSummary;
+  results: EvaluationResultRow[];
+  hiddenCount: number;
+};
+
+export type TeacherEvaluationResultGroup = {
+  periodId: number;
+  semesterId: number;
+  deadline: string;
+  rows: Omit<EvaluationResultRow, "teacherId" | "teacherName" | "comments">[];
+  comments: string[];
+  belowThreshold: boolean;
+};
+
+export const useListEvaluationPeriods = (options?: QueryOpts<EvaluationPeriodSummary[]>) =>
+  useQuery<EvaluationPeriodSummary[], Error>({
+    queryKey: ["/api/admin/evaluations/periods"],
+    queryFn: () => customFetch<EvaluationPeriodSummary[]>("/api/admin/evaluations/periods"),
+    ...options,
+  });
+
+export const useCreateEvaluationPeriod = () =>
+  useMutation<any, Error, { semesterId: number; deadline: string; isActive?: boolean }>({
+    mutationFn: (body) =>
+      customFetch<any>("/api/admin/evaluations/periods", {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+  });
+
+export const useUpdateEvaluationPeriod = () =>
+  useMutation<any, Error, { id: number; deadline?: string; isActive?: boolean; resultsVisible?: boolean }>({
+    mutationFn: ({ id, ...body }) =>
+      customFetch<any>(`/api/admin/evaluations/periods/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      }),
+  });
+
+export const useGetEvaluationResults = (periodId: number | null, options?: QueryOpts<AdminEvaluationResultsResponse>) =>
+  useQuery<AdminEvaluationResultsResponse, Error>({
+    queryKey: ["/api/admin/evaluations/periods", periodId, "results"],
+    queryFn: () => customFetch<AdminEvaluationResultsResponse>(`/api/admin/evaluations/periods/${periodId}/results`),
+    enabled: !!periodId,
+    ...options,
+  });
+
+export const useSendEvaluationReminder = () =>
+  useMutation<{ sent: number }, Error, number>({
+    mutationFn: (periodId) =>
+      customFetch<{ sent: number }>(`/api/admin/evaluations/periods/${periodId}/notify-reminder`, {
+        method: "POST",
+      }),
+  });
+
+export const useStudentEvaluationsCurrent = (options?: QueryOpts<StudentEvaluationsCurrentResponse>) =>
+  useQuery<StudentEvaluationsCurrentResponse, Error>({
+    queryKey: ["/api/student/evaluations/current"],
+    queryFn: () => customFetch<StudentEvaluationsCurrentResponse>("/api/student/evaluations/current"),
+    ...options,
+  });
+
+export const useSubmitEvaluation = () =>
+  useMutation<{ message: string }, Error, SubmitEvaluationRequest>({
+    mutationFn: (body) =>
+      customFetch<{ message: string }>("/api/student/evaluations/submit", {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+  });
+
+export const useTeacherEvaluationResults = (options?: QueryOpts<{ results: TeacherEvaluationResultGroup[] }>) =>
+  useQuery<{ results: TeacherEvaluationResultGroup[] }, Error>({
+    queryKey: ["/api/teacher/evaluations/results"],
+    queryFn: () => customFetch<{ results: TeacherEvaluationResultGroup[] }>("/api/teacher/evaluations/results"),
+    ...options,
+  });

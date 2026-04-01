@@ -1,7 +1,7 @@
 import { ReactNode, useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
-import { useGetCurrentUser, useLogout, useGetUnreadNotificationCount, useGetPendingGradeSubmissionsCount, useGetUnreadMessageCount } from "@workspace/api-client-react";
+import { useGetCurrentUser, useLogout, useGetUnreadNotificationCount, useGetPendingGradeSubmissionsCount, useGetUnreadMessageCount, useStudentEvaluationsCurrent } from "@workspace/api-client-react";
 import { GlobalSearch } from "@/components/GlobalSearch";
 import { ActivationKeyModal } from "@/components/activation-key-modal";
 import { InstallButton, InstallBannerMobile } from "@/components/install-banner";
@@ -45,6 +45,7 @@ import {
   Layers,
   Gavel,
   CreditCard,
+  Star,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
@@ -113,6 +114,10 @@ export function AppLayout({ children, allowedRoles, noScroll = false }: AppLayou
     staleTime: 4 * 60 * 1000,
   });
   const absenceAlertCount: number = (absenceAlertData as any)?.count ?? 0;
+
+  const isStudent = !!(user && user.role === "student");
+  const { data: studentEvalData } = useStudentEvaluationsCurrent({ enabled: isStudent } as any);
+  const hasActiveEvaluation = isStudent && !!(studentEvalData as any)?.period && !(studentEvalData as any)?.period?.expired;
 
   const logoutMutation = useLogout({
     mutation: {
@@ -198,6 +203,7 @@ export function AppLayout({ children, allowedRoles, noScroll = false }: AppLayou
     { name: "Rattrapage", href: "/admin/rattrapage", icon: RotateCcw },
     { name: "Jury Spécial", href: "/admin/jury-special", icon: Gavel },
     { name: "Cartes Étudiantes", href: "/admin/cards", icon: CreditCard },
+    { name: "Évaluations Enseignants", href: "/admin/evaluations", icon: Star },
     { name: "Rapports & Statistiques", href: "/admin/reports", icon: BarChart2 },
     { name: "Messages", href: "/admin/messages", icon: MessageSquare, badge: unreadMsgCount > 0 ? unreadMsgCount : undefined },
   ];
@@ -238,6 +244,7 @@ export function AppLayout({ children, allowedRoles, noScroll = false }: AppLayou
     { name: "Rattrapage", href: "/admin/rattrapage", icon: RotateCcw },
     { name: "Jury Spécial", href: "/admin/jury-special", icon: Gavel },
     { name: "Cartes Étudiantes", href: "/admin/cards", icon: CreditCard },
+    { name: "Évaluations Enseignants", href: "/admin/evaluations", icon: Star },
     { name: "Rapports & Statistiques", href: "/admin/reports", icon: BarChart2 },
     { name: "Messages", href: "/admin/messages", icon: MessageSquare, badge: unreadMsgCount > 0 ? unreadMsgCount : undefined },
     { name: "Changer mon mot de passe", href: "/change-password", icon: KeyRound, badge: null },
@@ -264,6 +271,7 @@ export function AppLayout({ children, allowedRoles, noScroll = false }: AppLayou
           { name: "Gestion des Présences", href: "/teacher/attendance", icon: ClipboardList },
           { name: "Saisie des Notes", href: "/teacher/grades", icon: PenTool },
           { name: "Rattrapage", href: "/teacher/rattrapage", icon: RotateCcw },
+          { name: "Mes Évaluations", href: "/teacher/evaluations", icon: Star },
           { name: "Cahier de texte", href: "/teacher/cahier-de-texte", icon: BookText },
           { name: "Mes Étudiants", href: "/teacher/students", icon: Users },
           { name: "Mon Profil", href: "/teacher/profile", icon: UserCircle },
@@ -278,6 +286,7 @@ export function AppLayout({ children, allowedRoles, noScroll = false }: AppLayou
           { name: "Cahier de texte", href: "/student/cahier-de-texte", icon: BookText, badge: null },
           { name: "Notifications", href: "/student/notifications", icon: Bell, badge: (unreadData?.count ?? 0) > 0 ? unreadData!.count : null },
           { name: "Ma Carte Étudiante", href: "/student/card", icon: CreditCard, badge: null },
+          ...(hasActiveEvaluation ? [{ name: "Évaluer mes Enseignants", href: "/student/evaluations", icon: Star, badge: null }] : []),
           { name: "Messages", href: "/student/messages", icon: MessageSquare, badge: unreadMsgCount > 0 ? unreadMsgCount : undefined },
           { name: "Changer mon mot de passe", href: "/change-password", icon: KeyRound, badge: null },
         ];

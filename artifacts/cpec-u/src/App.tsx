@@ -56,6 +56,9 @@ import StudentCard from "@/pages/student/card";
 import VerifyCard from "@/pages/verify";
 import VerifyBulletin from "@/pages/verify-bulletin";
 import AdminCards from "@/pages/admin/cards";
+import AdminEvaluations from "@/pages/admin/evaluations";
+import StudentEvaluations from "@/pages/student/evaluations";
+import TeacherEvaluations from "@/pages/teacher/evaluations";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -139,6 +142,9 @@ function Router() {
       </Route>
 
       <Route path="/admin/cards" component={AdminCards} />
+      <Route path="/admin/evaluations" component={AdminEvaluations} />
+      <Route path="/student/evaluations" component={StudentEvaluations} />
+      <Route path="/teacher/evaluations" component={TeacherEvaluations} />
 
       {/* Public: Bulletin verification (must come before /verify/:hash) */}
       <Route path="/verify/bulletin/:token" component={VerifyBulletin} />

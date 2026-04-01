@@ -19,6 +19,7 @@ import devRouter from "./dev.js";
 import specialJuryRouter from "./special_jury.js";
 import studentCardsRouter from "./student-cards.js";
 import publicRouter from "./public.js";
+import evaluationsRouter from "./evaluations.js";
 
 const router: IRouter = Router();
 
@@ -42,5 +43,6 @@ router.use("/push", pushRouter);
 router.use("/admin", specialJuryRouter);
 router.use(studentCardsRouter);
 router.use(publicRouter);
+router.use(evaluationsRouter);
 
 export default router;
