@@ -19,7 +19,7 @@ import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Trash2, ShieldCheck, GraduationCap, BookOpen, Wallet, AlertCircle, CheckCircle2, Clock, PenLine, Pencil, X, Phone, MapPin, Users, Eye, Mail, School } from "lucide-react";
+import { Plus, Trash2, ShieldCheck, GraduationCap, BookOpen, Wallet, AlertCircle, CheckCircle2, Clock, PenLine, Pencil, X, Phone, MapPin, Users, Eye, Mail, School, BadgeCheck, Calendar } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
@@ -1686,6 +1686,43 @@ export default function AdminUsers() {
                     <p className="text-sm text-muted-foreground text-center py-4">Chargement du profil…</p>
                   ) : (
                     <>
+                      {/* État civil section */}
+                      {(viewProfile?.matricule || viewProfile?.sexe || viewProfile?.dateNaissance || viewProfile?.lieuNaissance) && (
+                        <div className="rounded-lg border p-4 space-y-3">
+                          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">État civil</p>
+                          <div className="space-y-2">
+                            {viewProfile.matricule && (
+                              <div className="flex items-center gap-2 text-sm">
+                                <BadgeCheck className="w-4 h-4 text-muted-foreground shrink-0" />
+                                <span className="font-medium">Matricule :</span>
+                                <span className="font-mono">{viewProfile.matricule}</span>
+                              </div>
+                            )}
+                            {viewProfile.sexe && (
+                              <div className="flex items-center gap-2 text-sm">
+                                <Users className="w-4 h-4 text-muted-foreground shrink-0" />
+                                <span className="font-medium">Sexe :</span>
+                                <span>{viewProfile.sexe === "M" ? "Masculin" : "Féminin"}</span>
+                              </div>
+                            )}
+                            {viewProfile.dateNaissance && (
+                              <div className="flex items-center gap-2 text-sm">
+                                <Calendar className="w-4 h-4 text-muted-foreground shrink-0" />
+                                <span className="font-medium">Date de naissance :</span>
+                                <span>{viewProfile.dateNaissance}</span>
+                              </div>
+                            )}
+                            {viewProfile.lieuNaissance && (
+                              <div className="flex items-center gap-2 text-sm">
+                                <MapPin className="w-4 h-4 text-muted-foreground shrink-0" />
+                                <span className="font-medium">Lieu de naissance :</span>
+                                <span>{viewProfile.lieuNaissance}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
                       {/* Contact section */}
                       {(viewProfile?.phone || viewProfile?.address) && (
                         <div className="rounded-lg border p-4 space-y-3">
