@@ -12,6 +12,7 @@ CPEC-U is a comprehensive academic management Progressive Web App (PWA) for educ
 - **PWA capabilities**: Offline sync support, mobile-friendly design
 - **Jury Spécial**: End-of-year special jury module with deliberation, traceability, bulletin auto-update, and PDF PV generation
 - **Carte Étudiante Numérique**: Digital student ID card with QR code generation, public verification page (`/verify/:hash`), admin generation/invalidation, student self-service, and HTML/print export
+- **QR Code Bulletin**: Each generated grade report (bulletin) embeds a unique QR code pointing to `/verify/bulletin/:token`. Tokens are stored in `bulletin_tokens` table with a JSON snapshot of key data. Old tokens are invalidated on each regeneration. Public verification page at `/verify/bulletin/:token` (no auth required, logs IP+timestamp in `bulletin_verification_logs`).
 
 ## Architecture
 

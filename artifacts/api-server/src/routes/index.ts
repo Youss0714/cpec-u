@@ -18,6 +18,7 @@ import pushRouter from "./push.js";
 import devRouter from "./dev.js";
 import specialJuryRouter from "./special_jury.js";
 import studentCardsRouter from "./student-cards.js";
+import publicRouter from "./public.js";
 
 const router: IRouter = Router();
 
@@ -40,5 +41,6 @@ router.use(housingRouter);
 router.use("/push", pushRouter);
 router.use("/admin", specialJuryRouter);
 router.use(studentCardsRouter);
+router.use(publicRouter);
 
 export default router;

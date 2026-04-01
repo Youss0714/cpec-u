@@ -1,5 +1,6 @@
 import { Router } from "express";
 import crypto from "crypto";
+import QRCode from "qrcode";
 import { db } from "@workspace/db";
 import { generateBulletinHTML } from "../lib/bulletin-html.js";
 import { notifyStudentsOfClasses } from "./notifications.js";
@@ -33,8 +34,10 @@ import {
   retakeGradesTable,
   specialJurySessionsTable,
   specialJuryDecisionsTable,
+  bulletinTokensTable,
+  bulletinVerificationLogsTable,
 } from "@workspace/db";
-import { eq, and, sql, count, inArray, desc, ne, isNotNull, asc, ilike, or } from "drizzle-orm";
+import { eq, and, sql, count, inArray, desc, ne, isNotNull, isNull, asc, ilike, or } from "drizzle-orm";
 import { requireRole } from "../lib/auth.js";
 
 const router = Router();
@@ -1607,6 +1610,47 @@ router.get("/bulletin/:studentId/:semesterId", requireRole("admin"), async (req,
       .limit(1);
     const studentMatricule = studentProfile?.matricule?.trim() || String(studentId).padStart(6, "0");
 
+    // ── Génération du token de vérification ────────────────────────────────
+    const bulletinToken = crypto.randomBytes(32).toString("hex");
+    const snapshot = {
+      studentName: result.studentName,
+      matricule: studentMatricule,
+      className: result.className,
+      filiere,
+      academicYear: semester?.academicYear ?? "",
+      semesterName: result.semesterName,
+      average: averageBrute,
+      averageNette: result.average,
+      decision: result.decision,
+    };
+
+    // Invalider l'éventuel token existant valide pour ce couple étudiant/semestre
+    await db
+      .update(bulletinTokensTable)
+      .set({ invalidatedAt: new Date() })
+      .where(
+        and(
+          eq(bulletinTokensTable.studentId, studentId),
+          eq(bulletinTokensTable.semesterId, semesterId),
+          isNull(bulletinTokensTable.invalidatedAt)
+        )
+      );
+
+    await db.insert(bulletinTokensTable).values({
+      token: bulletinToken,
+      studentId,
+      semesterId,
+      snapshot,
+    });
+
+    // Construire l'URL de vérification
+    const host = (req.headers["x-forwarded-host"] as string) || req.get("host") || "cpecdigital.replit.app";
+    const protocol = (req.headers["x-forwarded-proto"] as string) || req.protocol;
+    const verifyBaseUrl = process.env.PUBLIC_BASE_URL ?? `${protocol}://${host}`;
+    const verifyUrl = `${verifyBaseUrl}/verify/bulletin/${bulletinToken}`;
+
+    const qrCodeDataUrl = await QRCode.toDataURL(verifyUrl, { width: 200, margin: 1 });
+
     const html = generateBulletinHTML({
       studentName: result.studentName,
       studentMatricule,
@@ -1628,6 +1672,7 @@ router.get("/bulletin/:studentId/:semesterId", requireRole("admin"), async (req,
       unassignedSubjects: result.grades.filter((g: any) => !g.ueId || !ueResults.find(u => u.ueId === g.ueId)),
       editionDate,
       schools: schoolRows,
+      qrCodeDataUrl,
     });
 
     res.setHeader("Content-Type", "text/html; charset=utf-8");
@@ -2339,6 +2384,40 @@ router.get("/bulletin/class/:classId/:semesterId", requireRole("admin"), async (
         : null;
       const editionDate = new Date().toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" });
 
+      // ── Token de vérification pour ce bulletin ──────────────────────────
+      const massToken = crypto.randomBytes(32).toString("hex");
+      const massSnapshot = {
+        studentName: result.studentName,
+        matricule: studentMatricule,
+        className: result.className,
+        filiere,
+        academicYear: semester?.academicYear ?? "",
+        semesterName: result.semesterName,
+        average: averageBrute,
+        averageNette: result.average,
+        decision: result.decision,
+      };
+      await db
+        .update(bulletinTokensTable)
+        .set({ invalidatedAt: new Date() })
+        .where(
+          and(
+            eq(bulletinTokensTable.studentId, studentId),
+            eq(bulletinTokensTable.semesterId, semesterId),
+            isNull(bulletinTokensTable.invalidatedAt)
+          )
+        );
+      await db.insert(bulletinTokensTable).values({
+        token: massToken,
+        studentId,
+        semesterId,
+        snapshot: massSnapshot,
+      });
+      const massHost = (req.headers["x-forwarded-host"] as string) || req.get("host") || "cpecdigital.replit.app";
+      const massProtocol = (req.headers["x-forwarded-proto"] as string) || req.protocol;
+      const massVerifyUrl = `${process.env.PUBLIC_BASE_URL ?? `${massProtocol}://${massHost}`}/verify/bulletin/${massToken}`;
+      const massQrDataUrl = await QRCode.toDataURL(massVerifyUrl, { width: 200, margin: 1 });
+
       const html = generateBulletinHTML({
         studentName: result.studentName,
         studentMatricule,
@@ -2360,6 +2439,7 @@ router.get("/bulletin/class/:classId/:semesterId", requireRole("admin"), async (
         unassignedSubjects: result.grades.filter((g: any) => !g.ueId || !ueResults.find(u => u.ueId === g.ueId)),
         editionDate,
         schools: schoolRows,
+        qrCodeDataUrl: massQrDataUrl,
       });
 
       bulletinHTMLParts.push(html);

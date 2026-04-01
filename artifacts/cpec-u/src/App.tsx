@@ -54,6 +54,7 @@ import StudentCahierDeTexte from "@/pages/student/cahier-de-texte";
 import DevDashboard from "@/pages/dev/index";
 import StudentCard from "@/pages/student/card";
 import VerifyCard from "@/pages/verify";
+import VerifyBulletin from "@/pages/verify-bulletin";
 import AdminCards from "@/pages/admin/cards";
 
 const queryClient = new QueryClient({
@@ -138,6 +139,9 @@ function Router() {
       </Route>
 
       <Route path="/admin/cards" component={AdminCards} />
+
+      {/* Public: Bulletin verification (must come before /verify/:hash) */}
+      <Route path="/verify/bulletin/:token" component={VerifyBulletin} />
 
       {/* Public: Card verification (no auth required) */}
       <Route path="/verify/:hash" component={VerifyCard} />

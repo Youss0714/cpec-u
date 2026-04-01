@@ -80,6 +80,7 @@ export interface BulletinData {
   }>;
   editionDate: string;
   schools?: BulletinSchool[];
+  qrCodeDataUrl?: string;
 }
 
 export function generateBulletinHTML(data: BulletinData): string {
@@ -830,6 +831,12 @@ export function generateBulletinHTML(data: BulletinData): string {
     </div>
 
   </div><!-- /content -->
+
+  ${data.qrCodeDataUrl ? `<div style="position:absolute;bottom:20mm;right:10mm;text-align:center;z-index:5;background:rgba(255,255,255,0.92);border:0.5pt solid #ccc;border-radius:3pt;padding:3pt;">
+    <img src="${data.qrCodeDataUrl}" style="width:22mm;height:22mm;display:block;" alt="QR Code bulletin">
+    <div style="font-size:4pt;color:#555;margin-top:2pt;max-width:22mm;line-height:1.3;text-align:center;">Vérifier l'authenticité<br>de ce bulletin</div>
+  </div>` : ""}
+
 </div><!-- /page -->
 
 </body>
