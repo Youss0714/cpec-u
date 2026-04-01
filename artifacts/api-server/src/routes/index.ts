@@ -21,6 +21,7 @@ import studentCardsRouter from "./student-cards.js";
 import publicRouter from "./public.js";
 import evaluationsRouter from "./evaluations.js";
 import parentRouter from "./parent.js";
+import webauthnRouter from "./webauthn.js";
 
 const router: IRouter = Router();
 
@@ -46,5 +47,6 @@ router.use(studentCardsRouter);
 router.use(publicRouter);
 router.use(evaluationsRouter);
 router.use(parentRouter);
+router.use("/auth", webauthnRouter);
 
 export default router;
