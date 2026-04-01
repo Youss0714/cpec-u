@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { CheckCircle2, XCircle, Clock, ClipboardList, Pencil, X, Check, ShieldCheck, FileText, HelpCircle, Loader2, BookOpen } from "lucide-react";
+import { CheckCircle2, XCircle, Clock, ClipboardList, Pencil, X, Check, ShieldCheck, FileText, HelpCircle, Loader2, BookOpen, Paperclip, ExternalLink } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 async function apiFetch(path: string, options?: RequestInit) {
@@ -350,7 +350,14 @@ function JustificationsPanel({ canManage }: { canManage: boolean }) {
                       </TableCell>
                       <TableCell><Badge variant="outline">{j.className}</Badge></TableCell>
                       <TableCell className="font-mono text-sm">{new Date(j.sessionDate).toLocaleDateString("fr-FR")}</TableCell>
-                      <TableCell className="max-w-[200px] text-sm text-muted-foreground truncate" title={j.reason}>{j.reason}</TableCell>
+                      <TableCell className="max-w-[200px] text-sm text-muted-foreground">
+                        <span className="truncate block" title={j.reason}>{j.reason}</span>
+                        {j.fileUrl && (
+                          <span className="inline-flex items-center gap-1 text-xs text-blue-600 mt-0.5">
+                            <Paperclip className="w-3 h-3" />PDF joint
+                          </span>
+                        )}
+                      </TableCell>
                       <TableCell>
                         <Badge className={`${jcfg.color} border text-xs gap-1 flex items-center w-fit`}>
                           {jcfg.icon}{jcfg.label}
@@ -401,6 +408,24 @@ function JustificationsPanel({ canManage }: { canManage: boolean }) {
                 <Label>Motif de l'étudiant</Label>
                 <div className="bg-muted/40 rounded-lg p-3 text-sm text-foreground whitespace-pre-wrap">{reviewDialog.reason}</div>
               </div>
+              {reviewDialog.fileUrl && (
+                <div className="space-y-1.5">
+                  <Label className="flex items-center gap-1.5">
+                    <Paperclip className="w-3.5 h-3.5" />
+                    Pièce justificative jointe
+                  </Label>
+                  <a
+                    href={reviewDialog.fileUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 text-sm text-blue-700 hover:bg-blue-100 transition-colors group"
+                  >
+                    <FileText className="w-4 h-4 text-blue-500 flex-shrink-0" />
+                    <span className="flex-1">Consulter le document PDF</span>
+                    <ExternalLink className="w-3.5 h-3.5 opacity-60 group-hover:opacity-100" />
+                  </a>
+                </div>
+              )}
               <div className="space-y-1.5">
                 <Label>Note de réponse <span className="text-muted-foreground text-xs">(optionnel)</span></Label>
                 <Textarea

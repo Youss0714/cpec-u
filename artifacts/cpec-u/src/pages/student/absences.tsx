@@ -1,6 +1,6 @@
 import { AppLayout } from "@/components/layout";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { motion } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useMyJustifications, useSubmitJustification } from "@workspace/api-client-react";
-import { CalendarOff, Clock, CheckCircle2, XCircle, AlertTriangle, BookOpen, FileText, Loader2, HelpCircle } from "lucide-react";
+import { CalendarOff, Clock, CheckCircle2, XCircle, AlertTriangle, BookOpen, FileText, Loader2, HelpCircle, Paperclip, X as XIcon } from "lucide-react";
 
 function useMyAttendance() {
   return useQuery({
@@ -55,6 +55,10 @@ export default function StudentAbsences() {
   const [semesterFilter, setSemesterFilter] = useState<string>("all");
   const [justDialog, setJustDialog] = useState<{ attendanceId: number; subjectName: string; sessionDate: string } | null>(null);
   const [reason, setReason] = useState("");
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [pdfUploading, setPdfUploading] = useState(false);
+  const [uploadedFileUrl, setUploadedFileUrl] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const records: any[] = data?.records ?? [];
   const summary = data?.summary;
@@ -119,21 +123,72 @@ export default function StudentAbsences() {
     },
   ];
 
+  const resetDialog = () => {
+    setJustDialog(null);
+    setReason("");
+    setPdfFile(null);
+    setUploadedFileUrl(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
   const handleOpenJust = (r: any) => {
     setReason("");
+    setPdfFile(null);
+    setUploadedFileUrl(null);
     setJustDialog({ attendanceId: r.id, subjectName: r.subjectName, sessionDate: r.sessionDate });
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.type !== "application/pdf") {
+      toast({ title: "Seuls les fichiers PDF sont acceptés.", variant: "destructive" });
+      e.target.value = "";
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      toast({ title: "Le fichier ne doit pas dépasser 10 Mo.", variant: "destructive" });
+      e.target.value = "";
+      return;
+    }
+    setPdfFile(file);
+    setPdfUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch("/api/student/justifications/upload", {
+        method: "POST",
+        credentials: "include",
+        body: formData,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Erreur upload");
+      setUploadedFileUrl(data.fileUrl);
+    } catch (err: any) {
+      toast({ title: err.message ?? "Erreur lors de l'upload du fichier.", variant: "destructive" });
+      setPdfFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    } finally {
+      setPdfUploading(false);
+    }
   };
 
   const handleSubmit = async () => {
     if (!justDialog || !reason.trim()) {
       toast({ title: "Veuillez saisir une raison.", variant: "destructive" }); return;
     }
+    if (pdfUploading) {
+      toast({ title: "Veuillez attendre la fin du chargement du fichier.", variant: "destructive" }); return;
+    }
     try {
-      await submitJust.mutateAsync({ attendanceId: justDialog.attendanceId, reason: reason.trim() });
+      await submitJust.mutateAsync({
+        attendanceId: justDialog.attendanceId,
+        reason: reason.trim(),
+        fileUrl: uploadedFileUrl ?? undefined,
+      } as any);
       toast({ title: "Justificatif envoyé — en attente de validation par la scolarité." });
       qc.invalidateQueries({ queryKey: ["/api/student/justifications"] });
-      setJustDialog(null);
-      setReason("");
+      resetDialog();
     } catch (e: any) {
       const msg = e?.message ?? "Erreur lors de l'envoi";
       toast({ title: msg, variant: "destructive" });
@@ -361,7 +416,7 @@ export default function StudentAbsences() {
       </div>
 
       {/* Justification dialog */}
-      <Dialog open={!!justDialog} onOpenChange={open => { if (!open) { setJustDialog(null); setReason(""); } }}>
+      <Dialog open={!!justDialog} onOpenChange={open => { if (!open) resetDialog(); }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -386,13 +441,56 @@ export default function StudentAbsences() {
                   rows={4}
                   autoFocus
                 />
-                <p className="text-xs text-muted-foreground">La scolarité examinera votre demande et vous notifiera de sa décision.</p>
               </div>
+              <div className="space-y-1.5">
+                <Label className="flex items-center gap-1.5">
+                  <Paperclip className="w-3.5 h-3.5" />
+                  Pièce justificative PDF <span className="text-muted-foreground text-xs font-normal">(optionnel · max 10 Mo)</span>
+                </Label>
+                {!pdfFile ? (
+                  <div
+                    className="border-2 border-dashed border-border rounded-lg px-4 py-3 text-center cursor-pointer hover:border-primary/50 hover:bg-primary/5 transition-colors"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    <Paperclip className="w-5 h-5 mx-auto mb-1 text-muted-foreground" />
+                    <p className="text-xs text-muted-foreground">Cliquez pour joindre un fichier PDF</p>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="application/pdf,.pdf"
+                      className="hidden"
+                      onChange={handleFileChange}
+                    />
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+                    {pdfUploading ? (
+                      <Loader2 className="w-4 h-4 text-blue-500 animate-spin flex-shrink-0" />
+                    ) : (
+                      <FileText className="w-4 h-4 text-blue-500 flex-shrink-0" />
+                    )}
+                    <span className="text-sm text-blue-700 flex-1 truncate">{pdfFile.name}</span>
+                    {pdfUploading ? (
+                      <span className="text-xs text-blue-500">Chargement…</span>
+                    ) : uploadedFileUrl ? (
+                      <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0" />
+                    ) : null}
+                    <button
+                      type="button"
+                      className="text-muted-foreground hover:text-destructive ml-1"
+                      onClick={() => { setPdfFile(null); setUploadedFileUrl(null); if (fileInputRef.current) fileInputRef.current.value = ""; }}
+                    >
+                      <XIcon className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">La scolarité examinera votre demande et vous notifiera de sa décision.</p>
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setJustDialog(null); setReason(""); }}>Annuler</Button>
-            <Button onClick={handleSubmit} disabled={submitJust.isPending || !reason.trim()}>
+            <Button variant="outline" onClick={resetDialog}>Annuler</Button>
+            <Button onClick={handleSubmit} disabled={submitJust.isPending || !reason.trim() || pdfUploading}>
               {submitJust.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Envoi…</> : "Soumettre"}
             </Button>
           </DialogFooter>

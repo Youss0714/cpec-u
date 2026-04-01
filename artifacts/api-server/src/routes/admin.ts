@@ -1966,6 +1966,7 @@ router.get("/justifications", requireRole("admin"), async (req, res) => {
         reviewedBy: absenceJustificationsTable.reviewedBy,
         reviewedAt: absenceJustificationsTable.reviewedAt,
         reviewNote: absenceJustificationsTable.reviewNote,
+        fileUrl: absenceJustificationsTable.fileUrl,
         createdAt: absenceJustificationsTable.createdAt,
         sessionDate: attendanceTable.sessionDate,
         attendanceStatus: attendanceTable.status,

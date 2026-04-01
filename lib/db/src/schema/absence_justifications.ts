@@ -11,6 +11,7 @@ export const absenceJustificationsTable = pgTable("absence_justifications", {
   reviewedBy: integer("reviewed_by").references(() => usersTable.id),
   reviewedAt: timestamp("reviewed_at"),
   reviewNote: text("review_note"),
+  fileUrl: text("file_url"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

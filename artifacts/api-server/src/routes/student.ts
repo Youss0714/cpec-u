@@ -1,4 +1,8 @@
 import { Router } from "express";
+import multer from "multer";
+import path from "path";
+import fs from "fs";
+import { fileURLToPath } from "url";
 import { db } from "@workspace/db";
 import {
   usersTable,
@@ -15,6 +19,25 @@ import {
 } from "@workspace/db";
 import { eq, and, sql } from "drizzle-orm";
 import { requireRole } from "../lib/auth.js";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const UPLOADS_DIR = path.join(__dirname, "../../uploads");
+fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+
+const pdfUpload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, UPLOADS_DIR),
+    filename: (_req, file, cb) => {
+      const unique = `just-${Date.now()}-${Math.round(Math.random() * 1e6)}`;
+      cb(null, `${unique}${path.extname(file.originalname)}`);
+    },
+  }),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (file.mimetype === "application/pdf") cb(null, true);
+    else cb(new Error("Seuls les fichiers PDF sont acceptés."));
+  },
+});
 
 const router = Router();
 
@@ -274,10 +297,24 @@ router.get("/results", requireRole("student"), async (req, res) => {
 
 // ─── Absence Justifications (student) ────────────────────────────────────────
 
+// Upload justification PDF
+router.post("/justifications/upload", requireRole("student"), (req, res) => {
+  pdfUpload.single("file")(req, res, (err) => {
+    if (err) {
+      return res.status(400).json({ error: err.message ?? "Erreur upload fichier." });
+    }
+    if (!req.file) {
+      return res.status(400).json({ error: "Aucun fichier reçu." });
+    }
+    const fileUrl = `/api/uploads/${req.file.filename}`;
+    return res.json({ fileUrl });
+  });
+});
+
 router.post("/justifications", requireRole("student"), async (req, res) => {
   try {
     const studentId = req.session!.userId!;
-    const { attendanceId, reason } = req.body;
+    const { attendanceId, reason, fileUrl } = req.body;
     if (!attendanceId || !reason?.trim()) {
       res.status(400).json({ error: "Bad Request", message: "attendanceId et raison sont obligatoires." });
       return;
@@ -298,13 +335,13 @@ router.post("/justifications", requireRole("student"), async (req, res) => {
         res.status(409).json({ error: "Cette absence a déjà été traitée.", status: existing.status }); return;
       }
       const [updated] = await db.update(absenceJustificationsTable)
-        .set({ reason: reason.trim(), updatedAt: new Date() })
+        .set({ reason: reason.trim(), fileUrl: fileUrl ?? existing.fileUrl, updatedAt: new Date() })
         .where(eq(absenceJustificationsTable.id, existing.id))
         .returning();
       res.json(updated); return;
     }
     const [created] = await db.insert(absenceJustificationsTable)
-      .values({ attendanceId, studentId, reason: reason.trim() })
+      .values({ attendanceId, studentId, reason: reason.trim(), fileUrl: fileUrl ?? null })
       .returning();
     res.status(201).json(created);
   } catch (err) {
