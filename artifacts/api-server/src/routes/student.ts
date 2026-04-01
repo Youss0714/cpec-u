@@ -16,6 +16,9 @@ import {
   absenceJustificationsTable,
   studentFeesTable,
   paymentsTable,
+  scheduleEntriesTable,
+  schedulePublicationsTable,
+  roomsTable,
 } from "@workspace/db";
 import { eq, and, sql } from "drizzle-orm";
 import { requireRole } from "../lib/auth.js";
@@ -450,6 +453,92 @@ router.get("/balance", requireRole("student"), async (req, res) => {
       status: totalDue === 0 ? "non_configure" : totalPaid >= totalDue ? "solde" : totalPaid > 0 ? "partiel" : "impaye",
       payments,
     });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// ─── Student Schedule (secured, server-side class resolution) ─────────────────
+router.get("/schedule", requireRole("student"), async (req, res) => {
+  try {
+    const userId = (req as any).session?.user?.id;
+    if (!userId) return res.status(401).json({ error: "Non authentifié" });
+
+    // Resolve student's class from enrollment — never trust the client
+    const [enrollment] = await db
+      .select({ classId: classEnrollmentsTable.classId })
+      .from(classEnrollmentsTable)
+      .where(eq(classEnrollmentsTable.studentId, userId))
+      .limit(1);
+
+    if (!enrollment) {
+      return res.json({ entries: [], publication: null, classId: null });
+    }
+
+    const { classId } = enrollment;
+
+    // Find active publications for this class
+    const now = new Date();
+    const allPubs = await db
+      .select()
+      .from(schedulePublicationsTable)
+      .where(eq(schedulePublicationsTable.classId, classId));
+
+    const activePubs = allPubs.filter(
+      (p) => new Date(p.publishedFrom) <= now && new Date(p.publishedUntil) >= now
+    );
+
+    if (activePubs.length === 0) {
+      return res.json({ entries: [], publication: null, classId });
+    }
+
+    // Return all published entries for this class matching any active publication semester
+    const activeSemesterIds = activePubs.map((p) => p.semesterId);
+
+    const entries = await db
+      .select({
+        id: scheduleEntriesTable.id,
+        teacherId: scheduleEntriesTable.teacherId,
+        teacherName: usersTable.name,
+        subjectId: scheduleEntriesTable.subjectId,
+        subjectName: subjectsTable.name,
+        classId: scheduleEntriesTable.classId,
+        className: classesTable.name,
+        roomId: scheduleEntriesTable.roomId,
+        roomName: roomsTable.name,
+        semesterId: scheduleEntriesTable.semesterId,
+        semesterName: semestersTable.name,
+        sessionDate: scheduleEntriesTable.sessionDate,
+        startTime: scheduleEntriesTable.startTime,
+        endTime: scheduleEntriesTable.endTime,
+        notes: scheduleEntriesTable.notes,
+        teamsLink: scheduleEntriesTable.teamsLink,
+        published: scheduleEntriesTable.published,
+      })
+      .from(scheduleEntriesTable)
+      .innerJoin(usersTable, eq(usersTable.id, scheduleEntriesTable.teacherId))
+      .innerJoin(subjectsTable, eq(subjectsTable.id, scheduleEntriesTable.subjectId))
+      .innerJoin(classesTable, eq(classesTable.id, scheduleEntriesTable.classId))
+      .innerJoin(roomsTable, eq(roomsTable.id, scheduleEntriesTable.roomId))
+      .innerJoin(semestersTable, eq(semestersTable.id, scheduleEntriesTable.semesterId))
+      .where(
+        and(
+          eq(scheduleEntriesTable.classId, classId),
+          eq(scheduleEntriesTable.published, true)
+        )
+      );
+
+    const visible = entries
+      .filter((e) => activeSemesterIds.includes(e.semesterId))
+      .sort((a, b) => a.sessionDate.localeCompare(b.sessionDate) || a.startTime.localeCompare(b.startTime));
+
+    // Return the most recent active publication for display
+    const latestPub = activePubs.sort((a, b) =>
+      new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
+    )[0];
+
+    res.json({ entries: visible, publication: latestPub, classId });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Internal Server Error" });

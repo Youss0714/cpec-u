@@ -7,7 +7,7 @@ CPEC-U is a comprehensive academic management Progressive Web App (PWA) for educ
 - **Multi-role system**: Admin sub-roles, teacher, and student portals
 - **Academic management**: Classes, subjects, teaching units, semesters, annual promotions
 - **Grade management**: Teacher grade entry, approval workflows, retake sessions (rattrapage)
-- **Scheduling & attendance**: Timetable management with conflict detection, attendance tracking with justification workflows
+- **Scheduling & attendance**: Timetable management with conflict detection, attendance tracking with justification workflows. Role-based secure filtering: admin sees all sessions, teachers see only their own sessions (`/api/teacher/schedule`), students see only their class's published sessions via a new secured endpoint (`/api/student/schedule` — server-side classId resolution). Both teacher and student calendars support week/list view with subject color coding. Publication triggers notifications to both students and teachers.
 - **Communication**: Integrated messaging with file attachments and push notifications (Web Push / VAPID)
 - **PWA capabilities**: Offline sync support, mobile-friendly design
 - **Jury Spécial**: End-of-year special jury module with deliberation, traceability, bulletin auto-update, and PDF PV generation

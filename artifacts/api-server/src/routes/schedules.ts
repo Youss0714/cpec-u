@@ -93,27 +93,12 @@ router.get("/publications", requireRole("admin", "teacher", "student"), async (r
   }
 });
 
-router.get("/", requireRole("admin", "teacher", "student"), async (req, res) => {
+router.get("/", requireRole("admin"), async (req, res) => {
   try {
     const semesterId = req.query.semesterId ? parseInt(req.query.semesterId as string) : undefined;
     const classId = req.query.classId ? parseInt(req.query.classId as string) : undefined;
     const entries = await getEnrichedEntries({ semesterId, classId });
-    const user = (req as any).session?.user;
-
-    if (user?.role === "admin") {
-      return res.json(entries);
-    }
-
-    // For students/teachers: only show entries from classes with active publications
-    const activePubs = await getActivePublications();
-    const activeClassSemesterPairs = new Set(
-      activePubs.map((p) => `${p.classId}-${p.semesterId}`)
-    );
-
-    const visible = entries.filter(
-      (e) => e.published && activeClassSemesterPairs.has(`${e.classId}-${e.semesterId}`)
-    );
-    res.json(visible);
+    res.json(entries);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Internal Server Error" });
@@ -133,12 +118,29 @@ router.post("/publish", requirePlanificateur, async (req, res) => {
 
     if (Boolean(published)) {
       const [sem] = await db.select({ name: semestersTable.name }).from(semestersTable).where(eq(semestersTable.id, parseInt(semesterId))).limit(1);
+      const semLabel = sem ? ` du semestre ${sem.name}` : "";
+
       await notifyStudentsBySemester(
         parseInt(semesterId),
         "schedule_published",
         "Emploi du temps disponible",
-        `L'emploi du temps${sem ? ` du semestre ${sem.name}` : ""} a été publié. Consultez votre planning.`
+        `L'emploi du temps${semLabel} a été publié. Consultez votre planning.`
       ).catch(console.error);
+
+      // Notify all teachers who have sessions in this semester
+      const teacherRows = await db
+        .selectDistinct({ teacherId: scheduleEntriesTable.teacherId })
+        .from(scheduleEntriesTable)
+        .where(eq(scheduleEntriesTable.semesterId, parseInt(semesterId)));
+      const teacherIds = teacherRows.map((r) => r.teacherId);
+      if (teacherIds.length > 0) {
+        const title = "Emploi du temps publié";
+        const message = `L'emploi du temps${semLabel} est maintenant visible par les étudiants. Consultez vos créneaux.`;
+        await db.insert(notificationsTable).values(
+          teacherIds.map((uid) => ({ userId: uid, type: "schedule_published" as any, title, message }))
+        );
+        teacherIds.forEach((uid) => sendPushToUser(uid, { title, body: message, type: "schedule_published" }).catch(() => {}));
+      }
     }
 
     res.json({ message: published ? "Emploi du temps publié" : "Mis en brouillon" });
@@ -211,12 +213,36 @@ router.post("/publish-period", requirePlanificateur, async (req, res) => {
     const [cls] = await db.select({ name: classesTable.name }).from(classesTable).where(eq(classesTable.id, parseInt(classId))).limit(1);
     const [sem] = await db.select({ name: semestersTable.name }).from(semestersTable).where(eq(semestersTable.id, parseInt(semesterId))).limit(1);
     const periodLabels: Record<string, string> = { today: "aujourd'hui", "1week": "1 semaine", "2weeks": "2 semaines", "1month": "1 mois" };
+    const clsLabel = cls ? ` de la classe ${cls.name}` : "";
+    const semLabel = sem ? ` (${sem.name})` : "";
+    const periodLabel = periodLabels[period] ?? period;
+
     await notifyStudentsOfClasses(
       [parseInt(classId)],
       "schedule_published",
       "Emploi du temps disponible",
-      `L'emploi du temps${cls ? ` de la classe ${cls.name}` : ""}${sem ? ` (${sem.name})` : ""} est publié pour ${periodLabels[period] ?? period}.`
+      `L'emploi du temps${clsLabel}${semLabel} est publié pour ${periodLabel}.`
     ).catch(console.error);
+
+    // Notify teachers assigned to this class+semester
+    const teacherRows = await db
+      .selectDistinct({ teacherId: scheduleEntriesTable.teacherId })
+      .from(scheduleEntriesTable)
+      .where(
+        and(
+          eq(scheduleEntriesTable.classId, parseInt(classId)),
+          eq(scheduleEntriesTable.semesterId, parseInt(semesterId))
+        )
+      );
+    const teacherIds = teacherRows.map((r) => r.teacherId);
+    if (teacherIds.length > 0) {
+      const title = "Emploi du temps publié";
+      const message = `L'emploi du temps${clsLabel}${semLabel} est visible par les étudiants pour ${periodLabel}.`;
+      await db.insert(notificationsTable).values(
+        teacherIds.map((uid) => ({ userId: uid, type: "schedule_published" as any, title, message }))
+      );
+      teacherIds.forEach((uid) => sendPushToUser(uid, { title, body: message, type: "schedule_published" }).catch(() => {}));
+    }
 
     res.json({
       message: "Emploi du temps publié",

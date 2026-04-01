@@ -1,32 +1,40 @@
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { AppLayout } from "@/components/layout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { useListSemesters } from "@workspace/api-client-react";
 import {
-  useListScheduleEntries,
-  useListSemesters,
-  useGetStudentMe,
-  useListSchedulePublications,
-} from "@workspace/api-client-react";
-import { CalendarDays, Clock, MapPin, ChevronLeft, ChevronRight, BookOpen, Eye, EyeOff, Video, Printer } from "lucide-react";
+  CalendarDays, Clock, MapPin, ChevronLeft, ChevronRight,
+  BookOpen, Eye, EyeOff, Video, Printer, List, LayoutGrid, User,
+} from "lucide-react";
+
+function getApiBase() {
+  return import.meta.env.BASE_URL.replace(/\/$/, "");
+}
 
 const DAYS = ["", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
-const DAY_COLORS = [
-  "",
-  "bg-blue-50 border-blue-200",
-  "bg-green-50 border-green-200",
-  "bg-yellow-50 border-yellow-200",
-  "bg-purple-50 border-purple-200",
-  "bg-pink-50 border-pink-200",
-  "bg-orange-50 border-orange-200",
+
+const SUBJECT_COLORS = [
+  { pill: "bg-blue-100 text-blue-800", card: "border-l-blue-400", dot: "bg-blue-400" },
+  { pill: "bg-emerald-100 text-emerald-800", card: "border-l-emerald-400", dot: "bg-emerald-400" },
+  { pill: "bg-violet-100 text-violet-800", card: "border-l-violet-400", dot: "bg-violet-400" },
+  { pill: "bg-amber-100 text-amber-800", card: "border-l-amber-400", dot: "bg-amber-400" },
+  { pill: "bg-pink-100 text-pink-800", card: "border-l-pink-400", dot: "bg-pink-400" },
+  { pill: "bg-teal-100 text-teal-800", card: "border-l-teal-400", dot: "bg-teal-400" },
+  { pill: "bg-orange-100 text-orange-800", card: "border-l-orange-400", dot: "bg-orange-400" },
+  { pill: "bg-indigo-100 text-indigo-800", card: "border-l-indigo-400", dot: "bg-indigo-400" },
+  { pill: "bg-rose-100 text-rose-800", card: "border-l-rose-400", dot: "bg-rose-400" },
+  { pill: "bg-cyan-100 text-cyan-800", card: "border-l-cyan-400", dot: "bg-cyan-400" },
 ];
 
-type ViewMode = "1week" | "2weeks" | "1month";
+type CalViewMode = "1week" | "2weeks" | "1month";
+type DisplayMode = "calendar" | "list";
 
-function toISODate(date: Date): string {
+function toISODate(date: Date) {
   return date.toISOString().slice(0, 10);
 }
 
@@ -45,69 +53,131 @@ function addDays(date: Date, n: number): Date {
   return d;
 }
 
-function formatShortDate(date: Date): string {
+function formatShortDate(date: Date) {
   return date.toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
 }
 
-function formatPeriodLabel(start: Date, numWeeks: number): string {
+function formatLongDate(date: Date) {
+  return date.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" });
+}
+
+function formatPeriodLabel(start: Date, numWeeks: number) {
   const end = addDays(start, numWeeks * 7 - 1);
   return `${formatShortDate(start)} – ${formatShortDate(end)}`;
 }
 
+function isMobileScreen() {
+  return typeof window !== "undefined" && window.innerWidth < 768;
+}
+
 export default function StudentSchedule() {
-  const { data: me } = useGetStudentMe();
   const { data: semesters = [] } = useListSemesters();
-  const classId = (me as any)?.classId ?? null;
-
-  const { data: allEntries = [], isLoading } = useListScheduleEntries(
-    classId ? { params: { classId } } : {},
-    { query: { enabled: !!classId } } as any
-  );
-
   const [filterSemester, setFilterSemester] = useState<string>("all");
-
-  const pubParams = useMemo(() => ({
-    classId: classId ?? undefined,
-    semesterId: filterSemester !== "all" ? parseInt(filterSemester) : undefined,
-  }), [classId, filterSemester]);
-
-  const { data: publications = [] } = useListSchedulePublications(
-    pubParams,
-    { enabled: !!classId } as any
-  );
-
-  const activePub = useMemo(() => {
-    const now = new Date();
-    return (publications as any[]).find((p: any) => {
-      return new Date(p.publishedFrom) <= now && new Date(p.publishedUntil) >= now;
-    }) ?? null;
-  }, [publications]);
-
-  const [viewMode, setViewMode] = useState<ViewMode>("1week");
+  const [calViewMode, setCalViewMode] = useState<CalViewMode>("1week");
+  const [displayMode, setDisplayMode] = useState<DisplayMode>(() => isMobileScreen() ? "list" : "calendar");
   const [startDate, setStartDate] = useState<Date>(getMondayOfCurrentWeek);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const numWeeks = viewMode === "1week" ? 1 : viewMode === "2weeks" ? 2 : 4;
+  const { data: scheduleData, isLoading } = useQuery({
+    queryKey: ["/api/student/schedule"],
+    queryFn: () =>
+      fetch(`${getApiBase()}/api/student/schedule`, { credentials: "include" })
+        .then((r) => r.json()),
+  });
+
+  const allEntries: any[] = scheduleData?.entries ?? [];
+  const publication = scheduleData?.publication ?? null;
+  const classId = scheduleData?.classId ?? null;
+  const hasClass = classId !== null;
+
+  const numWeeks = calViewMode === "1week" ? 1 : calViewMode === "2weeks" ? 2 : 4;
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollLeft = 0;
-  }, [startDate, viewMode]);
+  }, [startDate, calViewMode]);
 
-  const weeks = useMemo(() =>
-    Array.from({ length: numWeeks }, (_, i) => addDays(startDate, i * 7)),
+  const weeks = useMemo(
+    () => Array.from({ length: numWeeks }, (_, i) => addDays(startDate, i * 7)),
     [startDate, numWeeks]
   );
 
-  const navigate = (dir: 1 | -1) => {
-    setStartDate((prev) => addDays(prev, dir * numWeeks * 7));
-  };
+  const subjectColorMap = useMemo(() => {
+    const map: Record<number, (typeof SUBJECT_COLORS)[0]> = {};
+    let idx = 0;
+    for (const e of allEntries) {
+      if (!(e.subjectId in map)) {
+        map[e.subjectId] = SUBJECT_COLORS[idx % SUBJECT_COLORS.length];
+        idx++;
+      }
+    }
+    return map;
+  }, [allEntries]);
 
   const filteredEntries = useMemo(() => {
-    return (allEntries as any[]).filter((e) => {
+    return allEntries.filter((e) => {
       if (filterSemester !== "all" && e.semesterId !== parseInt(filterSemester)) return false;
       return true;
     });
   }, [allEntries, filterSemester]);
+
+  // List view: future sessions grouped by date
+  const listEntries = useMemo(() => {
+    const today = toISODate(new Date());
+    const upcoming = filteredEntries.filter((e) => e.sessionDate >= today);
+    const groups: Record<string, any[]> = {};
+    for (const e of upcoming) {
+      if (!groups[e.sessionDate]) groups[e.sessionDate] = [];
+      groups[e.sessionDate].push(e);
+    }
+    return Object.entries(groups)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, entries]) => ({
+        date,
+        dateLabel: formatLongDate(new Date(date + "T00:00:00")),
+        isToday: date === today,
+        entries: entries.sort((a, b) => a.startTime.localeCompare(b.startTime)),
+      }));
+  }, [filteredEntries]);
+
+  const navigate = (dir: 1 | -1) => setStartDate((prev) => addDays(prev, dir * numWeeks * 7));
+
+  const EntryCard = ({ entry, compact = false }: { entry: any; compact?: boolean }) => {
+    const color = subjectColorMap[entry.subjectId] ?? SUBJECT_COLORS[0];
+    return (
+      <div className={`bg-white rounded-xl border border-border border-l-4 ${color.card} shadow-xs p-3 ${compact ? "py-2" : ""}`}>
+        <div className="flex items-start justify-between gap-2">
+          <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${color.pill}`}>
+            {entry.subjectName}
+          </span>
+          <span className="text-xs text-muted-foreground font-mono shrink-0">
+            {entry.startTime.slice(0, 5)}–{entry.endTime.slice(0, 5)}
+          </span>
+        </div>
+        <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1.5">
+          <span className="text-xs flex items-center gap-1 text-muted-foreground">
+            <User className="w-3 h-3" />{entry.teacherName}
+          </span>
+          <span className="text-xs flex items-center gap-1 text-muted-foreground">
+            <MapPin className="w-3 h-3" />{entry.roomName}
+          </span>
+          {entry.notes && (
+            <span className="text-xs text-muted-foreground italic w-full mt-0.5">{entry.notes}</span>
+          )}
+        </div>
+        {entry.teamsLink && (
+          <a
+            href={entry.teamsLink}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-2 flex items-center gap-1.5 w-full justify-center rounded-lg bg-[#4B53BC] hover:bg-[#3d44a3] text-white text-xs font-semibold py-1.5 px-2 transition-colors"
+          >
+            <Video className="w-3.5 h-3.5" />
+            Rejoindre le cours sur Teams
+          </a>
+        )}
+      </div>
+    );
+  };
 
   const DayCard = ({ day, weekStart }: { day: number; weekStart: Date }) => {
     const dayDate = addDays(weekStart, day - 1);
@@ -115,54 +185,31 @@ export default function StudentSchedule() {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const isToday = dayDate.getTime() === today.getTime();
+    const isPast = dayDate < today;
     const dayEntries = filteredEntries
       .filter((e: any) => e.sessionDate === dayISO)
       .sort((a: any, b: any) => a.startTime.localeCompare(b.startTime));
 
     return (
-      <div className={`border rounded-2xl overflow-hidden shadow-sm ${DAY_COLORS[day]} ${isToday ? "ring-2 ring-primary ring-offset-1" : ""}`}>
-        <div className="px-4 py-3 border-b border-current/10 flex items-center justify-between">
-          <h3 className="font-semibold text-foreground flex items-center gap-2">
-            <CalendarDays className="w-4 h-4" />
-            <span>{DAYS[day]}</span>
+      <div
+        className={`border rounded-2xl overflow-hidden shadow-sm transition-opacity ${isPast && !isToday ? "opacity-60" : ""} ${isToday ? "ring-2 ring-primary ring-offset-1" : ""}`}
+      >
+        <div className="px-4 py-3 border-b bg-muted/40 flex items-center justify-between">
+          <h3 className="font-semibold text-foreground flex items-center gap-2 text-sm">
+            <CalendarDays className="w-3.5 h-3.5" />
+            {DAYS[day]}
             <span className={`text-xs font-normal ${isToday ? "text-primary font-bold" : "text-muted-foreground"}`}>
               {formatShortDate(dayDate)}
             </span>
           </h3>
           <Badge variant="secondary" className="text-xs">{dayEntries.length}</Badge>
         </div>
-        <div className="p-3 space-y-2 min-h-[80px]">
+        <div className="p-3 space-y-2 min-h-[80px] bg-white/60">
           {dayEntries.length === 0 ? (
             <p className="text-xs text-muted-foreground text-center py-4">Aucun cours</p>
           ) : (
             dayEntries.map((entry: any) => (
-              <div key={entry.id}
-                className="bg-white/80 backdrop-blur-sm rounded-xl p-3 border border-white/60 shadow-xs">
-                <p className="font-semibold text-sm text-foreground">{entry.subjectName}</p>
-                <p className="text-xs text-muted-foreground mt-0.5">{entry.teacherName}</p>
-                <div className="flex gap-3 mt-1.5 flex-wrap">
-                  <span className="text-xs flex items-center gap-1 text-muted-foreground">
-                    <Clock className="w-3 h-3" />{entry.startTime}–{entry.endTime}
-                  </span>
-                  <span className="text-xs flex items-center gap-1 text-muted-foreground">
-                    <MapPin className="w-3 h-3" />{entry.roomName}
-                  </span>
-                </div>
-                {entry.notes && (
-                  <p className="text-xs text-muted-foreground mt-1 italic">{entry.notes}</p>
-                )}
-                {entry.teamsLink && (
-                  <a
-                    href={entry.teamsLink}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="mt-2 flex items-center gap-1.5 w-full justify-center rounded-lg bg-[#4B53BC] hover:bg-[#3d44a3] text-white text-xs font-semibold py-1.5 px-2 transition-colors"
-                  >
-                    <Video className="w-3.5 h-3.5" />
-                    Rejoindre le cours sur Teams
-                  </a>
-                )}
-              </div>
+              <EntryCard key={entry.id} entry={entry} compact />
             ))
           )}
         </div>
@@ -178,9 +225,9 @@ export default function StudentSchedule() {
           <div>
             <h1 className="text-3xl font-serif font-bold text-foreground">Mon Emploi du Temps</h1>
             <p className="text-muted-foreground">
-              {(me as any)?.className
-                ? <span>Classe : <strong>{(me as any).className}</strong></span>
-                : "Vous n'êtes inscrit dans aucune classe."}
+              {scheduleData?.classId != null
+                ? <span>Séances publiées pour votre classe</span>
+                : "Chargement…"}
             </p>
           </div>
           <Button variant="outline" size="sm" className="gap-2 print:hidden" onClick={() => window.print()}>
@@ -189,120 +236,187 @@ export default function StudentSchedule() {
           </Button>
         </div>
 
-        {/* Publication status banner */}
-        {classId && (
-          activePub ? (
+        {/* Publication banner */}
+        {!isLoading && hasClass && (
+          publication ? (
             <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-xl px-4 py-3">
               <Eye className="w-5 h-5 text-green-600 shrink-0" />
               <p className="text-green-800 text-sm">
                 Emploi du temps disponible jusqu'au{" "}
-                <strong>{new Date(activePub.publishedUntil).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</strong>
+                <strong>
+                  {new Date(publication.publishedUntil).toLocaleDateString("fr-FR", {
+                    weekday: "long", day: "numeric", month: "long", year: "numeric",
+                  })}
+                </strong>
               </p>
             </div>
           ) : (
             <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
               <EyeOff className="w-5 h-5 text-amber-600 shrink-0" />
               <p className="text-amber-800 text-sm">
-                Aucun emploi du temps publié pour le moment. Contactez votre administration.
+                L'emploi du temps n'a pas encore été publié pour cette période. Contactez votre administration.
               </p>
             </div>
           )
         )}
 
-        {!classId ? (
+        {/* No class enrolled */}
+        {!isLoading && !hasClass && (
           <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
             <BookOpen className="w-12 h-12 mb-3 opacity-30" />
             <p className="text-base font-medium">Aucune classe associée à votre compte.</p>
             <p className="text-sm mt-1">Contactez l'administration pour être inscrit dans une classe.</p>
           </div>
-        ) : (
-          <>
-            {/* Filters + View mode */}
-            <div className="flex gap-3 flex-wrap items-center justify-between print:hidden">
-              <Select value={filterSemester} onValueChange={setFilterSemester}>
-                <SelectTrigger className="w-52">
-                  <SelectValue placeholder="Tous les semestres" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tous les semestres</SelectItem>
-                  {(semesters as any[]).map((s: any) => (
-                    <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+        )}
 
-              <div className="flex items-center gap-1 bg-muted rounded-lg p-1">
-                {(["1week", "2weeks", "1month"] as ViewMode[]).map((mode) => (
+        {hasClass && (
+          <>
+            {/* Controls */}
+            <div className="flex flex-wrap gap-3 items-center justify-between print:hidden">
+              <div className="flex gap-2 flex-wrap">
+                <Select value={filterSemester} onValueChange={setFilterSemester}>
+                  <SelectTrigger className="w-48">
+                    <SelectValue placeholder="Tous les semestres" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Tous les semestres</SelectItem>
+                    {(semesters as any[]).map((s: any) => (
+                      <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex items-center gap-2">
+                {/* Display mode toggle */}
+                <div className="flex items-center gap-1 bg-muted rounded-lg p-1">
                   <button
-                    key={mode}
-                    onClick={() => setViewMode(mode)}
-                    className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
-                      viewMode === mode
-                        ? "bg-background shadow text-foreground"
-                        : "text-muted-foreground hover:text-foreground"
-                    }`}
+                    onClick={() => setDisplayMode("calendar")}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${displayMode === "calendar" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
                   >
-                    {mode === "1week" ? "1 sem." : mode === "2weeks" ? "2 sem." : "1 mois"}
+                    <LayoutGrid className="w-3.5 h-3.5" />
+                    Semaine
                   </button>
+                  <button
+                    onClick={() => setDisplayMode("list")}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${displayMode === "list" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                  >
+                    <List className="w-3.5 h-3.5" />
+                    Liste
+                  </button>
+                </div>
+
+                {/* Calendar sub-mode (only in calendar view) */}
+                {displayMode === "calendar" && (
+                  <div className="flex items-center gap-1 bg-muted rounded-lg p-1">
+                    {(["1week", "2weeks", "1month"] as CalViewMode[]).map((m) => (
+                      <button
+                        key={m}
+                        onClick={() => setCalViewMode(m)}
+                        className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${calViewMode === m ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                      >
+                        {m === "1week" ? "1 sem." : m === "2weeks" ? "2 sem." : "1 mois"}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Loading skeleton */}
+            {isLoading ? (
+              <div className="space-y-3">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="h-20 rounded-xl bg-muted animate-pulse" />
                 ))}
               </div>
-            </div>
-
-            {/* Date navigation */}
-            <div className="flex items-center gap-3 print:hidden">
-              <Button variant="outline" size="icon" onClick={() => navigate(-1)}>
-                <ChevronLeft className="w-4 h-4" />
-              </Button>
-              <div className="flex-1 text-center">
-                <span className="font-semibold text-foreground">{formatPeriodLabel(startDate, numWeeks)}</span>
+            ) : filteredEntries.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
+                <CalendarDays className="w-10 h-10 mb-3 opacity-30" />
+                <p className="text-sm font-medium">Aucun cours publié.</p>
+                <p className="text-xs mt-1">L'emploi du temps n'a pas encore été publié pour cette période.</p>
               </div>
-              <Button variant="outline" size="sm" className="text-xs" onClick={() => setStartDate(getMondayOfCurrentWeek())}>
-                Aujourd'hui
-              </Button>
-              <Button variant="outline" size="icon" onClick={() => navigate(1)}>
-                <ChevronRight className="w-4 h-4" />
-              </Button>
-            </div>
-
-            {/* Schedule grid */}
-            {isLoading ? (
-              <p className="text-muted-foreground text-center py-8">Chargement...</p>
-            ) : (
-              <div
-                ref={scrollRef}
-                className="flex overflow-x-auto gap-8 pb-4 -mx-1 px-1"
-                style={{ scrollSnapType: "x mandatory", scrollBehavior: "smooth" }}
-              >
-                {weeks.map((weekStart, wi) => (
-                  <div
-                    key={wi}
-                    className="flex-none w-full"
-                    style={{ scrollSnapAlign: "start" }}
-                  >
-                    {numWeeks > 1 && (
-                      <div className="flex items-center gap-3 mb-3">
-                        <div className="h-px flex-1 bg-border" />
-                        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                          Semaine du {formatShortDate(weekStart)}
+            ) : displayMode === "list" ? (
+              /* ── List View ── */
+              <div className="space-y-6">
+                {listEntries.length === 0 ? (
+                  <div className="text-center py-12 text-muted-foreground">
+                    <CalendarDays className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                    <p className="text-sm">Aucune séance à venir.</p>
+                  </div>
+                ) : (
+                  listEntries.map(({ date, dateLabel, isToday, entries }) => (
+                    <div key={date}>
+                      <div className={`flex items-center gap-2 mb-3 ${isToday ? "text-primary" : "text-muted-foreground"}`}>
+                        <div className={`w-2 h-2 rounded-full shrink-0 ${isToday ? "bg-primary" : "bg-border"}`} />
+                        <span className={`text-sm font-semibold capitalize ${isToday ? "text-primary" : ""}`}>
+                          {dateLabel}{isToday ? " — Aujourd'hui" : ""}
                         </span>
                         <div className="h-px flex-1 bg-border" />
+                        <Badge variant="secondary" className="text-xs">{entries.length}</Badge>
                       </div>
-                    )}
-                    {filteredEntries.length === 0 ? (
-                      <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
-                        <CalendarDays className="w-10 h-10 mb-3 opacity-30" />
-                        <p className="text-sm font-medium">Aucun cours publié.</p>
-                        <p className="text-xs mt-1">L'emploi du temps n'a pas encore été publié.</p>
+                      <div className="space-y-2 pl-4">
+                        {entries.map((entry: any) => (
+                          <EntryCard key={entry.id} entry={entry} />
+                        ))}
                       </div>
-                    ) : (
-                      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                    </div>
+                  ))
+                )}
+              </div>
+            ) : (
+              /* ── Calendar Week View ── */
+              <>
+                <div className="flex items-center gap-3 print:hidden">
+                  <Button variant="outline" size="icon" onClick={() => navigate(-1)}>
+                    <ChevronLeft className="w-4 h-4" />
+                  </Button>
+                  <div className="flex-1 text-center">
+                    <span className="font-semibold text-foreground">{formatPeriodLabel(startDate, numWeeks)}</span>
+                  </div>
+                  <Button variant="outline" size="sm" className="text-xs" onClick={() => setStartDate(getMondayOfCurrentWeek())}>
+                    Aujourd'hui
+                  </Button>
+                  <Button variant="outline" size="icon" onClick={() => navigate(1)}>
+                    <ChevronRight className="w-4 h-4" />
+                  </Button>
+                </div>
+
+                <div ref={scrollRef} className="space-y-8">
+                  {weeks.map((weekStart, wi) => (
+                    <div key={wi}>
+                      {numWeeks > 1 && (
+                        <div className="flex items-center gap-3 mb-3">
+                          <div className="h-px flex-1 bg-border" />
+                          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                            Semaine du {formatShortDate(weekStart)}
+                          </span>
+                          <div className="h-px flex-1 bg-border" />
+                        </div>
+                      )}
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                         {[1, 2, 3, 4, 5, 6].map((day) => (
                           <DayCard key={day} day={day} weekStart={weekStart} />
                         ))}
                       </div>
-                    )}
-                  </div>
-                ))}
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {/* Subject legend */}
+            {filteredEntries.length > 0 && Object.keys(subjectColorMap).length > 1 && (
+              <div className="flex flex-wrap gap-2 pt-2 border-t print:hidden">
+                {Object.entries(subjectColorMap).map(([subjectId, color]) => {
+                  const entry = filteredEntries.find((e: any) => e.subjectId === parseInt(subjectId));
+                  if (!entry) return null;
+                  return (
+                    <span key={subjectId} className={`text-xs px-2.5 py-1 rounded-full font-medium ${color.pill}`}>
+                      {entry.subjectName}
+                    </span>
+                  );
+                })}
               </div>
             )}
           </>
