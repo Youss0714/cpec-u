@@ -829,13 +829,24 @@ export default function AdminUsers() {
 
       if (role === "student") {
         const p = createProfileForm;
-        const hasProfile = p.matricule || p.phone || p.address || p.parentName || p.parentPhone || p.parentEmail || p.parentAddress;
+        const hasProfile = p.matricule || p.phone || p.address || p.parentName || p.parentPhone || p.parentEmail || p.parentAddress || p.dateNaissance || p.lieuNaissance || p.sexe;
         if (hasProfile) {
           await fetch(`/api/admin/students/${(newUser as any).id}/profile`, {
             method: "PUT",
             credentials: "include",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ matricule: p.matricule || null, phone: p.phone || null, address: p.address || null, parentName: p.parentName || null, parentPhone: p.parentPhone || null, parentEmail: p.parentEmail || null, parentAddress: p.parentAddress || null }),
+            body: JSON.stringify({
+              matricule: p.matricule || null,
+              dateNaissance: p.dateNaissance.trim() || null,
+              lieuNaissance: p.lieuNaissance.trim() || null,
+              sexe: p.sexe || null,
+              phone: p.phone || null,
+              address: p.address || null,
+              parentName: p.parentName || null,
+              parentPhone: p.parentPhone || null,
+              parentEmail: p.parentEmail || null,
+              parentAddress: p.parentAddress || null,
+            }),
           });
         }
       }
