@@ -10,7 +10,7 @@ import {
   roomsTable,
   semestersTable,
 } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, gte, lte } from "drizzle-orm";
 import { requireRole } from "../lib/auth.js";
 import { notifyStudentsOfClasses, notifyStudentsBySemester } from "./notifications.js";
 import { sendPushToUser } from "./push.js";
@@ -150,6 +150,54 @@ router.post("/publish", requirePlanificateur, async (req, res) => {
   }
 });
 
+// ─── helpers ──────────────────────────────────────────────────────────────────
+function isoDate(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
+function getMondayOfWeek(ref: Date): Date {
+  const d = new Date(ref);
+  const day = d.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  d.setDate(d.getDate() + diff);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function getPeriodRange(period: string): { from: Date; until: Date; fromISO: string; untilISO: string } {
+  const now = new Date();
+
+  if (period === "today") {
+    const from = new Date(now);
+    from.setHours(0, 0, 0, 0);
+    const until = new Date(now);
+    until.setHours(23, 59, 59, 999);
+    return { from, until, fromISO: isoDate(from), untilISO: isoDate(until) };
+  }
+
+  if (period === "1week") {
+    const monday = getMondayOfWeek(now);
+    const saturday = new Date(monday);
+    saturday.setDate(saturday.getDate() + 5);
+    saturday.setHours(23, 59, 59, 999);
+    return { from: monday, until: saturday, fromISO: isoDate(monday), untilISO: isoDate(saturday) };
+  }
+
+  if (period === "2weeks") {
+    const monday = getMondayOfWeek(now);
+    const saturday2 = new Date(monday);
+    saturday2.setDate(saturday2.getDate() + 12);
+    saturday2.setHours(23, 59, 59, 999);
+    return { from: monday, until: saturday2, fromISO: isoDate(monday), untilISO: isoDate(saturday2) };
+  }
+
+  // "1month" — current calendar month
+  const from = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+  const until = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+  return { from, until, fromISO: isoDate(from), untilISO: isoDate(until) };
+}
+
+// ─── publish-period ───────────────────────────────────────────────────────────
 router.post("/publish-period", requirePlanificateur, async (req, res) => {
   try {
     const { classId, semesterId, period } = req.body;
@@ -162,78 +210,72 @@ router.post("/publish-period", requirePlanificateur, async (req, res) => {
       return res.status(400).json({ error: "Période invalide" });
     }
 
-    const now = new Date();
-    const publishedUntil = new Date(now);
-    if (period === "today") {
-      publishedUntil.setHours(23, 59, 59, 999);
-    } else if (period === "1week") {
-      publishedUntil.setDate(publishedUntil.getDate() + 7);
-    } else if (period === "2weeks") {
-      publishedUntil.setDate(publishedUntil.getDate() + 14);
-    } else if (period === "1month") {
-      publishedUntil.setDate(publishedUntil.getDate() + 30);
-    }
+    const cid = parseInt(classId);
+    const sid = parseInt(semesterId);
+    const { from, until, fromISO, untilISO } = getPeriodRange(period);
 
+    // 1. Reset all sessions in this class+semester to draft
+    await db
+      .update(scheduleEntriesTable)
+      .set({ published: false })
+      .where(and(
+        eq(scheduleEntriesTable.classId, cid),
+        eq(scheduleEntriesTable.semesterId, sid)
+      ));
+
+    // 2. Publish only sessions whose sessionDate falls within the range
     await db
       .update(scheduleEntriesTable)
       .set({ published: true })
-      .where(
-        and(
-          eq(scheduleEntriesTable.classId, parseInt(classId)),
-          eq(scheduleEntriesTable.semesterId, parseInt(semesterId))
-        )
-      );
+      .where(and(
+        eq(scheduleEntriesTable.classId, cid),
+        eq(scheduleEntriesTable.semesterId, sid),
+        gte(scheduleEntriesTable.sessionDate, fromISO),
+        lte(scheduleEntriesTable.sessionDate, untilISO)
+      ));
 
+    // 3. Replace any existing publication record for this class+semester
     const existing = await db
       .select()
       .from(schedulePublicationsTable)
-      .where(
-        and(
-          eq(schedulePublicationsTable.classId, parseInt(classId)),
-          eq(schedulePublicationsTable.semesterId, parseInt(semesterId))
-        )
-      );
+      .where(and(
+        eq(schedulePublicationsTable.classId, cid),
+        eq(schedulePublicationsTable.semesterId, sid)
+      ));
 
     if (existing.length > 0) {
-      await db
-        .delete(schedulePublicationsTable)
-        .where(eq(schedulePublicationsTable.id, existing[0].id));
+      await db.delete(schedulePublicationsTable).where(eq(schedulePublicationsTable.id, existing[0].id));
     }
 
     const [pub] = await db
       .insert(schedulePublicationsTable)
-      .values({
-        classId: parseInt(classId),
-        semesterId: parseInt(semesterId),
-        publishedFrom: now,
-        publishedUntil,
-      })
+      .values({ classId: cid, semesterId: sid, publishedFrom: from, publishedUntil: until })
       .returning();
 
-    const [cls] = await db.select({ name: classesTable.name }).from(classesTable).where(eq(classesTable.id, parseInt(classId))).limit(1);
-    const [sem] = await db.select({ name: semestersTable.name }).from(semestersTable).where(eq(semestersTable.id, parseInt(semesterId))).limit(1);
-    const periodLabels: Record<string, string> = { today: "aujourd'hui", "1week": "1 semaine", "2weeks": "2 semaines", "1month": "1 mois" };
+    // 4. Notifications
+    const [cls] = await db.select({ name: classesTable.name }).from(classesTable).where(eq(classesTable.id, cid)).limit(1);
+    const [sem] = await db.select({ name: semestersTable.name }).from(semestersTable).where(eq(semestersTable.id, sid)).limit(1);
+    const periodLabels: Record<string, string> = { today: "aujourd'hui", "1week": "cette semaine", "2weeks": "les 2 prochaines semaines", "1month": "ce mois" };
     const clsLabel = cls ? ` de la classe ${cls.name}` : "";
     const semLabel = sem ? ` (${sem.name})` : "";
     const periodLabel = periodLabels[period] ?? period;
 
     await notifyStudentsOfClasses(
-      [parseInt(classId)],
+      [cid],
       "schedule_published",
       "Emploi du temps disponible",
       `L'emploi du temps${clsLabel}${semLabel} est publié pour ${periodLabel}.`
     ).catch(console.error);
 
-    // Notify teachers assigned to this class+semester
+    // Notify teachers assigned to sessions in this range
     const teacherRows = await db
       .selectDistinct({ teacherId: scheduleEntriesTable.teacherId })
       .from(scheduleEntriesTable)
-      .where(
-        and(
-          eq(scheduleEntriesTable.classId, parseInt(classId)),
-          eq(scheduleEntriesTable.semesterId, parseInt(semesterId))
-        )
-      );
+      .where(and(
+        eq(scheduleEntriesTable.classId, cid),
+        eq(scheduleEntriesTable.semesterId, sid),
+        eq(scheduleEntriesTable.published, true)
+      ));
     const teacherIds = teacherRows.map((r) => r.teacherId);
     if (teacherIds.length > 0) {
       const title = "Emploi du temps publié";
@@ -247,6 +289,7 @@ router.post("/publish-period", requirePlanificateur, async (req, res) => {
     res.json({
       message: "Emploi du temps publié",
       publication: pub,
+      range: { fromISO, untilISO },
     });
   } catch (err) {
     console.error(err);
@@ -312,9 +355,14 @@ router.put("/:entryId", requirePlanificateur, async (req, res) => {
   try {
     const entryId = parseInt(req.params.entryId);
     const { teacherId, subjectId, classId, roomId, sessionDate, startTime, endTime, notes, teamsLink } = req.body;
+    // Modifying a session reverts it to draft — it must be explicitly re-published
     const [entry] = await db
       .update(scheduleEntriesTable)
-      .set({ teacherId, subjectId, classId, roomId, sessionDate, startTime, endTime, notes: notes ?? null, teamsLink: teamsLink ?? null })
+      .set({
+        teacherId, subjectId, classId, roomId, sessionDate, startTime, endTime,
+        notes: notes ?? null, teamsLink: teamsLink ?? null,
+        published: false,
+      })
       .where(eq(scheduleEntriesTable.id, entryId))
       .returning();
     if (!entry) return res.status(404).json({ error: "Not Found" });

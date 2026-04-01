@@ -372,25 +372,98 @@ export default function AdminSchedules() {
     }
   };
 
+  const navigateToPeriod = (period: "today" | "1week" | "2weeks" | "1month") => {
+    const now = new Date();
+    if (period === "today") {
+      // Go to the current week in 1-week view so today is visible
+      setViewMode("1week");
+      setStartDate(getMondayOfCurrentWeek());
+    } else if (period === "1week") {
+      setViewMode("1week");
+      setStartDate(getMondayOfCurrentWeek());
+    } else if (period === "2weeks") {
+      setViewMode("2weeks");
+      setStartDate(getMondayOfCurrentWeek());
+    } else if (period === "1month") {
+      setViewMode("1month");
+      // Navigate to the Monday of the first week of the current month
+      const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      setStartDate(getMondayOfCurrentWeek()); // stay on current week but expand to month
+      // Actually jump to beginning of month's first Monday
+      const day = firstOfMonth.getDay();
+      const diff = day === 0 ? -6 : 1 - day;
+      const weekStart = new Date(firstOfMonth);
+      weekStart.setDate(weekStart.getDate() + diff);
+      setStartDate(weekStart);
+    }
+  };
+
+  const buildPeriodLabel = (period: "today" | "1week" | "2weeks" | "1month"): string => {
+    const now = new Date();
+    const fmtDate = (d: Date) => d.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
+    const fmtShort = (d: Date) => d.toLocaleDateString("fr-FR", { day: "numeric", month: "long" });
+
+    if (period === "today") {
+      return `le ${fmtDate(now)}`;
+    }
+    const day = now.getDay();
+    const diff = day === 0 ? -6 : 1 - day;
+    const monday = new Date(now);
+    monday.setDate(monday.getDate() + diff);
+
+    if (period === "1week") {
+      const saturday = new Date(monday);
+      saturday.setDate(saturday.getDate() + 5);
+      return `la semaine du ${fmtShort(monday)} au ${fmtDate(saturday)}`;
+    }
+    if (period === "2weeks") {
+      const saturday2 = new Date(monday);
+      saturday2.setDate(saturday2.getDate() + 12);
+      return `les 2 semaines du ${fmtShort(monday)} au ${fmtDate(saturday2)}`;
+    }
+    // 1month
+    const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const lastOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    return `${firstOfMonth.toLocaleDateString("fr-FR", { month: "long", year: "numeric" })} (${fmtShort(firstOfMonth)} au ${fmtDate(lastOfMonth)})`;
+  };
+
   const handlePublishPeriod = async (period: "today" | "1week" | "2weeks" | "1month") => {
     if (filterClass === "all" || filterSemester === "all") {
       toast({ title: "Sélectionnez une classe et un semestre d'abord", variant: "destructive" });
       return;
     }
-    const periodLabels: Record<string, string> = {
-      today: "aujourd'hui",
-      "1week": "1 semaine",
-      "2weeks": "2 semaines",
-      "1month": "1 mois",
-    };
     try {
       await publishPeriod.mutateAsync({
         classId: parseInt(filterClass),
         semesterId: parseInt(filterSemester),
         period,
       });
-      toast({ title: `Emploi du temps publié pour ${periodLabels[period]} !` });
+      const selectedClass = (classes as any[]).find((c) => String(c.id) === filterClass);
+      const selectedSemester = (semesters as any[]).find((s) => String(s.id) === filterSemester);
+      const periodLabel = buildPeriodLabel(period);
+      toast({
+        title: "Emploi du temps publié !",
+        description: `${selectedClass?.name ?? ""}${selectedSemester ? ` — ${selectedSemester.name}` : ""} : publié pour ${periodLabel}.`,
+      });
+      navigateToPeriod(period);
       await refetchPubs();
+      invalidate();
+    } catch {
+      toast({ title: "Erreur lors de la publication", variant: "destructive" });
+    }
+  };
+
+  const handlePublishAll = async () => {
+    if (filterSemester === "all") {
+      toast({ title: "Sélectionnez un semestre d'abord", variant: "destructive" });
+      return;
+    }
+    try {
+      await publishSchedule.mutateAsync({ semesterId: parseInt(filterSemester), published: true });
+      toast({
+        title: "Tout publié !",
+        description: "Toutes les séances du semestre sont maintenant visibles pour les étudiants.",
+      });
       invalidate();
     } catch {
       toast({ title: "Erreur lors de la publication", variant: "destructive" });
@@ -678,18 +751,56 @@ export default function AdminSchedules() {
                           </p>
                         </div>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={() => handlePublishPeriod("today")} className="cursor-pointer">
-                          <CalendarDays className="w-4 h-4 mr-2 text-blue-500" />Aujourd'hui seulement
+                        <DropdownMenuLabel className="text-[10px] text-muted-foreground/70 uppercase tracking-wider font-semibold px-3 pb-1">Par période</DropdownMenuLabel>
+                        <DropdownMenuItem onClick={() => handlePublishPeriod("today")} className="cursor-pointer gap-2">
+                          <CalendarDays className="w-4 h-4 text-blue-500 shrink-0" />
+                          <div>
+                            <p className="text-sm font-medium">Aujourd'hui seulement</p>
+                            <p className="text-[10px] text-muted-foreground">Séances de {new Date().toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })}</p>
+                          </div>
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handlePublishPeriod("1week")} className="cursor-pointer">
-                          <CalendarDays className="w-4 h-4 mr-2 text-green-500" />1 semaine
+                        <DropdownMenuItem onClick={() => handlePublishPeriod("1week")} className="cursor-pointer gap-2">
+                          <CalendarDays className="w-4 h-4 text-green-500 shrink-0" />
+                          <div>
+                            <p className="text-sm font-medium">Cette semaine</p>
+                            <p className="text-[10px] text-muted-foreground">Lun. – Sam. de la semaine en cours</p>
+                          </div>
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handlePublishPeriod("2weeks")} className="cursor-pointer">
-                          <CalendarDays className="w-4 h-4 mr-2 text-orange-500" />2 semaines
+                        <DropdownMenuItem onClick={() => handlePublishPeriod("2weeks")} className="cursor-pointer gap-2">
+                          <CalendarDays className="w-4 h-4 text-orange-500 shrink-0" />
+                          <div>
+                            <p className="text-sm font-medium">2 semaines</p>
+                            <p className="text-[10px] text-muted-foreground">Semaine en cours + semaine suivante</p>
+                          </div>
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handlePublishPeriod("1month")} className="cursor-pointer">
-                          <CalendarDays className="w-4 h-4 mr-2 text-purple-500" />1 mois
+                        <DropdownMenuItem onClick={() => handlePublishPeriod("1month")} className="cursor-pointer gap-2">
+                          <CalendarDays className="w-4 h-4 text-purple-500 shrink-0" />
+                          <div>
+                            <p className="text-sm font-medium">Ce mois</p>
+                            <p className="text-[10px] text-muted-foreground">{new Date().toLocaleDateString("fr-FR", { month: "long", year: "numeric" })}</p>
+                          </div>
                         </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuLabel className="text-[10px] text-muted-foreground/70 uppercase tracking-wider font-semibold px-3 pb-1">Tout publier</DropdownMenuLabel>
+                        <DropdownMenuItem onClick={handlePublishAll} className="cursor-pointer gap-2">
+                          <Send className="w-4 h-4 text-primary shrink-0" />
+                          <div>
+                            <p className="text-sm font-medium">Tout publier</p>
+                            <p className="text-[10px] text-muted-foreground">Publie toutes les séances du semestre</p>
+                          </div>
+                        </DropdownMenuItem>
+                        {activePub && (
+                          <>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={() => handlePublish(false)} className="cursor-pointer text-destructive focus:text-destructive gap-2">
+                              <EyeOff className="w-4 h-4 shrink-0" />
+                              <div>
+                                <p className="text-sm font-medium">Dépublier tout</p>
+                                <p className="text-[10px] text-muted-foreground/70">Repasse toutes les séances en brouillon</p>
+                              </div>
+                            </DropdownMenuItem>
+                          </>
+                        )}
                       </>
                     )}
                   </DropdownMenuContent>
