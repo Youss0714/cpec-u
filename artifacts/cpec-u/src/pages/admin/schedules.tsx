@@ -26,9 +26,10 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   Plus, Trash2, CalendarDays, Clock, MapPin, AlertTriangle, CheckCircle,
   Printer, Eye, EyeOff, Pencil, ChevronLeft, ChevronRight, Send, ChevronDown,
-  Ban,
+  Ban, CalendarRange,
 } from "lucide-react";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { PeriodGeneratorDialog } from "@/components/period-generator-dialog";
 
 const DAYS = ["", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
 const DAY_COLORS = [
@@ -182,6 +183,7 @@ export default function AdminSchedules() {
   const publishPeriod = usePublishSchedulePeriod();
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isPeriodDialogOpen, setIsPeriodDialogOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<any>(null);
   const [filterSemester, setFilterSemester] = useState<string>("all");
   const [filterClass, setFilterClass] = useState<string>("all");
@@ -810,6 +812,9 @@ export default function AdminSchedules() {
             <Button variant="outline" onClick={() => window.print()}>
               <Printer className="w-4 h-4 mr-2" />Imprimer
             </Button>
+            <Button variant="outline" onClick={() => setIsPeriodDialogOpen(true)} className="border-indigo-200 text-indigo-700 hover:bg-indigo-50 gap-1.5">
+              <CalendarRange className="w-4 h-4" />Par période
+            </Button>
             <Dialog open={isCreateOpen} onOpenChange={(o) => { setIsCreateOpen(o); if (!o) setForm(emptyForm); }}>
               <DialogTrigger asChild>
                 <Button className="shadow-md"><Plus className="w-4 h-4 mr-2" />Nouveau Créneau</Button>
@@ -946,6 +951,18 @@ export default function AdminSchedules() {
         onConfirm={() => handleDelete(pendingDeleteId!)}
         title="Supprimer le créneau"
         description="Ce créneau d'emploi du temps sera définitivement supprimé."
+      />
+
+      <PeriodGeneratorDialog
+        open={isPeriodDialogOpen}
+        onOpenChange={setIsPeriodDialogOpen}
+        teachers={allUsers as any[]}
+        subjects={subjects as any[]}
+        classes={classes as any[]}
+        rooms={rooms as any[]}
+        semesters={semesters as any[]}
+        defaultSemesterId={filterSemester !== "all" ? filterSemester : undefined}
+        defaultClassId={filterClass !== "all" ? filterClass : undefined}
       />
     </AppLayout>
   );

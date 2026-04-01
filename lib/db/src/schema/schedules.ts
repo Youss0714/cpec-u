@@ -20,6 +20,7 @@ export const scheduleEntriesTable = pgTable("schedule_entries", {
   notes: text("notes"),
   teamsLink: text("teams_link"),
   published: boolean("published").notNull().default(false),
+  batchId: varchar("batch_id", { length: 36 }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
