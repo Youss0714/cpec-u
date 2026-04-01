@@ -219,7 +219,7 @@ export default function TeacherProfile() {
             </div>
             <div className="space-y-1.5">
               <Label>Adresse email</Label>
-              <Input type="email" value={editEmail} onChange={(e) => setEditEmail(e.target.value)} placeholder="email@exemple.com" />
+              <Input type="email" autoComplete="off" value={editEmail} onChange={(e) => setEditEmail(e.target.value)} placeholder="email@exemple.com" />
             </div>
             <div className="space-y-1.5">
               <Label>Téléphone</Label>

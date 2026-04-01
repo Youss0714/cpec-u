@@ -199,7 +199,7 @@ function ResetPasswordDialog({ parent, onClose }: { parent: ParentRow; onClose: 
       <DialogContent className="max-w-sm">
         <DialogHeader><DialogTitle>Réinitialiser le mot de passe — {parent.name}</DialogTitle></DialogHeader>
         <div className="py-3">
-          <Input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Nouveau mot de passe" />
+          <Input type="password" autoComplete="new-password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Nouveau mot de passe" />
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Annuler</Button>

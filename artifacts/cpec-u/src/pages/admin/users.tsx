@@ -1195,7 +1195,7 @@ export default function AdminUsers() {
                         </div>
                         <div className="space-y-1">
                           <Label className="text-sm">Email parent <span className="text-muted-foreground font-normal">(optionnel)</span></Label>
-                          <Input type="email" value={createProfileForm.parentEmail} onChange={e => setCreateProfileForm(f => ({ ...f, parentEmail: e.target.value }))} placeholder="prenom.nom@exemple.ci" />
+                          <Input type="email" autoComplete="off" value={createProfileForm.parentEmail} onChange={e => setCreateProfileForm(f => ({ ...f, parentEmail: e.target.value }))} placeholder="prenom.nom@exemple.ci" />
                         </div>
                       </div>
                       <div className="space-y-1">
@@ -1517,7 +1517,7 @@ export default function AdminUsers() {
                   </div>
                   <div className="space-y-1">
                     <Label>Email</Label>
-                    <Input type="email" value={editForm.email} onChange={e => setEditForm(f => ({ ...f, email: e.target.value }))} />
+                    <Input type="email" autoComplete="off" value={editForm.email} onChange={e => setEditForm(f => ({ ...f, email: e.target.value }))} />
                   </div>
                   {editUser?.role === "student" && (
                     <>
@@ -1559,7 +1559,7 @@ export default function AdminUsers() {
                   )}
                   <div className="space-y-1">
                     <Label>Nouveau mot de passe <span className="text-muted-foreground text-xs">(laisser vide pour ne pas changer)</span></Label>
-                    <PasswordInput value={editForm.password} onChange={e => setEditForm(f => ({ ...f, password: e.target.value }))} placeholder="Nouveau mot de passe" />
+                    <PasswordInput autoComplete="new-password" value={editForm.password} onChange={e => setEditForm(f => ({ ...f, password: e.target.value }))} placeholder="Nouveau mot de passe" />
                   </div>
                 </TabsContent>
 
@@ -1595,7 +1595,7 @@ export default function AdminUsers() {
                       </div>
                       <div className="space-y-1">
                         <Label>Email du parent</Label>
-                        <Input type="email" value={editProfileForm.parentEmail} onChange={e => setEditProfileForm(f => ({ ...f, parentEmail: e.target.value }))} placeholder="prenom.nom@inphb.ci" />
+                        <Input type="email" autoComplete="off" value={editProfileForm.parentEmail} onChange={e => setEditProfileForm(f => ({ ...f, parentEmail: e.target.value }))} placeholder="prenom.nom@inphb.ci" />
                       </div>
                       <div className="space-y-1">
                         <Label className="flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-muted-foreground" /> Adresse du parent</Label>
@@ -1613,11 +1613,11 @@ export default function AdminUsers() {
                 </div>
                 <div className="space-y-1">
                   <Label>Email</Label>
-                  <Input type="email" value={editForm.email} onChange={e => setEditForm(f => ({ ...f, email: e.target.value }))} />
+                  <Input type="email" autoComplete="off" value={editForm.email} onChange={e => setEditForm(f => ({ ...f, email: e.target.value }))} />
                 </div>
                 <div className="space-y-1">
                   <Label>Nouveau mot de passe <span className="text-muted-foreground text-xs">(laisser vide pour ne pas changer)</span></Label>
-                  <PasswordInput value={editForm.password} onChange={e => setEditForm(f => ({ ...f, password: e.target.value }))} placeholder="Nouveau mot de passe" />
+                  <PasswordInput autoComplete="new-password" value={editForm.password} onChange={e => setEditForm(f => ({ ...f, password: e.target.value }))} placeholder="Nouveau mot de passe" />
                 </div>
               </div>
             )}
