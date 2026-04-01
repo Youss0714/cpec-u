@@ -174,6 +174,11 @@ router.get("/student/card", requireRole("student"), async (req, res) => {
 router.post("/student/card/generate", requireRole("student"), async (req, res) => {
   try {
     const studentId = req.session!.userId!;
+    const [profile] = await db.select().from(studentProfilesTable).where(eq(studentProfilesTable.studentId, studentId)).limit(1);
+    if (!profile?.photoUrl) {
+      res.status(400).json({ error: "Une photo de profil est requise pour générer votre carte étudiante. Veuillez d'abord ajouter une photo dans votre profil." });
+      return;
+    }
     await generateOrRenewCard(studentId);
     const cardData = await getStudentCardData(studentId, req);
     res.json({ success: true, card: cardData });

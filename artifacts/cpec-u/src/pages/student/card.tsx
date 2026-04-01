@@ -7,7 +7,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import {
   CreditCard, Download, RefreshCw, CheckCircle2, XCircle,
-  Clock, QrCode, User, Calendar, GraduationCap,
+  Clock, QrCode, User, GraduationCap, Camera, AlertCircle,
 } from "lucide-react";
 import { downloadCardAsPdf } from "@/lib/download-card-pdf";
 
@@ -20,6 +20,15 @@ export default function StudentCard() {
   const qc = useQueryClient();
   const [generating, setGenerating] = useState(false);
   const [downloading, setDownloading] = useState(false);
+
+  const { data: profile, isLoading: profileLoading } = useQuery<any>({
+    queryKey: ["/api/student/profile"],
+    queryFn: () =>
+      fetch(`${getApiBase()}/api/student/profile`, { credentials: "include" })
+        .then(r => r.json()),
+  });
+
+  const hasPhoto = !!profile?.photoUrl;
 
   const { data: card, isLoading, error } = useQuery<any>({
     queryKey: ["/api/student/card"],
@@ -94,8 +103,35 @@ export default function StudentCard() {
           </div>
         </div>
 
+        {/* Photo required block */}
+        {!profileLoading && !hasPhoto && (
+          <Card className="border-orange-300 bg-orange-50 dark:bg-orange-950/20 dark:border-orange-800">
+            <CardContent className="py-8 flex flex-col items-center text-center gap-4">
+              <div className="w-16 h-16 rounded-full bg-orange-100 dark:bg-orange-900/40 flex items-center justify-center">
+                <Camera className="w-8 h-8 text-orange-500" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-lg text-orange-800 dark:text-orange-300">Photo de profil requise</h3>
+                <p className="text-sm text-orange-700/80 dark:text-orange-400/80 mt-1 max-w-sm">
+                  Vous devez ajouter une photo de profil avant de pouvoir générer ou consulter votre carte étudiante.
+                </p>
+              </div>
+              <a href={`${import.meta.env.BASE_URL}student/profile`}>
+                <Button className="bg-orange-500 hover:bg-orange-600 text-white">
+                  <Camera className="w-4 h-4 mr-2" />
+                  Ajouter une photo de profil
+                </Button>
+              </a>
+              <p className="text-xs text-orange-600/60 dark:text-orange-500/60 flex items-center gap-1">
+                <AlertCircle className="w-3 h-3" />
+                Revenez ici après avoir ajouté votre photo.
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Loading */}
-        {isLoading && (
+        {(isLoading || profileLoading) && (
           <Card>
             <CardContent className="py-12 flex justify-center">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
@@ -104,7 +140,7 @@ export default function StudentCard() {
         )}
 
         {/* No card yet */}
-        {!isLoading && (hasNoCard || (!card && !isLoading)) && (
+        {!isLoading && !profileLoading && hasPhoto && (hasNoCard || (!card && !isLoading)) && (
           <Card className="border-dashed">
             <CardContent className="py-12 text-center space-y-4">
               <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mx-auto">
@@ -129,7 +165,7 @@ export default function StudentCard() {
         )}
 
         {/* Card exists */}
-        {card && (
+        {card && hasPhoto && (
           <>
             {/* Status + Actions */}
             <div className="flex flex-wrap items-center justify-between gap-4">
