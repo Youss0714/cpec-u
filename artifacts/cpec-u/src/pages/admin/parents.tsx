@@ -83,19 +83,19 @@ function CreateParentDialog({ onClose, students }: { onClose: () => void; studen
           <div className="grid grid-cols-2 gap-3">
             <div className="col-span-2">
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Nom complet *</label>
-              <Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Jean Dupont" />
+              <Input autoComplete="off" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Kouman Kouadio" />
             </div>
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Email *</label>
-              <Input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="parent@exemple.com" />
+              <Input type="email" autoComplete="off" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="parent@exemple.com" />
             </div>
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Téléphone</label>
-              <Input value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} placeholder="+225 07 00 00 00 00" />
+              <Input autoComplete="off" value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} placeholder="+225 07 00 00 00 00" />
             </div>
             <div className="col-span-2">
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Mot de passe initial *</label>
-              <Input type="password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} placeholder="••••••••" />
+              <Input type="password" autoComplete="new-password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} placeholder="••••••••" />
             </div>
           </div>
 
