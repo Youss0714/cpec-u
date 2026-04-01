@@ -72,7 +72,7 @@ export async function downloadFicheEtudiantPdf(studentId: number): Promise<void>
   pdf.addVSpace(4);
   pdf.addSignatureBlock([
     { title: "La Scolarité", name: "" },
-    { title: "Le Directeur", name: "CPEC-Digital" },
+    { title: "Le Directeur", name: "CPEC-U" },
   ]);
 
   pdf.finalizeAndSave(`fiche_${(data.name ?? studentId).toString().replace(/\s+/g, "_")}.pdf`);

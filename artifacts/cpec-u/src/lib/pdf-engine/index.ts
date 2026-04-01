@@ -97,7 +97,7 @@ export class CpecPdfDoc {
     doc.setTextColor(...BRAND.white);
     doc.setFontSize(9.5);
     doc.setFont("helvetica", "bold");
-    doc.text("CPEC-Digital — INP-HB BOUAKÉ", margin + 17, margin + 6);
+    doc.text("CPEC-U — INP-HB BOUAKÉ", margin + 17, margin + 6);
 
     // Document title
     doc.setFontSize(8);

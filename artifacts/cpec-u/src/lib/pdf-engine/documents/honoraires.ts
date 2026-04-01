@@ -85,7 +85,7 @@ export async function downloadHonorairesRecapPdf(): Promise<void> {
 
   pdf.addSignatureBlock([
     { title: "Le Planificateur", name: "" },
-    { title: "Le Directeur", name: "CPEC-Digital" },
+    { title: "Le Directeur", name: "CPEC-U" },
   ]);
 
   pdf.finalizeAndSave(`honoraires_recap_${new Date().getFullYear()}.pdf`);
@@ -151,7 +151,7 @@ export async function downloadFicheHonorairesPdf(teacherId: number, teacherName:
 
   pdf.addSignatureBlock([
     { title: "L'enseignant", name: teacher.name },
-    { title: "Le Directeur", name: "CPEC-Digital" },
+    { title: "Le Directeur", name: "CPEC-U" },
   ]);
 
   pdf.finalizeAndSave(`fiche_honoraires_${teacherName.replace(/\s+/g, "_")}.pdf`);

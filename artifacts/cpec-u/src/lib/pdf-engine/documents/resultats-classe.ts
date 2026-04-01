@@ -76,7 +76,7 @@ export async function downloadResultatsClassePdf(
 
   pdf.addSignatureBlock([
     { title: "La Scolarité", name: "" },
-    { title: "Le Directeur", name: "CPEC-Digital" },
+    { title: "Le Directeur", name: "CPEC-U" },
   ]);
 
   pdf.finalizeAndSave(`resultats_${subtitle.replace(/\s+/g, "_")}.pdf`);

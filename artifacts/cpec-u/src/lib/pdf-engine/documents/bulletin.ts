@@ -138,7 +138,7 @@ export async function downloadBulletinPdf(studentId: number, semesterId: number)
   // Signature
   pdf.addVSpace(6);
   pdf.addSignatureBlock([
-    { title: "Le Directeur", name: "CPEC-Digital" },
+    { title: "Le Directeur", name: "CPEC-U" },
     { title: "Cachet de l'établissement", name: "" },
     { title: "L'étudiant(e)", name: data.studentName },
   ]);

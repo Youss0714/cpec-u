@@ -60,7 +60,7 @@ export async function downloadListeEtudiantsPdf(classId: number, className: stri
   );
 
   pdf.addSignatureBlock([
-    { title: "Le Directeur", name: "CPEC-Digital" },
+    { title: "Le Directeur", name: "CPEC-U" },
     { title: "La Scolarité", name: "" },
   ]);
 

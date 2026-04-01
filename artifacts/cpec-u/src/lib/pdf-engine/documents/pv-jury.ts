@@ -107,7 +107,7 @@ export async function downloadPvJuryPdf(sessionId: number): Promise<void> {
   pdf.addSignatureBlock([
     { title: "Le Président du Jury", name: "" },
     { title: "Le Secrétaire", name: "" },
-    { title: "Le Directeur", name: "CPEC-Digital" },
+    { title: "Le Directeur", name: "CPEC-U" },
   ]);
 
   pdf.finalizeAndSave(`pv_jury_${sessionId}_${data.academicYear}.pdf`);

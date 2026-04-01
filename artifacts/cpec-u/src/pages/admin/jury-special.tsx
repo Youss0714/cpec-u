@@ -204,7 +204,7 @@ export default function JurySpecial() {
 </style>
 </head>
 <body>
-  <h1>CPEC-Digital — Procès-Verbal du Jury Spécial</h1>
+  <h1>CPEC-U — Procès-Verbal du Jury Spécial</h1>
   <h2>Année Académique ${data.academicYear}</h2>
   <div class="meta">
     <span>Date de génération : ${format(new Date(data.generatedAt), "dd MMMM yyyy à HH:mm", { locale: fr })}</span>

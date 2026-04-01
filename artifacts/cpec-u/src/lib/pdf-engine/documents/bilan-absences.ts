@@ -72,7 +72,7 @@ export async function downloadBilanAbsencesPdf(
 
   pdf.addSignatureBlock([
     { title: "La Scolarité", name: "" },
-    { title: "Le Directeur", name: "CPEC-Digital" },
+    { title: "Le Directeur", name: "CPEC-U" },
   ]);
 
   pdf.finalizeAndSave(`bilan_absences_${subtitle.replace(/\s+/g, "_")}.pdf`);

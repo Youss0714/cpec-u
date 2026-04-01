@@ -56,7 +56,7 @@ async function buildCardHtml(card: CardPdfData): Promise<{ recto: string; verso:
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>
           </div>
           <div>
-            <div style="color:white;font-weight:800;font-size:12px;letter-spacing:0.5px;">CPEC-Digital</div>
+            <div style="color:white;font-weight:800;font-size:12px;letter-spacing:0.5px;">CPEC-U</div>
             <div style="color:rgba(212,175,55,0.85);font-size:7.5px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;">INP-HB BOUAKÉ</div>
           </div>
         </div>
@@ -114,7 +114,7 @@ async function buildCardHtml(card: CardPdfData): Promise<{ recto: string; verso:
       <!-- Header -->
       <div style="background:linear-gradient(90deg,#0f2547,#1a3a6b);padding:9px 15px;display:flex;align-items:center;justify-content:space-between;">
         <div>
-          <div style="color:white;font-weight:800;font-size:11px;letter-spacing:0.5px;">CPEC-Digital</div>
+          <div style="color:white;font-weight:800;font-size:11px;letter-spacing:0.5px;">CPEC-U</div>
           <div style="color:rgba(255,255,255,0.65);font-size:7.5px;font-weight:600;margin-top:1px;">CARTE ÉTUDIANTE OFFICIELLE</div>
         </div>
         <div style="background:${validityColor};color:white;font-size:7.5px;font-weight:800;padding:3px 8px;border-radius:4px;letter-spacing:1px;">${validityLabel}</div>
