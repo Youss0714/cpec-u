@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { AppLayout } from "@/components/layout";
 import {
   useListSemesters, useListClasses, useGetSemesterResults,
@@ -71,16 +72,26 @@ export default function AdminResults() {
     subjectId: number; subjectName: string; classId: number; className: string;
   } | null>(null);
 
-  const previewGrades = useMemo(() => {
-    if (!previewSubject) return [];
-    return (results as any[])
-      .filter((r) => r.classId === previewSubject.classId)
-      .map((r) => {
-        const grade = (r.grades ?? []).find((g: any) => g.subjectId === previewSubject.subjectId);
-        return { studentName: r.studentName, value: grade?.value ?? null, rank: r.rank };
-      })
-      .sort((a, b) => a.studentName.localeCompare(b.studentName, "fr"));
-  }, [previewSubject, results]);
+  const { data: liveSubjectGrades = [], isFetching: isPreviewLoading } = useQuery<
+    { studentId: number; studentName: string; value: number | null; evaluations: { n: number; v: number }[] }[]
+  >({
+    queryKey: ["/api/admin/subject-grades", previewSubject?.subjectId, previewSubject?.classId, selectedSemester],
+    queryFn: async () => {
+      if (!previewSubject || !selectedSemester) return [];
+      const qs = new URLSearchParams({
+        subjectId: String(previewSubject.subjectId),
+        classId: String(previewSubject.classId),
+        semesterId: selectedSemester,
+      });
+      const res = await fetch(`/api/admin/subject-grades?${qs}`);
+      if (!res.ok) throw new Error("Erreur lors du chargement des notes.");
+      return res.json();
+    },
+    enabled: !!previewSubject && !!selectedSemester,
+    staleTime: 0,
+  });
+
+  const previewGrades = liveSubjectGrades;
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["/api/admin/results"] });
@@ -632,10 +643,15 @@ export default function AdminResults() {
             </DialogTitle>
           </DialogHeader>
           <div className="mt-2">
-            {previewGrades.length === 0 ? (
+            {isPreviewLoading ? (
+              <div className="flex flex-col items-center py-10 text-muted-foreground">
+                <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin mb-3" />
+                <p className="text-sm">Chargement des notes…</p>
+              </div>
+            ) : previewGrades.length === 0 ? (
               <div className="flex flex-col items-center py-10 text-muted-foreground">
                 <Search className="w-8 h-8 mb-2 opacity-30" />
-                <p className="text-sm">Aucune note saisie pour cette matière.</p>
+                <p className="text-sm">Aucun étudiant inscrit dans cette classe ou aucune note saisie.</p>
               </div>
             ) : (
               <div className="border rounded-xl overflow-hidden">

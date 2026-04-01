@@ -1812,6 +1812,69 @@ router.delete("/subject-approvals/:id", requireRole("admin"), async (req, res) =
   }
 });
 
+// ─── Admin: grades for a specific subject/class/semester (live, no cache) ─────
+
+router.get("/subject-grades", requireRole("admin"), async (req, res) => {
+  try {
+    const { subjectId, classId, semesterId } = req.query;
+    if (!subjectId || !classId || !semesterId) {
+      res.status(400).json({ error: "subjectId, classId et semesterId sont requis." });
+      return;
+    }
+    const subId = parseInt(subjectId as string);
+    const clId = parseInt(classId as string);
+    const semId = parseInt(semesterId as string);
+
+    // All students enrolled in the class
+    const students = await db
+      .select({ id: usersTable.id, name: usersTable.name })
+      .from(classEnrollmentsTable)
+      .innerJoin(usersTable, eq(usersTable.id, classEnrollmentsTable.studentId))
+      .where(and(eq(classEnrollmentsTable.classId, clId), eq(usersTable.role, "student")));
+
+    if (students.length === 0) { res.json([]); return; }
+
+    const studentIds = students.map((s) => s.id);
+
+    // Live grades from DB for this subject/semester
+    const grades = await db
+      .select({ studentId: gradesTable.studentId, evaluationNumber: gradesTable.evaluationNumber, value: gradesTable.value })
+      .from(gradesTable)
+      .where(and(
+        inArray(gradesTable.studentId, studentIds),
+        eq(gradesTable.subjectId, subId),
+        eq(gradesTable.semesterId, semId),
+      ));
+
+    // Group by student and compute average of evaluations
+    const gradeMap = new Map<number, { evaluations: { n: number; v: number }[]; average: number }>();
+    for (const g of grades) {
+      if (!gradeMap.has(g.studentId)) {
+        const evals = grades.filter((e) => e.studentId === g.studentId);
+        const avg = evals.reduce((s, e) => s + e.value, 0) / evals.length;
+        gradeMap.set(g.studentId, {
+          evaluations: evals.map((e) => ({ n: e.evaluationNumber, v: e.value })),
+          average: Math.round(avg * 100) / 100,
+        });
+      }
+    }
+
+    const result = students
+      .map((s) => ({
+        studentId: s.id,
+        studentName: s.name,
+        value: gradeMap.get(s.id)?.average ?? null,
+        evaluations: gradeMap.get(s.id)?.evaluations ?? [],
+      }))
+      .sort((a, b) => a.studentName.localeCompare(b.studentName, "fr"));
+
+    res.json(result);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
 // ─── Grade Submissions (pending teacher submissions for review) ────────────────
 
 router.get("/grade-submissions/pending", requireRole("admin"), async (req, res) => {
