@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   MessageSquare, Send, UserCircle2, Paperclip, X,
   FileText, Sheet, Presentation, FileArchive, Download,
-  Plus, Search,
+  Plus, Search, Users, CheckCircle2,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -115,6 +115,18 @@ export default function SharedMessages({ allowedRoles }: { allowedRoles: string[
   const [uploading, setUploading] = useState(false);
   const [showContactPicker, setShowContactPicker] = useState(false);
   const [contactSearch, setContactSearch] = useState("");
+  const [contactTab, setContactTab] = useState<"contacts" | "classes">("contacts");
+
+  // Broadcast state
+  const [selectedClassId, setSelectedClassId] = useState<number | null>(null);
+  const [selectedClass, setSelectedClass] = useState<any | null>(null);
+  const [broadcastText, setBroadcastText] = useState("");
+  const [broadcastFile, setBroadcastFile] = useState<{ name: string; size: number; type: string; file: File } | null>(null);
+  const [broadcastSending, setBroadcastSending] = useState(false);
+  const [broadcastUploading, setBroadcastUploading] = useState(false);
+  const [broadcastDone, setBroadcastDone] = useState<{ count: number } | null>(null);
+  const broadcastFileRef = useRef<HTMLInputElement>(null);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messageInputRef = useRef<HTMLInputElement>(null);
@@ -142,6 +154,12 @@ export default function SharedMessages({ allowedRoles }: { allowedRoles: string[
     queryKey: ["/api/messages/contacts/list"],
     queryFn: () => apiFetch("/messages/contacts/list"),
     enabled: showContactPicker,
+  });
+
+  const { data: classesList = [] } = useQuery({
+    queryKey: ["/api/messages/classes/list"],
+    queryFn: () => apiFetch("/messages/classes/list"),
+    enabled: !isStudent,
   });
 
   const { data: thread } = useQuery({
@@ -248,6 +266,74 @@ export default function SharedMessages({ allowedRoles }: { allowedRoles: string[
 
   const canSend = !sending && !uploading && (!!messageText.trim() || !!pendingFile);
 
+  const handleSelectClass = (cls: any) => {
+    setSelectedUserId(null);
+    setSelectedClassId(cls.id);
+    setSelectedClass(cls);
+    setShowContactPicker(false);
+    setBroadcastDone(null);
+    setBroadcastText("");
+    setBroadcastFile(null);
+  };
+
+  const handleBroadcastFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const ALLOWED_TYPES = [
+      "application/pdf",
+      "application/msword",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "application/vnd.ms-excel",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "application/vnd.ms-powerpoint",
+      "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    ];
+    if (!ALLOWED_TYPES.includes(file.type)) {
+      toast({ title: "Type de fichier non supporté", description: "PDF, Word, Excel ou PowerPoint uniquement.", variant: "destructive" });
+      return;
+    }
+    if (file.size > 20 * 1024 * 1024) {
+      toast({ title: "Fichier trop volumineux", description: "Taille maximale : 20 Mo", variant: "destructive" });
+      return;
+    }
+    setBroadcastFile({ name: file.name, size: file.size, type: file.type, file });
+    e.target.value = "";
+  };
+
+  const handleBroadcast = async () => {
+    if (!selectedClassId || (!broadcastText.trim() && !broadcastFile)) return;
+    setBroadcastSending(true);
+    try {
+      let fileData: { fileUrl?: string; fileName?: string; fileType?: string; fileSize?: number } = {};
+      if (broadcastFile) {
+        setBroadcastUploading(true);
+        const fd = new FormData();
+        fd.append("file", broadcastFile.file);
+        const uploadRes = await fetch("/api/messages/upload", { method: "POST", credentials: "include", body: fd });
+        setBroadcastUploading(false);
+        if (!uploadRes.ok) {
+          const err = await uploadRes.json();
+          toast({ title: "Erreur d'envoi du fichier", description: err.error, variant: "destructive" });
+          return;
+        }
+        fileData = await uploadRes.json();
+      }
+      const result = await apiFetch(`/messages/class/${selectedClassId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: broadcastText.trim(), ...fileData }),
+      });
+      setBroadcastDone({ count: result.sent });
+      setBroadcastText("");
+      setBroadcastFile(null);
+    } catch {
+      toast({ title: "Erreur lors de l'envoi", variant: "destructive" });
+    } finally {
+      setBroadcastSending(false);
+      setBroadcastUploading(false);
+    }
+  };
+
   return (
     <AppLayout allowedRoles={allowedRoles} noScroll>
       <div className="flex flex-col flex-1 min-h-0">
@@ -281,39 +367,81 @@ export default function SharedMessages({ allowedRoles }: { allowedRoles: string[
 
             {showContactPicker ? (
               <div className="flex flex-col flex-1 min-h-0">
-                <div className="px-2 py-2 border-b border-border">
-                  <div className="flex items-center gap-1.5 bg-muted/50 rounded-lg px-2 py-1.5 border border-border focus-within:border-primary transition-colors">
-                    <Search className="w-3 h-3 text-muted-foreground flex-shrink-0" />
-                    <input
-                      autoFocus
-                      placeholder="Rechercher…"
-                      value={contactSearch}
-                      onChange={e => setContactSearch(e.target.value)}
-                      className="flex-1 bg-transparent text-xs outline-none placeholder:text-muted-foreground"
-                    />
-                  </div>
+                {/* Tabs: Contacts / Classes */}
+                <div className="flex border-b border-border">
+                  <button
+                    onClick={() => setContactTab("contacts")}
+                    className={`flex-1 py-1.5 text-[11px] font-semibold transition-colors ${contactTab === "contacts" ? "text-primary border-b-2 border-primary -mb-px" : "text-muted-foreground hover:text-foreground"}`}
+                  >
+                    Contacts
+                  </button>
+                  <button
+                    onClick={() => setContactTab("classes")}
+                    className={`flex-1 py-1.5 text-[11px] font-semibold transition-colors ${contactTab === "classes" ? "text-primary border-b-2 border-primary -mb-px" : "text-muted-foreground hover:text-foreground"}`}
+                  >
+                    Classes
+                  </button>
                 </div>
-                <div className="flex-1 overflow-y-auto">
-                  {contacts.length === 0 ? (
-                    <div className="flex items-center justify-center h-20 text-xs text-muted-foreground">
-                      Aucun contact trouvé
+
+                {contactTab === "contacts" ? (
+                  <>
+                    <div className="px-2 py-2 border-b border-border">
+                      <div className="flex items-center gap-1.5 bg-muted/50 rounded-lg px-2 py-1.5 border border-border focus-within:border-primary transition-colors">
+                        <Search className="w-3 h-3 text-muted-foreground flex-shrink-0" />
+                        <input
+                          autoFocus
+                          placeholder="Rechercher…"
+                          value={contactSearch}
+                          onChange={e => setContactSearch(e.target.value)}
+                          className="flex-1 bg-transparent text-xs outline-none placeholder:text-muted-foreground"
+                        />
+                      </div>
                     </div>
-                  ) : contacts.map((c: any) => (
-                    <button
-                      key={c.id}
-                      onClick={() => setSelectedUserId(c.id)}
-                      className="w-full text-left px-3 py-2.5 flex gap-2.5 items-center hover:bg-muted/50 transition-colors border-b border-border/40"
-                    >
-                      <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 text-primary font-bold text-xs">
-                        {c.name.charAt(0)}
+                    <div className="flex-1 overflow-y-auto">
+                      {contacts.length === 0 ? (
+                        <div className="flex items-center justify-center h-20 text-xs text-muted-foreground">
+                          Aucun contact trouvé
+                        </div>
+                      ) : contacts.map((c: any) => (
+                        <button
+                          key={c.id}
+                          onClick={() => { setSelectedUserId(c.id); setSelectedClassId(null); setSelectedClass(null); }}
+                          className="w-full text-left px-3 py-2.5 flex gap-2.5 items-center hover:bg-muted/50 transition-colors border-b border-border/40"
+                        >
+                          <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 text-primary font-bold text-xs">
+                            {c.name.charAt(0)}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-semibold truncate">{c.name}</p>
+                            <p className="text-[10px] text-muted-foreground truncate">{roleLabel(c.role, c.adminSubRole)}</p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex-1 overflow-y-auto">
+                    {(classesList as any[]).length === 0 ? (
+                      <div className="flex items-center justify-center h-20 text-xs text-muted-foreground">
+                        Aucune classe disponible
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-semibold truncate">{c.name}</p>
-                        <p className="text-[10px] text-muted-foreground truncate">{roleLabel(c.role, c.adminSubRole)}</p>
-                      </div>
-                    </button>
-                  ))}
-                </div>
+                    ) : (classesList as any[]).map((cls: any) => (
+                      <button
+                        key={cls.id}
+                        onClick={() => handleSelectClass(cls)}
+                        className={`w-full text-left px-3 py-2.5 flex gap-2.5 items-center hover:bg-muted/50 transition-colors border-b border-border/40 ${selectedClassId === cls.id ? "bg-primary/5" : ""}`}
+                      >
+                        <div className="w-7 h-7 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0 text-emerald-700">
+                          <Users className="w-3.5 h-3.5" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-semibold truncate">{cls.name}</p>
+                          <p className="text-[10px] text-muted-foreground">{cls.studentCount} étudiant{cls.studentCount !== 1 ? "s" : ""}</p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             ) : (
               <div className="flex-1 overflow-y-auto">
@@ -362,9 +490,87 @@ export default function SharedMessages({ allowedRoles }: { allowedRoles: string[
             )}
           </div>
 
-          {/* Right: thread */}
+          {/* Right: thread or broadcast */}
           <div className="flex-1 flex flex-col min-w-0">
-            {!selectedUserId ? (
+            {/* Broadcast panel */}
+            {selectedClassId && !selectedUserId ? (
+              <>
+                <div className="px-4 py-3 border-b border-border flex items-center gap-3 flex-shrink-0">
+                  <div className="w-9 h-9 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700">
+                    <Users className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-sm">{selectedClass?.name}</p>
+                    <p className="text-xs text-muted-foreground">{selectedClass?.studentCount} étudiant{selectedClass?.studentCount !== 1 ? "s" : ""} — diffusion</p>
+                  </div>
+                </div>
+
+                <div className="flex-1 flex flex-col items-center justify-center px-6 gap-6">
+                  {broadcastDone ? (
+                    <div className="flex flex-col items-center gap-3 text-center">
+                      <CheckCircle2 className="w-12 h-12 text-emerald-500" />
+                      <p className="font-semibold text-foreground">Message envoyé !</p>
+                      <p className="text-sm text-muted-foreground">Votre message a été transmis à <strong>{broadcastDone.count}</strong> étudiant{broadcastDone.count !== 1 ? "s" : ""} de la classe <strong>{selectedClass?.name}</strong>.</p>
+                      <button
+                        onClick={() => { setBroadcastDone(null); setBroadcastText(""); setBroadcastFile(null); }}
+                        className="text-sm text-primary hover:underline font-medium mt-1"
+                      >
+                        Envoyer un autre message
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="w-full max-w-lg space-y-4">
+                      <div className="rounded-xl bg-emerald-50 border border-emerald-200 px-4 py-3 text-sm text-emerald-800">
+                        Ce message sera envoyé à <strong>tous les étudiants</strong> de la classe <strong>{selectedClass?.name}</strong> et ils recevront une notification.
+                      </div>
+
+                      <textarea
+                        placeholder="Rédigez votre message…"
+                        value={broadcastText}
+                        onChange={e => setBroadcastText(e.target.value)}
+                        rows={4}
+                        className="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-primary resize-none placeholder:text-muted-foreground"
+                      />
+
+                      {/* File attachment */}
+                      <input ref={broadcastFileRef} type="file" className="hidden" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx" onChange={handleBroadcastFileSelect} />
+                      {broadcastFile ? (
+                        <div className="flex items-center gap-2 bg-muted/60 rounded-xl px-3 py-2 border border-border">
+                          <FileIcon type={broadcastFile.type} className="w-4 h-4" />
+                          <span className="text-sm font-medium flex-1 truncate">{broadcastFile.name}</span>
+                          <span className="text-xs text-muted-foreground">{formatSize(broadcastFile.size)}</span>
+                          <button onClick={() => setBroadcastFile(null)} className="text-muted-foreground hover:text-foreground ml-1">
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => broadcastFileRef.current?.click()}
+                          className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors"
+                        >
+                          <Paperclip className="w-4 h-4" />
+                          Joindre un document (PDF, Word, Excel, PowerPoint)
+                        </button>
+                      )}
+
+                      <button
+                        onClick={handleBroadcast}
+                        disabled={broadcastSending || broadcastUploading || (!broadcastText.trim() && !broadcastFile)}
+                        className="w-full flex items-center justify-center gap-2 rounded-xl bg-primary text-primary-foreground font-semibold py-2.5 text-sm hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      >
+                        {broadcastSending || broadcastUploading ? (
+                          <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                        ) : (
+                          <Send className="w-4 h-4" />
+                        )}
+                        {broadcastUploading ? "Envoi du fichier…" : broadcastSending ? "Envoi en cours…" : `Envoyer à ${selectedClass?.studentCount ?? "tous les"} étudiant${(selectedClass?.studentCount ?? 0) !== 1 ? "s" : ""}`}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </>
+            ) : !selectedUserId ? (
               <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground gap-3">
                 <MessageSquare className="w-12 h-12 opacity-15" />
                 <p className="text-sm">Sélectionnez une conversation.</p>
