@@ -1701,6 +1701,51 @@ router.get("/bulletin/:studentId/:semesterId", requireRole("admin"), async (req,
   }
 });
 
+// ─── Bulletin JSON (for frontend PDF generation) ──────────────────────────────
+router.get("/bulletin-json/:studentId/:semesterId", requireRole("admin"), async (req, res) => {
+  try {
+    const cu = req.session.user!;
+    if (cu.adminSubRole !== "scolarite" && cu.adminSubRole !== "directeur") {
+      res.status(403).json({ error: "Réservé à la Scolarité et au Directeur." }); return;
+    }
+    const studentId = parseInt(req.params.studentId);
+    const semesterId = parseInt(req.params.semesterId);
+    const result = await computeStudentResult(studentId, semesterId);
+    if (!result) { res.status(404).json({ error: "Étudiant ou semestre introuvable." }); return; }
+    const [semester] = await db.select().from(semestersTable).where(eq(semestersTable.id, semesterId)).limit(1);
+    const uesWithCategory = result.classId
+      ? await db.select().from(teachingUnitsTable).where(and(eq(teachingUnitsTable.classId, result.classId), eq(teachingUnitsTable.semesterId, semesterId)))
+      : [];
+    const ueCategMap = new Map(uesWithCategory.map(u => [u.id, u.category]));
+    const ueResults = result.ueResults.map((ue: any) => ({ ...ue, category: ueCategMap.get(ue.ueId) ?? null }));
+    let rank: number | null = null;
+    let totalStudents: number | null = null;
+    if (result.classId && result.average !== null) {
+      const classStudents = await db.select({ studentId: classEnrollmentsTable.studentId }).from(classEnrollmentsTable).where(eq(classEnrollmentsTable.classId, result.classId));
+      const sids = classStudents.map((s: any) => s.studentId);
+      if (sids.length > 1) {
+        const allGrades = await db.select({ studentId: gradesTable.studentId, value: gradesTable.value, coefficient: subjectsTable.coefficient }).from(gradesTable).innerJoin(subjectsTable, eq(subjectsTable.id, gradesTable.subjectId)).where(and(inArray(gradesTable.studentId, sids), eq(gradesTable.semesterId, semesterId)));
+        const sums = new Map<number, { sum: number; coef: number }>();
+        for (const g of allGrades) { const e = sums.get(g.studentId) ?? { sum: 0, coef: 0 }; e.sum += (g.value ?? 0) * g.coefficient; e.coef += g.coefficient; sums.set(g.studentId, e); }
+        const avgs = [...sums.entries()].filter(([, e]) => e.coef > 0).map(([id, e]) => ({ id, avg: e.sum / e.coef })).sort((a, b) => b.avg - a.avg);
+        totalStudents = avgs.length; const pos = avgs.findIndex(a => a.id === studentId); rank = pos >= 0 ? pos + 1 : null;
+      } else { rank = 1; totalStudents = 1; }
+    }
+    const averageBrute = result.average !== null ? Math.round((result.average + result.absenceDeduction) * 100) / 100 : null;
+    const [clsRow] = result.classId ? await db.select({ filiere: classesTable.filiere }).from(classesTable).where(eq(classesTable.id, result.classId)).limit(1) : [];
+    const filiere = clsRow?.filiere ?? result.className ?? "";
+    const [sp] = await db.select({ matricule: studentProfilesTable.matricule, dateNaissance: studentProfilesTable.dateNaissance, lieuNaissance: studentProfilesTable.lieuNaissance, sexe: studentProfilesTable.sexe }).from(studentProfilesTable).where(eq(studentProfilesTable.studentId, studentId)).limit(1);
+    const studentMatricule = sp?.matricule?.trim() || String(studentId).padStart(6, "0");
+    const host = (req.headers["x-forwarded-host"] as string) || req.get("host") || "cpecdigital.replit.app";
+    const protocol = (req.headers["x-forwarded-proto"] as string) || req.protocol;
+    const verifyBaseUrl = process.env.PUBLIC_BASE_URL ?? `${protocol}://${host}`;
+    const bulletinToken = crypto.randomBytes(32).toString("hex");
+    await db.update(bulletinTokensTable).set({ invalidatedAt: new Date() }).where(and(eq(bulletinTokensTable.studentId, studentId), eq(bulletinTokensTable.semesterId, semesterId), isNull(bulletinTokensTable.invalidatedAt)));
+    await db.insert(bulletinTokensTable).values({ token: bulletinToken, studentId, semesterId, snapshot: { studentName: result.studentName, matricule: studentMatricule, className: result.className, filiere, academicYear: semester?.academicYear ?? "", semesterName: result.semesterName, average: averageBrute, averageNette: result.average, decision: result.decision } });
+    res.json({ studentName: result.studentName, studentMatricule, dateNaissance: sp?.dateNaissance ?? null, lieuNaissance: sp?.lieuNaissance ?? null, sexe: sp?.sexe ?? null, filiere, className: result.className, semesterName: result.semesterName, academicYear: semester?.academicYear ?? "", average: averageBrute, averageNette: result.average, decision: result.decision, rank, totalStudents, absenceDeductionHours: result.absenceDeductionHours, absenceDeduction: result.absenceDeduction, ueResults, unassignedSubjects: result.grades.filter((g: any) => !g.ueId || !ueResults.find((u: any) => u.ueId === g.ueId)), verifyUrl: `${verifyBaseUrl}/verify/bulletin/${bulletinToken}` });
+  } catch (err) { console.error(err); res.status(500).json({ error: "Internal Server Error" }); }
+});
+
 // ─── Teacher Assignments ──────────────────────────────────────────────────────
 router.get("/assignments", requireRole("admin"), async (req, res) => {
   try {

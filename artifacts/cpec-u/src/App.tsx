@@ -59,6 +59,7 @@ import AdminCards from "@/pages/admin/cards";
 import AdminEvaluations from "@/pages/admin/evaluations";
 import StudentEvaluations from "@/pages/student/evaluations";
 import TeacherEvaluations from "@/pages/teacher/evaluations";
+import AdminDocuments from "@/pages/admin/documents";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -143,6 +144,7 @@ function Router() {
 
       <Route path="/admin/cards" component={AdminCards} />
       <Route path="/admin/evaluations" component={AdminEvaluations} />
+      <Route path="/admin/documents" component={AdminDocuments} />
       <Route path="/student/evaluations" component={StudentEvaluations} />
       <Route path="/teacher/evaluations" component={TeacherEvaluations} />
 

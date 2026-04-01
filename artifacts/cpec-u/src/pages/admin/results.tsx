@@ -20,7 +20,8 @@ import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
-import { Download, Search, CheckCircle, Lock, Unlock, FileEdit, Globe, GlobeLock, Users, GraduationCap, ChevronDown, ChevronUp, AlertTriangle, XCircle, Eye, Send } from "lucide-react";
+import { Download, Search, CheckCircle, Lock, Unlock, FileEdit, Globe, GlobeLock, Users, GraduationCap, ChevronDown, ChevronUp, AlertTriangle, XCircle, Eye, Send, RefreshCw } from "lucide-react";
+import { downloadBulletinPdf, downloadResultatsClassePdf } from "@/lib/pdf-engine/documents";
 
 export default function AdminResults() {
   const { toast } = useToast();
@@ -183,13 +184,32 @@ export default function AdminResults() {
     }
   };
 
-  const handleDownloadPDF = (studentId: number, semesterId: number, _studentName: string) => {
-    window.open(`/api/admin/bulletin/${studentId}/${semesterId}`, "_blank", "noopener");
+  const [pdfLoadingId, setPdfLoadingId] = useState<string | null>(null);
+
+  const handleDownloadPDF = async (studentId: number, semesterId: number, _studentName: string) => {
+    const key = `bulletin-${studentId}-${semesterId}`;
+    setPdfLoadingId(key);
+    try {
+      await downloadBulletinPdf(studentId, semesterId);
+    } catch (e: any) {
+      toast({ title: "Erreur PDF", description: e.message, variant: "destructive" });
+    } finally {
+      setPdfLoadingId(null);
+    }
   };
 
-  const handleDownloadClassPDF = () => {
+  const handleDownloadClassPDF = async () => {
     if (!selectedSemester || selectedClass === "all") return;
-    window.open(`/api/admin/bulletin/class/${selectedClass}/${selectedSemester}`, "_blank", "noopener");
+    const cls = (classes as any[])?.find((c: any) => c.id === parseInt(selectedClass));
+    const sem = (semesters as any[])?.find((s: any) => s.id === parseInt(selectedSemester));
+    setPdfLoadingId("class-results");
+    try {
+      await downloadResultatsClassePdf(parseInt(selectedSemester), sem?.name ?? "Semestre", parseInt(selectedClass), cls?.name ?? "Classe");
+    } catch (e: any) {
+      toast({ title: "Erreur PDF", description: e.message, variant: "destructive" });
+    } finally {
+      setPdfLoadingId(null);
+    }
   };
 
   const handleExportCSV = () => {
@@ -407,9 +427,10 @@ export default function AdminResults() {
                             size="sm"
                             className="gap-2 text-primary border-primary/40 hover:bg-primary/5"
                             onClick={handleDownloadClassPDF}
+                            disabled={pdfLoadingId === "class-results"}
                           >
-                            <Download className="w-4 h-4" />
-                            Bulletins PDF classe
+                            {pdfLoadingId === "class-results" ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                            Résultats PDF classe
                           </Button>
                         )}
                         <Button
@@ -508,8 +529,9 @@ export default function AdminResults() {
                               variant="outline" size="sm"
                               className="border-primary text-primary hover:bg-primary hover:text-white transition-colors"
                               onClick={() => handleDownloadPDF(res.studentId, res.semesterId, res.studentName)}
+                              disabled={pdfLoadingId === `bulletin-${res.studentId}-${res.semesterId}`}
                             >
-                              <Download className="w-4 h-4 mr-2" />PDF
+                              {pdfLoadingId === `bulletin-${res.studentId}-${res.semesterId}` ? <RefreshCw className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}PDF
                             </Button>
                           ) : (
                             <span className="text-xs text-muted-foreground italic">Réservé Scolarité</span>

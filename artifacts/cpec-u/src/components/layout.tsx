@@ -205,6 +205,7 @@ export function AppLayout({ children, allowedRoles, noScroll = false }: AppLayou
     { name: "Cartes Étudiantes", href: "/admin/cards", icon: CreditCard },
     { name: "Évaluations Enseignants", href: "/admin/evaluations", icon: Star },
     { name: "Rapports & Statistiques", href: "/admin/reports", icon: BarChart2 },
+    { name: "Centre de Documents", href: "/admin/documents", icon: FileText },
     { name: "Messages", href: "/admin/messages", icon: MessageSquare, badge: unreadMsgCount > 0 ? unreadMsgCount : undefined },
   ];
 
@@ -246,6 +247,7 @@ export function AppLayout({ children, allowedRoles, noScroll = false }: AppLayou
     { name: "Cartes Étudiantes", href: "/admin/cards", icon: CreditCard },
     { name: "Évaluations Enseignants", href: "/admin/evaluations", icon: Star },
     { name: "Rapports & Statistiques", href: "/admin/reports", icon: BarChart2 },
+    { name: "Centre de Documents", href: "/admin/documents", icon: FileText },
     { name: "Messages", href: "/admin/messages", icon: MessageSquare, badge: unreadMsgCount > 0 ? unreadMsgCount : undefined },
     { name: "Changer mon mot de passe", href: "/change-password", icon: KeyRound, badge: null },
   ];

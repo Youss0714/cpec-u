@@ -8,8 +8,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
-import { BarChart3, XCircle, Clock, AlertTriangle, Download, Bell } from "lucide-react";
+import { BarChart3, XCircle, Clock, AlertTriangle, Download, Bell, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { downloadBilanAbsencesPdf } from "@/lib/pdf-engine/documents";
 
 async function apiFetch(path: string) {
   const res = await fetch(`/api${path}`, { credentials: "include" });
@@ -90,6 +91,26 @@ export default function AttendanceSummary() {
   const totalAbsences = rows.reduce((s: number, r: any) => s + r.absenceCount, 0);
   const totalLates = rows.reduce((s: number, r: any) => s + r.lateCount, 0);
   const totalMinutes = rows.reduce((s: number, r: any) => s + r.totalMinutes, 0);
+
+  const [pdfLoading, setPdfLoading] = useState(false);
+
+  const handleDownloadBilanPdf = async () => {
+    if (!semesterId) return;
+    setPdfLoading(true);
+    try {
+      const cls = classId !== "all" ? (classes as any[]).find((c: any) => c.id.toString() === classId) : undefined;
+      await downloadBilanAbsencesPdf(
+        parseInt(semesterId),
+        selectedSemester?.name ?? "Semestre",
+        cls ? parseInt(classId) : undefined,
+        cls?.name,
+      );
+    } catch (e: any) {
+      toast({ title: "Erreur PDF", description: e.message, variant: "destructive" });
+    } finally {
+      setPdfLoading(false);
+    }
+  };
 
   const handleExportCSV = () => {
     if (!rows.length) return;
@@ -225,6 +246,16 @@ export default function AttendanceSummary() {
                   >
                     <Download className="w-4 h-4" />
                     Exporter CSV
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-2"
+                    disabled={pdfLoading}
+                    onClick={handleDownloadBilanPdf}
+                  >
+                    {pdfLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                    PDF
                   </Button>
                 </div>
               )}

@@ -14,8 +14,9 @@ import { ConfirmDialog } from "@/components/confirm-dialog";
 import { motion } from "framer-motion";
 import {
   Wallet, TrendingUp, AlertCircle, CheckCircle, Users,
-  Plus, Trash2, Pencil, ChevronRight, Download,
+  Plus, Trash2, Pencil, ChevronRight, Download, RefreshCw,
 } from "lucide-react";
+import { downloadHonorairesRecapPdf, downloadFicheHonorairesPdf } from "@/lib/pdf-engine/documents";
 
 async function apiFetch(path: string, opts?: RequestInit) {
   const res = await fetch(`/api${path}`, { credentials: "include", ...opts });
@@ -56,6 +57,30 @@ export default function HonorairesPage() {
   const [payForm, setPayForm] = useState({ amount: "", description: "", paymentDate: "" });
 
   const [pendingDeletePayment, setPendingDeletePayment] = useState<number | null>(null);
+  const [recapPdfLoading, setRecapPdfLoading] = useState(false);
+  const [fichePdfLoading, setFichePdfLoading] = useState(false);
+
+  const handleDownloadRecapPdf = async () => {
+    setRecapPdfLoading(true);
+    try {
+      await downloadHonorairesRecapPdf();
+    } catch (e: any) {
+      toast({ title: "Erreur PDF", description: e.message, variant: "destructive" });
+    } finally {
+      setRecapPdfLoading(false);
+    }
+  };
+
+  const handleDownloadFichePdf = async (teacher: any) => {
+    setFichePdfLoading(true);
+    try {
+      await downloadFicheHonorairesPdf(teacher.id, teacher.name);
+    } catch (e: any) {
+      toast({ title: "Erreur PDF", description: e.message, variant: "destructive" });
+    } finally {
+      setFichePdfLoading(false);
+    }
+  };
 
   const setFeeMutation = useMutation({
     mutationFn: (data: any) => apiFetch(`/honoraires/fees/${feeDialog!.id}`, {
@@ -144,6 +169,10 @@ export default function HonorairesPage() {
             <h1 className="text-3xl font-serif font-bold text-foreground">Gestion des Honoraires</h1>
             <p className="text-muted-foreground mt-1">Suivez les rémunérations des enseignants et les paiements effectués.</p>
           </div>
+          <Button variant="outline" size="sm" className="gap-2 shrink-0 mt-1" disabled={recapPdfLoading} onClick={handleDownloadRecapPdf}>
+            {recapPdfLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+            Récapitulatif PDF
+          </Button>
         </div>
 
         {/* Stats cards */}
@@ -284,6 +313,16 @@ export default function HonorairesPage() {
                   <p className="text-sm text-muted-foreground">{selectedTeacher.name}</p>
                 </div>
                 <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5"
+                    disabled={fichePdfLoading}
+                    onClick={() => handleDownloadFichePdf(selectedTeacher)}
+                  >
+                    {fichePdfLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                    Fiche PDF
+                  </Button>
                   <Button
                     size="sm"
                     className="gap-1.5"

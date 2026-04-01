@@ -25,6 +25,7 @@ import {
   Gavel, CheckCircle, XCircle, AlertTriangle, Lock, Plus, FileText,
   Download, RefreshCw, ChevronDown, ChevronUp, Clock, Users,
 } from "lucide-react";
+import { downloadPvJuryPdf } from "@/lib/pdf-engine/documents";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 
@@ -148,19 +149,21 @@ export default function JurySpecial() {
     }
   };
 
+  const [pvLoading, setPvLoading] = useState(false);
+
   const handleGeneratePV = async () => {
     if (!currentSessionId) return;
+    setPvLoading(true);
     try {
-      const resp = await fetch(`/api/admin/jury-special/sessions/${currentSessionId}/pv`, { credentials: "include" });
-      if (!resp.ok) throw new Error("Erreur lors de la génération du PV.");
-      const data = await resp.json();
-      generatePVPrint(data);
+      await downloadPvJuryPdf(currentSessionId);
     } catch (e: any) {
       toast({ title: "Erreur PV", description: e.message, variant: "destructive" });
+    } finally {
+      setPvLoading(false);
     }
   };
 
-  const generatePVPrint = (data: any) => {
+  const generatePVPrint_UNUSED = (data: any) => {
     const decisionLabel = (d: string) => DECISION_LABELS[d] ?? d;
     const rows = data.decisions.map((d: any) => `
       <tr>
@@ -303,8 +306,8 @@ export default function JurySpecial() {
                 )}
               </div>
               <div className="flex gap-2">
-                <Button variant="outline" size="sm" className="gap-2" onClick={handleGeneratePV}>
-                  <Download className="h-4 w-4" />
+                <Button variant="outline" size="sm" className="gap-2" onClick={handleGeneratePV} disabled={pvLoading}>
+                  {pvLoading ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
                   PV PDF
                 </Button>
                 {isSessionActive && (
