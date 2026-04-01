@@ -2893,27 +2893,30 @@ router.post("/retake-sessions/:id/validate", requireRole("admin"), async (req, r
 // RAPPORTS & STATISTIQUES
 // ═══════════════════════════════════════════════════════════════════════════════
 
+// Helper: get rows from db.execute result (returns pg QueryResult with .rows array)
+function firstRow(result: any): any { return (result as any).rows?.[0] ?? {}; }
+function allRows(result: any): any[] { return (result as any).rows ?? []; }
+
 // GET /admin/reports/overview — KPIs globaux de l'établissement
 router.get("/reports/overview", requireRole("admin"), async (req, res) => {
   try {
     const { semesterId, classId, academicYear } = req.query;
 
     // Effectifs
-    const [counts] = await db.execute(sql`
+    const counts = firstRow(await db.execute(sql`
       SELECT
         (SELECT COUNT(*) FROM users WHERE role = 'student')::int AS total_students,
         (SELECT COUNT(*) FROM users WHERE role = 'teacher')::int AS total_teachers,
         (SELECT COUNT(*) FROM users WHERE role = 'admin')::int  AS total_admins,
         (SELECT COUNT(*) FROM housing_assignments WHERE status = 'active')::int AS housing_students
-    `);
+    `));
 
-    // Taux de réussite global (moyenne des étudiants >= 10)
+    // Taux de réussite global
     const semFilter = semesterId ? sql`AND g.semester_id = ${parseInt(semesterId as string)}` : sql``;
     const classFilter = classId ? sql`AND ce.class_id = ${parseInt(classId as string)}` : sql``;
-    const [successData] = await db.execute(sql`
+    const successData = firstRow(await db.execute(sql`
       WITH student_avg AS (
-        SELECT g.student_id,
-               AVG(g.value) as avg_grade
+        SELECT g.student_id, AVG(g.value) as avg_grade
         FROM grades g
         JOIN class_enrollments ce ON ce.student_id = g.student_id
         WHERE 1=1 ${semFilter} ${classFilter}
@@ -2924,30 +2927,30 @@ router.get("/reports/overview", requireRole("admin"), async (req, res) => {
         SUM(CASE WHEN avg_grade >= 10 THEN 1 ELSE 0 END)::int AS passed,
         ROUND(AVG(avg_grade)::numeric, 2) AS avg_grade
       FROM student_avg
-    `);
+    `));
 
     // Taux de présence global
-    const attendanceFilter = classId ? sql`WHERE class_id = ${parseInt(classId as string)}` : sql`WHERE 1=1`;
-    const [presenceData] = await db.execute(sql`
+    const presenceWhere = classId ? sql`WHERE class_id = ${parseInt(classId as string)}` : sql`WHERE 1=1`;
+    const presenceData = firstRow(await db.execute(sql`
       SELECT
         COUNT(*)::int AS total,
         SUM(CASE WHEN status = 'present' THEN 1 ELSE 0 END)::int AS present
-      FROM attendance ${attendanceFilter}
-    `);
+      FROM attendance ${presenceWhere}
+    `));
 
     // Taux de recouvrement financier
-    const yearFilter = academicYear
+    const yearWhere = academicYear
       ? sql`WHERE academic_year = ${academicYear as string}`
       : sql`WHERE 1=1`;
-    const [financialData] = await db.execute(sql`
+    const financialData = firstRow(await db.execute(sql`
       SELECT
         COALESCE(SUM(sf.total_amount), 0)::numeric AS total_due,
         COALESCE((SELECT SUM(amount) FROM payments), 0)::numeric AS total_paid
-      FROM student_fees sf ${yearFilter}
-    `);
+      FROM student_fees sf ${yearWhere}
+    `));
 
     // KPIs par classe
-    const kpisByClass = await db.execute(sql`
+    const kpisByClass = allRows(await db.execute(sql`
       SELECT
         c.id   AS class_id,
         c.name AS class_name,
@@ -2963,27 +2966,27 @@ router.get("/reports/overview", requireRole("admin"), async (req, res) => {
       LEFT JOIN attendance a ON a.class_id = c.id
       GROUP BY c.id, c.name
       ORDER BY c.name
-    `);
+    `));
 
-    const total = Number((successData as any).total ?? 0);
-    const passed = Number((successData as any).passed ?? 0);
-    const presenceTotal = Number((presenceData as any).total ?? 0);
-    const presencePresent = Number((presenceData as any).present ?? 0);
-    const totalDue = Number((financialData as any).total_due ?? 0);
-    const totalPaid = Number((financialData as any).total_paid ?? 0);
+    const total = Number(successData.total ?? 0);
+    const passed = Number(successData.passed ?? 0);
+    const presenceTotal = Number(presenceData.total ?? 0);
+    const presencePresent = Number(presenceData.present ?? 0);
+    const totalDue = Number(financialData.total_due ?? 0);
+    const totalPaid = Number(financialData.total_paid ?? 0);
 
     res.json({
-      totalStudents: Number((counts as any).total_students ?? 0),
-      totalTeachers: Number((counts as any).total_teachers ?? 0),
-      totalAdmins: Number((counts as any).total_admins ?? 0),
-      housingStudents: Number((counts as any).housing_students ?? 0),
+      totalStudents: Number(counts.total_students ?? 0),
+      totalTeachers: Number(counts.total_teachers ?? 0),
+      totalAdmins: Number(counts.total_admins ?? 0),
+      housingStudents: Number(counts.housing_students ?? 0),
       successRate: total > 0 ? Math.round((passed / total) * 1000) / 10 : 0,
-      avgGrade: Number((successData as any).avg_grade ?? 0),
+      avgGrade: Number(successData.avg_grade ?? 0),
       presenceRate: presenceTotal > 0 ? Math.round((presencePresent / presenceTotal) * 1000) / 10 : 0,
       totalDue,
       totalPaid,
       recoveryRate: totalDue > 0 ? Math.round((totalPaid / totalDue) * 1000) / 10 : 0,
-      kpisByClass: Array.from(kpisByClass as any[]),
+      kpisByClass,
     });
   } catch (err) {
     console.error(err);
@@ -3103,8 +3106,8 @@ router.get("/reports/results", requireRole("admin"), async (req, res) => {
       WHERE rg.value IS NOT NULL
     `);
 
-    const m = mentions as any;
-    const rs = retakeStats as any;
+    const m = firstRow(mentions);
+    const rs = firstRow(retakeStats);
     res.json({
       mentions: {
         tresBien: Number(m.tres_bien ?? 0),
@@ -3115,22 +3118,22 @@ router.get("/reports/results", requireRole("admin"), async (req, res) => {
         total: Number(m.total ?? 0),
       },
       avgGrade: Number(m.avg_grade ?? 0),
-      byClass: Array.from(byClass as any[]).map(r => ({
+      byClass: allRows(byClass).map((r: any) => ({
         classId: r.class_id, className: r.class_name,
         total: Number(r.total), passed: Number(r.passed),
         avgGrade: Number(r.avg_grade ?? 0),
         successRate: Number(r.success_rate ?? 0),
       })),
-      bySubject: Array.from(bySubject as any[]).map(r => ({
+      bySubject: allRows(bySubject).map((r: any) => ({
         subjectId: r.subject_id, subjectName: r.subject_name,
         coefficient: r.coefficient, total: Number(r.total), passed: Number(r.passed),
         avgGrade: Number(r.avg_grade ?? 0),
         successRate: Number(r.success_rate ?? 0),
       })),
-      topStudents: Array.from(topStudents as any[]).map(r => ({
+      topStudents: allRows(topStudents).map((r: any) => ({
         name: r.name, className: r.class_name, avgGrade: Number(r.avg_grade),
       })),
-      bottomStudents: Array.from(bottomStudents as any[]).map(r => ({
+      bottomStudents: allRows(bottomStudents).map((r: any) => ({
         name: r.name, className: r.class_name, avgGrade: Number(r.avg_grade),
       })),
       retakeStats: {
@@ -3153,7 +3156,7 @@ router.get("/reports/absences", requireRole("admin"), async (req, res) => {
     const classCond = classId ? sql`AND a.class_id = ${parseInt(classId as string)}` : sql``;
 
     // Taux de présence global
-    const [globalRate] = await db.execute(sql`
+    const globalRate = firstRow(await db.execute(sql`
       SELECT
         COUNT(*)::int AS total,
         SUM(CASE WHEN status = 'present' THEN 1 ELSE 0 END)::int AS present,
@@ -3161,7 +3164,7 @@ router.get("/reports/absences", requireRole("admin"), async (req, res) => {
         SUM(CASE WHEN status = 'absent' AND (justified IS NULL OR justified = false) THEN 1 ELSE 0 END)::int AS unjustified
       FROM attendance a
       WHERE 1=1 ${semCond} ${classCond}
-    `);
+    `));
 
     // Taux de présence par classe
     const byClass = await db.execute(sql`
@@ -3224,7 +3227,7 @@ router.get("/reports/absences", requireRole("admin"), async (req, res) => {
       ORDER BY week_start ASC
     `);
 
-    const g = globalRate as any;
+    const g = globalRate;
     const gTotal = Number(g.total ?? 0);
     res.json({
       globalRate: {
@@ -3234,21 +3237,21 @@ router.get("/reports/absences", requireRole("admin"), async (req, res) => {
         unjustified: Number(g.unjustified ?? 0),
         presenceRate: gTotal > 0 ? Math.round(Number(g.present ?? 0) / gTotal * 1000) / 10 : 0,
       },
-      byClass: Array.from(byClass as any[]).map(r => ({
+      byClass: allRows(byClass).map((r: any) => ({
         classId: r.class_id, className: r.class_name,
         total: Number(r.total), present: Number(r.present),
         presenceRate: Number(r.presence_rate ?? 0),
       })),
-      bySubject: Array.from(bySubject as any[]).map(r => ({
+      bySubject: allRows(bySubject).map((r: any) => ({
         subjectId: r.subject_id, subjectName: r.subject_name,
         total: Number(r.total), absences: Number(r.absences),
         absenceRate: Number(r.absence_rate ?? 0),
       })),
-      aboveThreshold: Array.from(aboveThreshold as any[]).map(r => ({
+      aboveThreshold: allRows(aboveThreshold).map((r: any) => ({
         studentName: r.student_name, className: r.class_name,
         absenceCount: Number(r.absence_count),
       })),
-      weeklyEvolution: Array.from(weeklyEvolution as any[]).map(r => ({
+      weeklyEvolution: allRows(weeklyEvolution).map((r: any) => ({
         weekStart: r.week_start,
         total: Number(r.total), present: Number(r.present), absent: Number(r.absent),
         presenceRate: Number(r.total) > 0 ? Math.round(Number(r.present) / Number(r.total) * 1000) / 10 : 0,
@@ -3265,29 +3268,24 @@ router.get("/reports/financial", requireRole("admin"), async (req, res) => {
   try {
     const { academicYear } = req.query;
     const yearCond = academicYear ? sql`AND sf.academic_year = ${academicYear as string}` : sql``;
-    const yearCondFee = academicYear ? sql`AND cf.academic_year = ${academicYear as string}` : sql``;
 
     // Global
-    const [global] = await db.execute(sql`
+    const globalRow = firstRow(await db.execute(sql`
       SELECT
         COALESCE(SUM(sf.total_amount), 0)::numeric AS total_due,
-        COALESCE((
-          SELECT SUM(p.amount) FROM payments p
-          JOIN student_fees sf2 ON sf2.student_id = p.student_id
-          WHERE 1=1 ${yearCond.queryChunks?.length ? yearCond : sql``}
-        ), 0)::numeric AS total_paid
+        COALESCE((SELECT SUM(amount) FROM payments), 0)::numeric AS total_paid
       FROM student_fees sf
       WHERE 1=1 ${yearCond}
-    `);
+    `));
 
     // Par classe
-    const byClass = await db.execute(sql`
+    const byClass = allRows(await db.execute(sql`
       SELECT
         c.id AS class_id, c.name AS class_name,
         COUNT(DISTINCT ce.student_id)::int AS student_count,
         COALESCE(SUM(sf.total_amount), 0)::numeric AS total_due,
         COALESCE(SUM(p_agg.total_paid), 0)::numeric AS total_paid,
-        ROUND(100.0 * COALESCE(SUM(p_agg.total_paid), 0) / NULLIF(SUM(sf.total_amount), 0), 1) AS recovery_rate
+        ROUND((100.0 * COALESCE(SUM(p_agg.total_paid), 0) / NULLIF(SUM(sf.total_amount), 0))::numeric, 1) AS recovery_rate
       FROM classes c
       LEFT JOIN class_enrollments ce ON ce.class_id = c.id
       LEFT JOIN student_fees sf ON sf.student_id = ce.student_id ${yearCond}
@@ -3298,10 +3296,10 @@ router.get("/reports/financial", requireRole("admin"), async (req, res) => {
       ) p_agg ON p_agg.student_id = ce.student_id
       GROUP BY c.id, c.name
       ORDER BY c.name
-    `);
+    `));
 
     // Étudiants en situation d'impayé
-    const unpaidStudents = await db.execute(sql`
+    const unpaidStudents = allRows(await db.execute(sql`
       SELECT
         u.name AS student_name,
         c.name AS class_name,
@@ -3321,23 +3319,22 @@ router.get("/reports/financial", requireRole("admin"), async (req, res) => {
         AND (COALESCE(sf.total_amount, 0) - COALESCE(p_agg.total_paid, 0)) > 0
       ORDER BY balance DESC
       LIMIT 50
-    `);
+    `));
 
-    const g = global as any;
-    const totalDue = Number(g.total_due ?? 0);
-    const totalPaid = Number(g.total_paid ?? 0);
+    const totalDue = Number(globalRow.total_due ?? 0);
+    const totalPaid = Number(globalRow.total_paid ?? 0);
     res.json({
       totalDue,
       totalPaid,
       totalBalance: totalDue - totalPaid,
       recoveryRate: totalDue > 0 ? Math.round((totalPaid / totalDue) * 1000) / 10 : 0,
-      byClass: Array.from(byClass as any[]).map(r => ({
+      byClass: byClass.map(r => ({
         classId: r.class_id, className: r.class_name,
         studentCount: Number(r.student_count),
         totalDue: Number(r.total_due), totalPaid: Number(r.total_paid),
         recoveryRate: Number(r.recovery_rate ?? 0),
       })),
-      unpaidStudents: Array.from(unpaidStudents as any[]).map(r => ({
+      unpaidStudents: unpaidStudents.map(r => ({
         studentName: r.student_name, className: r.class_name,
         totalDue: Number(r.total_due), totalPaid: Number(r.total_paid),
         balance: Number(r.balance),
