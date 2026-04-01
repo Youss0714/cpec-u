@@ -69,6 +69,38 @@ async function computeHoursDone(assignmentId: number, ta: any) {
   return Math.round(totalHours * 10) / 10;
 }
 
+// GET /api/admin/teacher-assignments/by-teacher/:teacherId — assignments for one teacher
+router.get("/by-teacher/:teacherId", requireRole("admin"), async (req, res) => {
+  try {
+    const teacherId = parseInt(req.params.teacherId);
+    if (isNaN(teacherId)) {
+      return res.status(400).json({ error: "teacherId invalide" });
+    }
+    const rows = await db
+      .select({
+        id: teacherAssignmentsTable.id,
+        subjectId: teacherAssignmentsTable.subjectId,
+        subjectName: subjectsTable.name,
+        classId: teacherAssignmentsTable.classId,
+        className: classesTable.name,
+        semesterId: teacherAssignmentsTable.semesterId,
+        semesterName: semestersTable.name,
+        semesterPublished: semestersTable.published,
+        semesterStart: semestersTable.startDate,
+        semesterEnd: semestersTable.endDate,
+      })
+      .from(teacherAssignmentsTable)
+      .innerJoin(subjectsTable, eq(subjectsTable.id, teacherAssignmentsTable.subjectId))
+      .innerJoin(classesTable, eq(classesTable.id, teacherAssignmentsTable.classId))
+      .innerJoin(semestersTable, eq(semestersTable.id, teacherAssignmentsTable.semesterId))
+      .where(eq(teacherAssignmentsTable.teacherId, teacherId));
+    res.json({ assignments: rows });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
 router.get("/", requireRole("admin", "teacher"), async (req, res) => {
   try {
     const rows = await getEnriched();

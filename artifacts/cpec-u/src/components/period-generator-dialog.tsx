@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
@@ -102,10 +102,76 @@ export function PeriodGeneratorDialog({
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
 
+  // ── Cascade: teacher → subject/class/semester ─────────────────────────────
+  const [assignments, setAssignments] = useState<any[] | null>(null);
+  const [assignmentsLoading, setAssignmentsLoading] = useState(false);
+  const [noAssignments, setNoAssignments] = useState(false);
+  const prevTeacherIdsRef = useRef<string[]>([]);
+
+  useEffect(() => {
+    const prev = prevTeacherIdsRef.current;
+    prevTeacherIdsRef.current = form.teacherIds;
+
+    if (form.teacherIds.length === 0) {
+      setAssignments(null);
+      setNoAssignments(false);
+      setForm(f => ({ ...f, subjectId: "", classId: "", semesterId: defaultSemesterId ?? "" }));
+      return;
+    }
+
+    // Fetch when first teacher is selected, or when the single teacher changes
+    const shouldFetch =
+      (prev.length === 0 && form.teacherIds.length > 0) ||
+      (form.teacherIds.length === 1 && (prev.length !== 1 || prev[0] !== form.teacherIds[0]));
+
+    if (!shouldFetch) return;
+
+    const teacherId = form.teacherIds[0];
+    setAssignmentsLoading(true);
+    setNoAssignments(false);
+
+    fetch(`/api/admin/teacher-assignments/by-teacher/${teacherId}`, { credentials: "include" })
+      .then(r => r.json())
+      .then(data => {
+        const asgns: any[] = data.assignments ?? [];
+        if (asgns.length === 0) {
+          setNoAssignments(true);
+          setAssignments([]);
+          return;
+        }
+        setAssignments(asgns);
+
+        // Find active semester (current date within range, else published, else first)
+        const today = new Date();
+        const activeSemAsgn = asgns.find((a: any) => {
+          const start = a.semesterStart ? new Date(a.semesterStart) : null;
+          const end = a.semesterEnd ? new Date(a.semesterEnd) : null;
+          return start && end && today >= start && today <= end;
+        }) ?? asgns.find((a: any) => a.semesterPublished) ?? asgns[0];
+
+        const uniqueSubjectIds = [...new Set(asgns.map((a: any) => a.subjectId))];
+        const uniqueClassIds = [...new Set(asgns.map((a: any) => a.classId))];
+
+        setForm(f => {
+          const newForm = { ...f };
+          if (activeSemAsgn?.semesterId) newForm.semesterId = String(activeSemAsgn.semesterId);
+          if (uniqueSubjectIds.length === 1) newForm.subjectId = String(asgns[0].subjectId);
+          if (uniqueClassIds.length === 1) newForm.classId = String(asgns[0].classId);
+          return newForm;
+        });
+      })
+      .catch(() => {})
+      .finally(() => setAssignmentsLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.teacherIds]);
+
   function reset() {
     setStep(1);
     setForm({ ...emptyForm, semesterId: defaultSemesterId ?? "", classId: defaultClassId ?? "" });
     setSessions([]);
+    setAssignments(null);
+    setNoAssignments(false);
+    prevTeacherIdsRef.current = [];
   }
 
   function handleClose(v: boolean) {
@@ -212,6 +278,26 @@ export function PeriodGeneratorDialog({
   const roomList = rooms as any[];
   const semesterList = semesters as any[];
 
+  // Filtered lists based on teacher assignments cascade
+  const availableSubjects = useMemo(() => {
+    if (!assignments || assignments.length === 0) return subjectList;
+    const seen = new Set<number>();
+    return assignments
+      .filter((a: any) => !seen.has(a.subjectId) && seen.add(a.subjectId))
+      .map((a: any) => ({ id: a.subjectId, name: a.subjectName }));
+  }, [assignments, subjectList]);
+
+  const availableClasses = useMemo(() => {
+    if (!assignments || assignments.length === 0) return classList;
+    const filtered = form.subjectId
+      ? assignments.filter((a: any) => String(a.subjectId) === form.subjectId)
+      : assignments;
+    const seen = new Set<number>();
+    return filtered
+      .filter((a: any) => !seen.has(a.classId) && seen.add(a.classId))
+      .map((a: any) => ({ id: a.classId, name: a.className }));
+  }, [assignments, classList, form.subjectId]);
+
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col p-0 gap-0">
@@ -277,20 +363,49 @@ export function PeriodGeneratorDialog({
               </div>
             </div>
 
+            {/* Avertissement : aucune affectation */}
+            {noAssignments && (
+              <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 text-xs">
+                <AlertTriangle className="w-4 h-4 shrink-0 text-amber-500" />
+                <span>Cet enseignant n'a aucune matière affectée. Les listes ne sont pas filtrées.</span>
+              </div>
+            )}
+
             {/* Matière / Classe / Salle */}
             <div className="grid grid-cols-3 gap-3">
               <div className="space-y-1.5">
-                <Label className="text-xs font-semibold">Matière <span className="text-red-500">*</span></Label>
-                <Select value={form.subjectId} onValueChange={(v) => setForm((f) => ({ ...f, subjectId: v }))}>
+                <Label className="text-xs font-semibold flex items-center gap-1.5">
+                  Matière <span className="text-red-500">*</span>
+                  {assignmentsLoading && <Loader2 className="w-3 h-3 animate-spin text-indigo-500" />}
+                  {assignments && assignments.length > 0 && <span className="text-[9px] font-medium text-indigo-500 bg-indigo-50 px-1 py-0.5 rounded">Filtré</span>}
+                </Label>
+                <Select
+                  value={form.subjectId}
+                  onValueChange={(v) => {
+                    // Reset class on subject change (cascade level 2)
+                    const newClasses = assignments
+                      ? [...new Set(assignments.filter((a: any) => String(a.subjectId) === v).map((a: any) => String(a.classId)))]
+                      : [];
+                    setForm(f => ({
+                      ...f,
+                      subjectId: v,
+                      classId: newClasses.length === 1 ? newClasses[0] : "",
+                    }));
+                  }}
+                >
                   <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Choisir..." /></SelectTrigger>
-                  <SelectContent>{subjectList.map((s: any) => <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>)}</SelectContent>
+                  <SelectContent>{availableSubjects.map((s: any) => <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs font-semibold">Classe <span className="text-red-500">*</span></Label>
+                <Label className="text-xs font-semibold flex items-center gap-1.5">
+                  Classe <span className="text-red-500">*</span>
+                  {assignmentsLoading && <Loader2 className="w-3 h-3 animate-spin text-indigo-500" />}
+                  {assignments && assignments.length > 0 && <span className="text-[9px] font-medium text-indigo-500 bg-indigo-50 px-1 py-0.5 rounded">Filtré</span>}
+                </Label>
                 <Select value={form.classId} onValueChange={(v) => setForm((f) => ({ ...f, classId: v }))}>
                   <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Choisir..." /></SelectTrigger>
-                  <SelectContent>{classList.map((c: any) => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}</SelectContent>
+                  <SelectContent>{availableClasses.map((c: any) => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <div className="space-y-1.5">
@@ -304,7 +419,10 @@ export function PeriodGeneratorDialog({
 
             {/* Semestre */}
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold">Semestre <span className="text-red-500">*</span></Label>
+              <Label className="text-xs font-semibold flex items-center gap-1.5">
+                Semestre <span className="text-red-500">*</span>
+                {assignments && assignments.length > 0 && <span className="text-[9px] font-medium text-indigo-500 bg-indigo-50 px-1 py-0.5 rounded">Auto-détecté</span>}
+              </Label>
               <Select value={form.semesterId} onValueChange={(v) => setForm((f) => ({ ...f, semesterId: v }))}>
                 <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Choisir..." /></SelectTrigger>
                 <SelectContent>{semesterList.map((s: any) => <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>)}</SelectContent>
