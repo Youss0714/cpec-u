@@ -728,6 +728,16 @@ export default function AdminUsers() {
     if (d.getFullYear() !== parseInt(m[3]) || d.getMonth() !== parseInt(m[2]) - 1 || d.getDate() !== parseInt(m[1])) return null;
     return d;
   }
+  function formatDateInput(raw: string): string {
+    const digits = raw.replace(/\D/g, "").slice(0, 8);
+    if (digits.length <= 2) return digits;
+    if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+    return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+  }
+  function isDateInvalidFE(s: string): boolean {
+    const d = parseFrenchDateFE(s);
+    return !d || d >= new Date();
+  }
   function isValidPhoneFE(s: string): boolean {
     return /^\+?[\d\s\(\)\-\.]{7,25}$/.test(s) && s.replace(/\D/g, "").length >= 7;
   }
@@ -1085,14 +1095,17 @@ export default function AdminUsers() {
                         <div className="space-y-1">
                           <Label className="text-sm">Date de naissance <span className="text-destructive">*</span></Label>
                           <Input
+                            type="text"
+                            inputMode="numeric"
                             value={createProfileForm.dateNaissance}
-                            onChange={e => setCreateProfileForm(f => ({ ...f, dateNaissance: e.target.value }))}
+                            onChange={e => setCreateProfileForm(f => ({ ...f, dateNaissance: formatDateInput(e.target.value) }))}
                             placeholder="JJ/MM/AAAA"
+                            maxLength={10}
                             className={!createProfileForm.dateNaissance.trim() ? "border-destructive/50 focus-visible:ring-destructive/30" : ""}
                           />
                           {!createProfileForm.dateNaissance.trim() && <p className="text-xs text-destructive mt-0.5">Requis</p>}
-                          {createProfileForm.dateNaissance.trim() && !parseFrenchDateFE(createProfileForm.dateNaissance.trim()) && (
-                            <p className="text-xs text-destructive mt-0.5">Format invalide (JJ/MM/AAAA)</p>
+                          {createProfileForm.dateNaissance.length === 10 && isDateInvalidFE(createProfileForm.dateNaissance) && (
+                            <p className="text-xs text-destructive mt-0.5">Veuillez saisir une date de naissance valide</p>
                           )}
                         </div>
                         <div className="space-y-1">
@@ -1451,7 +1464,17 @@ export default function AdminUsers() {
                       <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1">
                           <Label className="text-sm">Date de naissance</Label>
-                          <Input value={editProfileForm.dateNaissance} onChange={e => setEditProfileForm(f => ({ ...f, dateNaissance: e.target.value }))} placeholder="Ex: 25/10/2001" />
+                          <Input
+                            type="text"
+                            inputMode="numeric"
+                            value={editProfileForm.dateNaissance}
+                            onChange={e => setEditProfileForm(f => ({ ...f, dateNaissance: formatDateInput(e.target.value) }))}
+                            placeholder="JJ/MM/AAAA"
+                            maxLength={10}
+                          />
+                          {editProfileForm.dateNaissance.length === 10 && isDateInvalidFE(editProfileForm.dateNaissance) && (
+                            <p className="text-xs text-destructive mt-0.5">Veuillez saisir une date de naissance valide</p>
+                          )}
                         </div>
                         <div className="space-y-1">
                           <Label className="text-sm">Lieu de naissance</Label>
