@@ -36,6 +36,7 @@ import {
   specialJuryDecisionsTable,
   bulletinTokensTable,
   bulletinVerificationLogsTable,
+  parentStudentLinksTable,
 } from "@workspace/db";
 import { eq, and, sql, count, inArray, desc, ne, isNotNull, isNull, asc, ilike, or } from "drizzle-orm";
 import { requireRole } from "../lib/auth.js";
@@ -44,6 +45,18 @@ const router = Router();
 
 function hashPassword(password: string): string {
   return crypto.createHash("sha256").update(password + "cpec-u-salt").digest("hex");
+}
+
+async function notifyParentsOfResults(semesterName: string, academicYear: string): Promise<void> {
+  try {
+    const parents = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.role, "parent"));
+    const title = "Résultats disponibles";
+    const message = `Les résultats du semestre "${semesterName}" (${academicYear}) sont publiés. Connectez-vous à l'Espace Parents pour les consulter.`;
+    for (const parent of parents) {
+      await db.insert(notificationsTable).values({ userId: parent.id, type: "results_published", title, message, read: false });
+      sendPushToUser(parent.id, { title, body: message, type: "results_published" }).catch(() => {});
+    }
+  } catch (e) { console.error("notifyParentsOfResults:", e); }
 }
 
 async function applyClassFeeToStudent(studentId: number, classId: number) {
@@ -744,6 +757,8 @@ router.post("/semesters/:id/publish", requireRole("admin"), async (req, res) => 
         "Résultats disponibles",
         `Les résultats du semestre "${sem.name}" (${sem.academicYear}) sont désormais disponibles. Consultez votre espace étudiant.`
       ).catch(console.error);
+      // Notify parents
+      notifyParentsOfResults(sem.name, sem.academicYear).catch(console.error);
     }
     res.json(sem);
   } catch (err) {
@@ -3500,6 +3515,109 @@ router.get("/reports/financial", requireRole("admin"), async (req, res) => {
     console.error(err);
     res.status(500).json({ error: "Internal Server Error" });
   }
+});
+
+
+// ════════════════════════════════════════════════════════════════════════════
+// PARENT MANAGEMENT
+// ════════════════════════════════════════════════════════════════════════════
+
+// GET /admin/parents — list all parent accounts + their linked students
+router.get("/parents", requireRole("admin"), async (req, res) => {
+  try {
+    const parents = await db
+      .select({ id: usersTable.id, name: usersTable.name, email: usersTable.email, phone: usersTable.phone, createdAt: usersTable.createdAt })
+      .from(usersTable)
+      .where(eq(usersTable.role, "parent"))
+      .orderBy(usersTable.name);
+
+    const parentsWithStudents = await Promise.all(parents.map(async (p) => {
+      const links = await db
+        .select({ studentId: parentStudentLinksTable.studentId, studentName: usersTable.name, studentEmail: usersTable.email })
+        .from(parentStudentLinksTable)
+        .innerJoin(usersTable, eq(usersTable.id, parentStudentLinksTable.studentId))
+        .where(eq(parentStudentLinksTable.parentId, p.id));
+      return { ...p, students: links };
+    }));
+
+    res.json(parentsWithStudents);
+  } catch (err) { console.error(err); res.status(500).json({ error: "Internal Server Error" }); }
+});
+
+// POST /admin/parents — create a parent account
+router.post("/parents", requireRole("admin"), async (req, res) => {
+  try {
+    const cu = req.session.user!;
+    if (!["scolarite", "directeur"].includes(cu.adminSubRole ?? "")) {
+      res.status(403).json({ error: "Réservé à la Scolarité et au Directeur." }); return;
+    }
+    const { name, email, phone, password, studentIds } = req.body as { name: string; email: string; phone?: string; password: string; studentIds?: number[]; };
+    if (!name?.trim() || !email?.trim() || !password?.trim()) { res.status(400).json({ error: "Nom, email et mot de passe requis." }); return; }
+    const [existing] = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.email, email.trim().toLowerCase())).limit(1);
+    if (existing) { res.status(409).json({ error: "Un compte avec cet email existe déjà." }); return; }
+    const [newParent] = await db.insert(usersTable).values({ name: name.trim(), email: email.trim().toLowerCase(), passwordHash: hashPassword(password), role: "parent", phone: phone?.trim() ?? null, mustChangePassword: true }).returning();
+    if (studentIds?.length) {
+      for (const sid of studentIds) { await db.insert(parentStudentLinksTable).values({ parentId: newParent.id, studentId: sid }).onConflictDoNothing(); }
+    }
+    await db.insert(activityLogTable).values({ userId: cu.id, action: "parent_created", details: `Parent ${name} (${email}) créé.` });
+    res.status(201).json(newParent);
+  } catch (err) { console.error(err); res.status(500).json({ error: "Internal Server Error" }); }
+});
+
+// PUT /admin/parents/:id — update parent
+router.put("/parents/:id", requireRole("admin"), async (req, res) => {
+  try {
+    const cu = req.session.user!;
+    if (!["scolarite", "directeur"].includes(cu.adminSubRole ?? "")) { res.status(403).json({ error: "Réservé à la Scolarité et au Directeur." }); return; }
+    const id = parseInt(req.params.id);
+    const { name, phone } = req.body as { name?: string; phone?: string };
+    const updates: Record<string, any> = { updatedAt: new Date() };
+    if (name?.trim()) updates.name = name.trim();
+    if (phone !== undefined) updates.phone = phone?.trim() || null;
+    const [updated] = await db.update(usersTable).set(updates).where(and(eq(usersTable.id, id), eq(usersTable.role, "parent"))).returning();
+    if (!updated) { res.status(404).json({ error: "Parent introuvable." }); return; }
+    res.json(updated);
+  } catch (err) { console.error(err); res.status(500).json({ error: "Internal Server Error" }); }
+});
+
+// DELETE /admin/parents/:id — delete parent account
+router.delete("/parents/:id", requireRole("admin"), async (req, res) => {
+  try {
+    const cu = req.session.user!;
+    if (!["scolarite", "directeur"].includes(cu.adminSubRole ?? "")) { res.status(403).json({ error: "Réservé à la Scolarité et au Directeur." }); return; }
+    const id = parseInt(req.params.id);
+    await db.delete(usersTable).where(and(eq(usersTable.id, id), eq(usersTable.role, "parent")));
+    res.json({ ok: true });
+  } catch (err) { console.error(err); res.status(500).json({ error: "Internal Server Error" }); }
+});
+
+// POST /admin/parents/:id/students/:studentId — link parent ↔ student
+router.post("/parents/:id/students/:studentId", requireRole("admin"), async (req, res) => {
+  try {
+    await db.insert(parentStudentLinksTable).values({ parentId: parseInt(req.params.id), studentId: parseInt(req.params.studentId) }).onConflictDoNothing();
+    res.json({ ok: true });
+  } catch (err) { console.error(err); res.status(500).json({ error: "Internal Server Error" }); }
+});
+
+// DELETE /admin/parents/:id/students/:studentId — unlink
+router.delete("/parents/:id/students/:studentId", requireRole("admin"), async (req, res) => {
+  try {
+    await db.delete(parentStudentLinksTable).where(and(eq(parentStudentLinksTable.parentId, parseInt(req.params.id)), eq(parentStudentLinksTable.studentId, parseInt(req.params.studentId))));
+    res.json({ ok: true });
+  } catch (err) { console.error(err); res.status(500).json({ error: "Internal Server Error" }); }
+});
+
+// POST /admin/parents/:id/reset-password
+router.post("/parents/:id/reset-password", requireRole("admin"), async (req, res) => {
+  try {
+    const cu = req.session.user!;
+    if (!["scolarite", "directeur"].includes(cu.adminSubRole ?? "")) { res.status(403).json({ error: "Réservé à la Scolarité et au Directeur." }); return; }
+    const { password } = req.body as { password: string };
+    if (!password?.trim()) { res.status(400).json({ error: "Mot de passe requis." }); return; }
+    const [updated] = await db.update(usersTable).set({ passwordHash: hashPassword(password), mustChangePassword: true, updatedAt: new Date() }).where(and(eq(usersTable.id, parseInt(req.params.id)), eq(usersTable.role, "parent"))).returning({ id: usersTable.id });
+    if (!updated) { res.status(404).json({ error: "Parent introuvable." }); return; }
+    res.json({ ok: true });
+  } catch (err) { console.error(err); res.status(500).json({ error: "Internal Server Error" }); }
 });
 
 export default router;

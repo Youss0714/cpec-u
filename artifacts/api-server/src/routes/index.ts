@@ -20,6 +20,7 @@ import specialJuryRouter from "./special_jury.js";
 import studentCardsRouter from "./student-cards.js";
 import publicRouter from "./public.js";
 import evaluationsRouter from "./evaluations.js";
+import parentRouter from "./parent.js";
 
 const router: IRouter = Router();
 
@@ -44,5 +45,6 @@ router.use("/admin", specialJuryRouter);
 router.use(studentCardsRouter);
 router.use(publicRouter);
 router.use(evaluationsRouter);
+router.use(parentRouter);
 
 export default router;

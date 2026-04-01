@@ -46,6 +46,7 @@ import {
   Gavel,
   CreditCard,
   Star,
+  User2,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
@@ -59,7 +60,7 @@ let _sidebarScrollTop = 0;
 
 interface AppLayoutProps {
   children: ReactNode;
-  allowedRoles: ("admin" | "teacher" | "student")[];
+  allowedRoles: ("admin" | "teacher" | "student" | "parent")[];
   noScroll?: boolean;
 }
 
@@ -206,6 +207,7 @@ export function AppLayout({ children, allowedRoles, noScroll = false }: AppLayou
     { name: "Évaluations Enseignants", href: "/admin/evaluations", icon: Star },
     { name: "Rapports & Statistiques", href: "/admin/reports", icon: BarChart2 },
     { name: "Centre de Documents", href: "/admin/documents", icon: FileText },
+    { name: "Gestion des Parents", href: "/admin/parents", icon: User2 },
     { name: "Messages", href: "/admin/messages", icon: MessageSquare, badge: unreadMsgCount > 0 ? unreadMsgCount : undefined },
   ];
 
@@ -248,6 +250,7 @@ export function AppLayout({ children, allowedRoles, noScroll = false }: AppLayou
     { name: "Évaluations Enseignants", href: "/admin/evaluations", icon: Star },
     { name: "Rapports & Statistiques", href: "/admin/reports", icon: BarChart2 },
     { name: "Centre de Documents", href: "/admin/documents", icon: FileText },
+    { name: "Gestion des Parents", href: "/admin/parents", icon: User2 },
     { name: "Messages", href: "/admin/messages", icon: MessageSquare, badge: unreadMsgCount > 0 ? unreadMsgCount : undefined },
     { name: "Changer mon mot de passe", href: "/change-password", icon: KeyRound, badge: null },
   ];
@@ -280,6 +283,16 @@ export function AppLayout({ children, allowedRoles, noScroll = false }: AppLayou
           { name: "Notifications", href: "/teacher/notifications", icon: Bell, badge: (unreadData?.count ?? 0) > 0 ? unreadData!.count : undefined },
           { name: "Messages", href: "/teacher/messages", icon: MessageSquare, badge: unreadMsgCount > 0 ? unreadMsgCount : undefined },
         ]
+      : user.role === "parent"
+      ? [
+          { name: "Tableau de bord", href: "/parent", icon: LayoutDashboard, badge: null },
+          { name: "Résultats", href: "/parent/results", icon: GraduationCap, badge: null },
+          { name: "Absences", href: "/parent/absences", icon: CalendarOff, badge: null },
+          { name: "Emploi du temps", href: "/parent/schedule", icon: CalendarDays, badge: null },
+          { name: "Notifications", href: "/parent/notifications", icon: Bell, badge: (unreadData?.count ?? 0) > 0 ? unreadData!.count : null },
+          { name: "Messages", href: "/parent/messages", icon: MessageSquare, badge: unreadMsgCount > 0 ? unreadMsgCount : undefined },
+          { name: "Changer mon mot de passe", href: "/change-password", icon: KeyRound, badge: null },
+        ]
       : [
           { name: "Mon Profil", href: "/student", icon: LayoutDashboard, badge: null },
           { name: "Mon Emploi du Temps", href: "/student/schedule", icon: CalendarDays, badge: null },
@@ -304,6 +317,8 @@ export function AppLayout({ children, allowedRoles, noScroll = false }: AppLayou
         : "Assistant(e) de Direction"
       : user.role === "teacher"
       ? "Enseignant"
+      : user.role === "parent"
+      ? "Parent d'élève"
       : "Étudiant";
 
   const roleBadgeColor =
@@ -317,6 +332,8 @@ export function AppLayout({ children, allowedRoles, noScroll = false }: AppLayou
         : "bg-blue-100 text-blue-800 border-blue-200"
       : user.role === "teacher"
       ? "bg-green-100 text-green-800 border-green-200"
+      : user.role === "parent"
+      ? "bg-orange-100 text-orange-800 border-orange-200"
       : "bg-purple-100 text-purple-800 border-purple-200";
 
   const SidebarContent = () => (
@@ -347,6 +364,8 @@ export function AppLayout({ children, allowedRoles, noScroll = false }: AppLayou
             : "Menu Scolarité"
           : user.role === "teacher"
           ? "Menu Enseignant"
+          : user.role === "parent"
+          ? "Menu Parents"
           : "Menu Étudiant"}
       </div>
 

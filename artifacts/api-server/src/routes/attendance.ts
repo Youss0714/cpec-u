@@ -10,9 +10,11 @@ import {
   attendanceTable,
   attendanceSessionsTable,
   notificationsTable,
+  parentStudentLinksTable,
 } from "@workspace/db";
 import { eq, and, desc, isNotNull } from "drizzle-orm";
 import { requireRole } from "../lib/auth.js";
+import { sendPushToUser } from "./push.js";
 
 const router = Router();
 
@@ -217,6 +219,25 @@ router.post("/teacher/attendance/send", requireRole("teacher", "admin"), async (
         message: msgBody,
         read: false,
       });
+    }
+
+    // Notify parents of absent/late students
+    const absentRecords = await db
+      .select({ studentId: attendanceTable.studentId, status: attendanceTable.status })
+      .from(attendanceTable)
+      .where(and(eq(attendanceTable.subjectId, subjectId), eq(attendanceTable.classId, classId), eq(attendanceTable.sessionDate, sessionDate)));
+
+    for (const rec of absentRecords) {
+      if (rec.status !== "absent" && rec.status !== "late") continue;
+      const parentLinks = await db.select({ parentId: parentStudentLinksTable.parentId })
+        .from(parentStudentLinksTable).where(eq(parentStudentLinksTable.studentId, rec.studentId));
+      const statusLabel = rec.status === "absent" ? "absent(e)" : "en retard";
+      const notifTitle = `Absence — ${subject?.name ?? ""}`;
+      const notifMsg = `Votre enfant a été signalé(e) ${statusLabel} en ${subject?.name ?? "cours"} le ${sessionDate}.`;
+      for (const link of parentLinks) {
+        await db.insert(notificationsTable).values({ userId: link.parentId, type: "absence_alert", title: notifTitle, message: notifMsg, read: false });
+        sendPushToUser(link.parentId, { title: notifTitle, body: notifMsg, type: "absence_alert" }).catch(() => {});
+      }
     }
 
     res.json({ message: "Feuille transmise à la scolarité", sentAt: now });

@@ -29,3 +29,4 @@ export * from "./special_jury";
 export * from "./student_cards";
 export * from "./bulletin_tokens";
 export * from "./evaluations";
+export * from "./parent_links";

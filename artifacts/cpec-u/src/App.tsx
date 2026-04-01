@@ -60,6 +60,12 @@ import AdminEvaluations from "@/pages/admin/evaluations";
 import StudentEvaluations from "@/pages/student/evaluations";
 import TeacherEvaluations from "@/pages/teacher/evaluations";
 import AdminDocuments from "@/pages/admin/documents";
+import AdminParents from "@/pages/admin/parents";
+import ParentDashboard from "@/pages/parent/dashboard";
+import ParentResults from "@/pages/parent/results";
+import ParentAbsences from "@/pages/parent/absences";
+import ParentSchedule from "@/pages/parent/schedule";
+import ParentNotifications from "@/pages/parent/notifications";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -145,6 +151,17 @@ function Router() {
       <Route path="/admin/cards" component={AdminCards} />
       <Route path="/admin/evaluations" component={AdminEvaluations} />
       <Route path="/admin/documents" component={AdminDocuments} />
+      <Route path="/admin/parents" component={AdminParents} />
+
+      {/* Parent Routes */}
+      <Route path="/parent" component={ParentDashboard} />
+      <Route path="/parent/results" component={ParentResults} />
+      <Route path="/parent/absences" component={ParentAbsences} />
+      <Route path="/parent/schedule" component={ParentSchedule} />
+      <Route path="/parent/notifications" component={ParentNotifications} />
+      <Route path="/parent/messages">
+        {() => <SharedMessages allowedRoles={["parent"]} />}
+      </Route>
       <Route path="/student/evaluations" component={StudentEvaluations} />
       <Route path="/teacher/evaluations" component={TeacherEvaluations} />
 
