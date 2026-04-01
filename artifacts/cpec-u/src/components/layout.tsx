@@ -23,6 +23,7 @@ import {
   ShieldCheck,
   LayoutList,
   BarChart,
+  BarChart2,
   BarChart3,
   CalendarOff,
   ScrollText,
@@ -197,6 +198,7 @@ export function AppLayout({ children, allowedRoles, noScroll = false }: AppLayou
     { name: "Rattrapage", href: "/admin/rattrapage", icon: RotateCcw },
     { name: "Jury Spécial", href: "/admin/jury-special", icon: Gavel },
     { name: "Cartes Étudiantes", href: "/admin/cards", icon: CreditCard },
+    { name: "Rapports & Statistiques", href: "/admin/reports", icon: BarChart2 },
     { name: "Messages", href: "/admin/messages", icon: MessageSquare, badge: unreadMsgCount > 0 ? unreadMsgCount : undefined },
   ];
 
@@ -236,6 +238,7 @@ export function AppLayout({ children, allowedRoles, noScroll = false }: AppLayou
     { name: "Rattrapage", href: "/admin/rattrapage", icon: RotateCcw },
     { name: "Jury Spécial", href: "/admin/jury-special", icon: Gavel },
     { name: "Cartes Étudiantes", href: "/admin/cards", icon: CreditCard },
+    { name: "Rapports & Statistiques", href: "/admin/reports", icon: BarChart2 },
     { name: "Messages", href: "/admin/messages", icon: MessageSquare, badge: unreadMsgCount > 0 ? unreadMsgCount : undefined },
     { name: "Changer mon mot de passe", href: "/change-password", icon: KeyRound, badge: null },
   ];

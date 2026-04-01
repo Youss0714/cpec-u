@@ -2889,4 +2889,464 @@ router.post("/retake-sessions/:id/validate", requireRole("admin"), async (req, r
   }
 });
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// RAPPORTS & STATISTIQUES
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// GET /admin/reports/overview — KPIs globaux de l'établissement
+router.get("/reports/overview", requireRole("admin"), async (req, res) => {
+  try {
+    const { semesterId, classId, academicYear } = req.query;
+
+    // Effectifs
+    const [counts] = await db.execute(sql`
+      SELECT
+        (SELECT COUNT(*) FROM users WHERE role = 'student')::int AS total_students,
+        (SELECT COUNT(*) FROM users WHERE role = 'teacher')::int AS total_teachers,
+        (SELECT COUNT(*) FROM users WHERE role = 'admin')::int  AS total_admins,
+        (SELECT COUNT(*) FROM housing_assignments WHERE status = 'active')::int AS housing_students
+    `);
+
+    // Taux de réussite global (moyenne des étudiants >= 10)
+    const semFilter = semesterId ? sql`AND g.semester_id = ${parseInt(semesterId as string)}` : sql``;
+    const classFilter = classId ? sql`AND ce.class_id = ${parseInt(classId as string)}` : sql``;
+    const [successData] = await db.execute(sql`
+      WITH student_avg AS (
+        SELECT g.student_id,
+               AVG(g.value) as avg_grade
+        FROM grades g
+        JOIN class_enrollments ce ON ce.student_id = g.student_id
+        WHERE 1=1 ${semFilter} ${classFilter}
+        GROUP BY g.student_id
+      )
+      SELECT
+        COUNT(*)::int AS total,
+        SUM(CASE WHEN avg_grade >= 10 THEN 1 ELSE 0 END)::int AS passed,
+        ROUND(AVG(avg_grade)::numeric, 2) AS avg_grade
+      FROM student_avg
+    `);
+
+    // Taux de présence global
+    const attendanceFilter = classId ? sql`WHERE class_id = ${parseInt(classId as string)}` : sql`WHERE 1=1`;
+    const [presenceData] = await db.execute(sql`
+      SELECT
+        COUNT(*)::int AS total,
+        SUM(CASE WHEN status = 'present' THEN 1 ELSE 0 END)::int AS present
+      FROM attendance ${attendanceFilter}
+    `);
+
+    // Taux de recouvrement financier
+    const yearFilter = academicYear
+      ? sql`WHERE academic_year = ${academicYear as string}`
+      : sql`WHERE 1=1`;
+    const [financialData] = await db.execute(sql`
+      SELECT
+        COALESCE(SUM(sf.total_amount), 0)::numeric AS total_due,
+        COALESCE((SELECT SUM(amount) FROM payments), 0)::numeric AS total_paid
+      FROM student_fees sf ${yearFilter}
+    `);
+
+    // KPIs par classe
+    const kpisByClass = await db.execute(sql`
+      SELECT
+        c.id   AS class_id,
+        c.name AS class_name,
+        COUNT(DISTINCT ce.student_id)::int AS student_count,
+        ROUND(AVG(g.value)::numeric, 2) AS avg_grade,
+        ROUND(
+          100.0 * SUM(CASE WHEN a.status = 'present' THEN 1 ELSE 0 END)::numeric
+          / NULLIF(COUNT(a.id), 0), 1
+        ) AS presence_rate
+      FROM classes c
+      LEFT JOIN class_enrollments ce ON ce.class_id = c.id
+      LEFT JOIN grades g ON g.student_id = ce.student_id ${semesterId ? sql`AND g.semester_id = ${parseInt(semesterId as string)}` : sql``}
+      LEFT JOIN attendance a ON a.class_id = c.id
+      GROUP BY c.id, c.name
+      ORDER BY c.name
+    `);
+
+    const total = Number((successData as any).total ?? 0);
+    const passed = Number((successData as any).passed ?? 0);
+    const presenceTotal = Number((presenceData as any).total ?? 0);
+    const presencePresent = Number((presenceData as any).present ?? 0);
+    const totalDue = Number((financialData as any).total_due ?? 0);
+    const totalPaid = Number((financialData as any).total_paid ?? 0);
+
+    res.json({
+      totalStudents: Number((counts as any).total_students ?? 0),
+      totalTeachers: Number((counts as any).total_teachers ?? 0),
+      totalAdmins: Number((counts as any).total_admins ?? 0),
+      housingStudents: Number((counts as any).housing_students ?? 0),
+      successRate: total > 0 ? Math.round((passed / total) * 1000) / 10 : 0,
+      avgGrade: Number((successData as any).avg_grade ?? 0),
+      presenceRate: presenceTotal > 0 ? Math.round((presencePresent / presenceTotal) * 1000) / 10 : 0,
+      totalDue,
+      totalPaid,
+      recoveryRate: totalDue > 0 ? Math.round((totalPaid / totalDue) * 1000) / 10 : 0,
+      kpisByClass: Array.from(kpisByClass as any[]),
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// GET /admin/reports/results — Analyse des résultats académiques
+router.get("/reports/results", requireRole("admin"), async (req, res) => {
+  try {
+    const { semesterId, classId } = req.query;
+    const semCond = semesterId ? sql`AND g.semester_id = ${parseInt(semesterId as string)}` : sql``;
+    const classCond = classId ? sql`AND ce.class_id = ${parseInt(classId as string)}` : sql``;
+
+    // Distribution des mentions par étudiant (moyenne générale)
+    const mentions = await db.execute(sql`
+      WITH student_avg AS (
+        SELECT g.student_id, AVG(g.value) AS avg_grade
+        FROM grades g
+        JOIN class_enrollments ce ON ce.student_id = g.student_id
+        WHERE 1=1 ${semCond} ${classCond}
+        GROUP BY g.student_id
+      )
+      SELECT
+        SUM(CASE WHEN avg_grade >= 16 THEN 1 ELSE 0 END)::int AS tres_bien,
+        SUM(CASE WHEN avg_grade >= 14 AND avg_grade < 16 THEN 1 ELSE 0 END)::int AS bien,
+        SUM(CASE WHEN avg_grade >= 12 AND avg_grade < 14 THEN 1 ELSE 0 END)::int AS assez_bien,
+        SUM(CASE WHEN avg_grade >= 10 AND avg_grade < 12 THEN 1 ELSE 0 END)::int AS passable,
+        SUM(CASE WHEN avg_grade < 10 THEN 1 ELSE 0 END)::int AS ajourne,
+        COUNT(*)::int AS total,
+        ROUND(AVG(avg_grade)::numeric, 2) AS avg_grade
+      FROM student_avg
+    `);
+
+    // Taux de réussite par classe
+    const byClass = await db.execute(sql`
+      WITH student_avg AS (
+        SELECT g.student_id, ce.class_id, AVG(g.value) AS avg_grade
+        FROM grades g
+        JOIN class_enrollments ce ON ce.student_id = g.student_id
+        WHERE 1=1 ${semCond} ${classCond}
+        GROUP BY g.student_id, ce.class_id
+      )
+      SELECT
+        c.id AS class_id,
+        c.name AS class_name,
+        COUNT(sa.student_id)::int AS total,
+        SUM(CASE WHEN sa.avg_grade >= 10 THEN 1 ELSE 0 END)::int AS passed,
+        ROUND(AVG(sa.avg_grade)::numeric, 2) AS avg_grade,
+        ROUND(100.0 * SUM(CASE WHEN sa.avg_grade >= 10 THEN 1 ELSE 0 END)::numeric / NULLIF(COUNT(sa.student_id), 0), 1) AS success_rate
+      FROM classes c
+      LEFT JOIN student_avg sa ON sa.class_id = c.id
+      GROUP BY c.id, c.name
+      ORDER BY c.name
+    `);
+
+    // Taux de réussite par matière
+    const bySubject = await db.execute(sql`
+      WITH subj_avg AS (
+        SELECT g.student_id, g.subject_id, AVG(g.value) AS avg_grade
+        FROM grades g
+        JOIN class_enrollments ce ON ce.student_id = g.student_id
+        WHERE 1=1 ${semCond} ${classCond}
+        GROUP BY g.student_id, g.subject_id
+      )
+      SELECT
+        s.id AS subject_id,
+        s.name AS subject_name,
+        s.coefficient,
+        COUNT(sa.student_id)::int AS total,
+        SUM(CASE WHEN sa.avg_grade >= 10 THEN 1 ELSE 0 END)::int AS passed,
+        ROUND(AVG(sa.avg_grade)::numeric, 2) AS avg_grade,
+        ROUND(100.0 * SUM(CASE WHEN sa.avg_grade >= 10 THEN 1 ELSE 0 END)::numeric / NULLIF(COUNT(sa.student_id), 0), 1) AS success_rate
+      FROM subjects s
+      LEFT JOIN subj_avg sa ON sa.subject_id = s.id
+      GROUP BY s.id, s.name, s.coefficient
+      HAVING COUNT(sa.student_id) > 0
+      ORDER BY success_rate ASC
+      LIMIT 20
+    `);
+
+    // Meilleurs étudiants
+    const topStudents = await db.execute(sql`
+      SELECT u.name, c.name AS class_name,
+             ROUND(AVG(g.value)::numeric, 2) AS avg_grade
+      FROM grades g
+      JOIN users u ON u.id = g.student_id
+      JOIN class_enrollments ce ON ce.student_id = g.student_id
+      JOIN classes c ON c.id = ce.class_id
+      WHERE 1=1 ${semCond} ${classCond}
+      GROUP BY u.id, u.name, c.name
+      ORDER BY avg_grade DESC
+      LIMIT 10
+    `);
+
+    // Moins bons étudiants
+    const bottomStudents = await db.execute(sql`
+      SELECT u.name, c.name AS class_name,
+             ROUND(AVG(g.value)::numeric, 2) AS avg_grade
+      FROM grades g
+      JOIN users u ON u.id = g.student_id
+      JOIN class_enrollments ce ON ce.student_id = g.student_id
+      JOIN classes c ON c.id = ce.class_id
+      WHERE 1=1 ${semCond} ${classCond}
+      GROUP BY u.id, u.name, c.name
+      ORDER BY avg_grade ASC
+      LIMIT 10
+    `);
+
+    // Rattrapage vs normale
+    const retakeStats = await db.execute(sql`
+      SELECT
+        COUNT(DISTINCT rg.student_id)::int AS retake_students,
+        SUM(CASE WHEN rg.value >= 10 THEN 1 ELSE 0 END)::int AS retake_passed,
+        ROUND(AVG(rg.value)::numeric, 2) AS retake_avg
+      FROM retake_grades rg
+      WHERE rg.value IS NOT NULL
+    `);
+
+    const m = mentions as any;
+    const rs = retakeStats as any;
+    res.json({
+      mentions: {
+        tresBien: Number(m.tres_bien ?? 0),
+        bien: Number(m.bien ?? 0),
+        assezBien: Number(m.assez_bien ?? 0),
+        passable: Number(m.passable ?? 0),
+        ajourne: Number(m.ajourne ?? 0),
+        total: Number(m.total ?? 0),
+      },
+      avgGrade: Number(m.avg_grade ?? 0),
+      byClass: Array.from(byClass as any[]).map(r => ({
+        classId: r.class_id, className: r.class_name,
+        total: Number(r.total), passed: Number(r.passed),
+        avgGrade: Number(r.avg_grade ?? 0),
+        successRate: Number(r.success_rate ?? 0),
+      })),
+      bySubject: Array.from(bySubject as any[]).map(r => ({
+        subjectId: r.subject_id, subjectName: r.subject_name,
+        coefficient: r.coefficient, total: Number(r.total), passed: Number(r.passed),
+        avgGrade: Number(r.avg_grade ?? 0),
+        successRate: Number(r.success_rate ?? 0),
+      })),
+      topStudents: Array.from(topStudents as any[]).map(r => ({
+        name: r.name, className: r.class_name, avgGrade: Number(r.avg_grade),
+      })),
+      bottomStudents: Array.from(bottomStudents as any[]).map(r => ({
+        name: r.name, className: r.class_name, avgGrade: Number(r.avg_grade),
+      })),
+      retakeStats: {
+        students: Number(rs.retake_students ?? 0),
+        passed: Number(rs.retake_passed ?? 0),
+        avgGrade: Number(rs.retake_avg ?? 0),
+      },
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// GET /admin/reports/absences — Analyse des absences
+router.get("/reports/absences", requireRole("admin"), async (req, res) => {
+  try {
+    const { semesterId, classId } = req.query;
+    const semCond = semesterId ? sql`AND a.semester_id = ${parseInt(semesterId as string)}` : sql``;
+    const classCond = classId ? sql`AND a.class_id = ${parseInt(classId as string)}` : sql``;
+
+    // Taux de présence global
+    const [globalRate] = await db.execute(sql`
+      SELECT
+        COUNT(*)::int AS total,
+        SUM(CASE WHEN status = 'present' THEN 1 ELSE 0 END)::int AS present,
+        SUM(CASE WHEN status = 'absent' AND justified = true THEN 1 ELSE 0 END)::int AS justified,
+        SUM(CASE WHEN status = 'absent' AND (justified IS NULL OR justified = false) THEN 1 ELSE 0 END)::int AS unjustified
+      FROM attendance a
+      WHERE 1=1 ${semCond} ${classCond}
+    `);
+
+    // Taux de présence par classe
+    const byClass = await db.execute(sql`
+      SELECT
+        c.id AS class_id, c.name AS class_name,
+        COUNT(a.id)::int AS total,
+        SUM(CASE WHEN a.status = 'present' THEN 1 ELSE 0 END)::int AS present,
+        ROUND(100.0 * SUM(CASE WHEN a.status = 'present' THEN 1 ELSE 0 END)::numeric / NULLIF(COUNT(a.id), 0), 1) AS presence_rate
+      FROM classes c
+      LEFT JOIN attendance a ON a.class_id = c.id
+      WHERE 1=1 ${classCond} ${semCond}
+      GROUP BY c.id, c.name
+      ORDER BY presence_rate ASC NULLS LAST
+    `);
+
+    // Taux de présence par matière (top 10 absences)
+    const bySubject = await db.execute(sql`
+      SELECT
+        s.id AS subject_id, s.name AS subject_name,
+        COUNT(a.id)::int AS total,
+        SUM(CASE WHEN a.status = 'absent' THEN 1 ELSE 0 END)::int AS absences,
+        ROUND(100.0 * SUM(CASE WHEN a.status = 'absent' THEN 1 ELSE 0 END)::numeric / NULLIF(COUNT(a.id), 0), 1) AS absence_rate
+      FROM subjects s
+      LEFT JOIN attendance a ON a.subject_id = s.id
+      WHERE 1=1 ${semCond} ${classCond}
+      GROUP BY s.id, s.name
+      HAVING COUNT(a.id) > 0
+      ORDER BY absence_rate DESC
+      LIMIT 10
+    `);
+
+    // Étudiants au-dessus du seuil (>= 3 absences sur une même matière)
+    const aboveThreshold = await db.execute(sql`
+      SELECT
+        u.name AS student_name,
+        c.name AS class_name,
+        COUNT(a.id)::int AS absence_count
+      FROM attendance a
+      JOIN users u ON u.id = a.student_id
+      JOIN classes c ON c.id = a.class_id
+      WHERE a.status = 'absent'
+        ${classCond} ${semCond}
+      GROUP BY u.id, u.name, c.name
+      HAVING COUNT(a.id) >= 3
+      ORDER BY absence_count DESC
+      LIMIT 30
+    `);
+
+    // Évolution semaine par semaine (8 dernières semaines)
+    const weeklyEvolution = await db.execute(sql`
+      SELECT
+        DATE_TRUNC('week', a.session_date)::date AS week_start,
+        COUNT(*)::int AS total,
+        SUM(CASE WHEN a.status = 'present' THEN 1 ELSE 0 END)::int AS present,
+        SUM(CASE WHEN a.status = 'absent' THEN 1 ELSE 0 END)::int AS absent
+      FROM attendance a
+      WHERE a.session_date >= CURRENT_DATE - INTERVAL '8 weeks'
+        ${classCond}
+      GROUP BY DATE_TRUNC('week', a.session_date)
+      ORDER BY week_start ASC
+    `);
+
+    const g = globalRate as any;
+    const gTotal = Number(g.total ?? 0);
+    res.json({
+      globalRate: {
+        total: gTotal,
+        present: Number(g.present ?? 0),
+        justified: Number(g.justified ?? 0),
+        unjustified: Number(g.unjustified ?? 0),
+        presenceRate: gTotal > 0 ? Math.round(Number(g.present ?? 0) / gTotal * 1000) / 10 : 0,
+      },
+      byClass: Array.from(byClass as any[]).map(r => ({
+        classId: r.class_id, className: r.class_name,
+        total: Number(r.total), present: Number(r.present),
+        presenceRate: Number(r.presence_rate ?? 0),
+      })),
+      bySubject: Array.from(bySubject as any[]).map(r => ({
+        subjectId: r.subject_id, subjectName: r.subject_name,
+        total: Number(r.total), absences: Number(r.absences),
+        absenceRate: Number(r.absence_rate ?? 0),
+      })),
+      aboveThreshold: Array.from(aboveThreshold as any[]).map(r => ({
+        studentName: r.student_name, className: r.class_name,
+        absenceCount: Number(r.absence_count),
+      })),
+      weeklyEvolution: Array.from(weeklyEvolution as any[]).map(r => ({
+        weekStart: r.week_start,
+        total: Number(r.total), present: Number(r.present), absent: Number(r.absent),
+        presenceRate: Number(r.total) > 0 ? Math.round(Number(r.present) / Number(r.total) * 1000) / 10 : 0,
+      })),
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// GET /admin/reports/financial — Analyse financière
+router.get("/reports/financial", requireRole("admin"), async (req, res) => {
+  try {
+    const { academicYear } = req.query;
+    const yearCond = academicYear ? sql`AND sf.academic_year = ${academicYear as string}` : sql``;
+    const yearCondFee = academicYear ? sql`AND cf.academic_year = ${academicYear as string}` : sql``;
+
+    // Global
+    const [global] = await db.execute(sql`
+      SELECT
+        COALESCE(SUM(sf.total_amount), 0)::numeric AS total_due,
+        COALESCE((
+          SELECT SUM(p.amount) FROM payments p
+          JOIN student_fees sf2 ON sf2.student_id = p.student_id
+          WHERE 1=1 ${yearCond.queryChunks?.length ? yearCond : sql``}
+        ), 0)::numeric AS total_paid
+      FROM student_fees sf
+      WHERE 1=1 ${yearCond}
+    `);
+
+    // Par classe
+    const byClass = await db.execute(sql`
+      SELECT
+        c.id AS class_id, c.name AS class_name,
+        COUNT(DISTINCT ce.student_id)::int AS student_count,
+        COALESCE(SUM(sf.total_amount), 0)::numeric AS total_due,
+        COALESCE(SUM(p_agg.total_paid), 0)::numeric AS total_paid,
+        ROUND(100.0 * COALESCE(SUM(p_agg.total_paid), 0) / NULLIF(SUM(sf.total_amount), 0), 1) AS recovery_rate
+      FROM classes c
+      LEFT JOIN class_enrollments ce ON ce.class_id = c.id
+      LEFT JOIN student_fees sf ON sf.student_id = ce.student_id ${yearCond}
+      LEFT JOIN (
+        SELECT student_id, SUM(amount)::numeric AS total_paid
+        FROM payments
+        GROUP BY student_id
+      ) p_agg ON p_agg.student_id = ce.student_id
+      GROUP BY c.id, c.name
+      ORDER BY c.name
+    `);
+
+    // Étudiants en situation d'impayé
+    const unpaidStudents = await db.execute(sql`
+      SELECT
+        u.name AS student_name,
+        c.name AS class_name,
+        COALESCE(sf.total_amount, 0)::numeric AS total_due,
+        COALESCE(p_agg.total_paid, 0)::numeric AS total_paid,
+        (COALESCE(sf.total_amount, 0) - COALESCE(p_agg.total_paid, 0))::numeric AS balance
+      FROM users u
+      JOIN class_enrollments ce ON ce.student_id = u.id
+      JOIN classes c ON c.id = ce.class_id
+      LEFT JOIN student_fees sf ON sf.student_id = u.id ${yearCond}
+      LEFT JOIN (
+        SELECT student_id, SUM(amount)::numeric AS total_paid
+        FROM payments
+        GROUP BY student_id
+      ) p_agg ON p_agg.student_id = u.id
+      WHERE u.role = 'student'
+        AND (COALESCE(sf.total_amount, 0) - COALESCE(p_agg.total_paid, 0)) > 0
+      ORDER BY balance DESC
+      LIMIT 50
+    `);
+
+    const g = global as any;
+    const totalDue = Number(g.total_due ?? 0);
+    const totalPaid = Number(g.total_paid ?? 0);
+    res.json({
+      totalDue,
+      totalPaid,
+      totalBalance: totalDue - totalPaid,
+      recoveryRate: totalDue > 0 ? Math.round((totalPaid / totalDue) * 1000) / 10 : 0,
+      byClass: Array.from(byClass as any[]).map(r => ({
+        classId: r.class_id, className: r.class_name,
+        studentCount: Number(r.student_count),
+        totalDue: Number(r.total_due), totalPaid: Number(r.total_paid),
+        recoveryRate: Number(r.recovery_rate ?? 0),
+      })),
+      unpaidStudents: Array.from(unpaidStudents as any[]).map(r => ({
+        studentName: r.student_name, className: r.class_name,
+        totalDue: Number(r.total_due), totalPaid: Number(r.total_paid),
+        balance: Number(r.balance),
+      })),
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
 export default router;

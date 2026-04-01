@@ -46,6 +46,7 @@ import ArchivesPage from "@/pages/admin/archives";
 import AdminStudentDetail from "@/pages/admin/student-detail";
 import AdminCahierDeTexte from "@/pages/admin/cahier-de-texte";
 import AdminSuiviHeures from "@/pages/admin/suivi-heures";
+import AdminReports from "@/pages/admin/reports";
 import AdminRattrapage from "@/pages/admin/rattrapage";
 import TeacherRattrapage from "@/pages/teacher/rattrapage";
 import JurySpecial from "@/pages/admin/jury-special";
@@ -97,6 +98,7 @@ function Router() {
       <Route path="/admin/planning-assignments" component={PlanningAssignments} />
       <Route path="/admin/blocked-dates" component={BlockedDates} />
       <Route path="/admin/activity-log" component={ActivityLog} />
+      <Route path="/admin/reports" component={AdminReports} />
       <Route path="/admin/attendance" component={AdminAttendance} />
       <Route path="/admin/attendance/summary" component={AttendanceSummary} />
       <Route path="/admin/messages" component={AdminMessages} />
