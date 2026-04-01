@@ -146,10 +146,7 @@ async function buildCardHtml(card: CardPdfData): Promise<{ recto: string; verso:
 
       <!-- QR + Footer -->
       <div style="position:absolute;bottom:0;left:0;right:0;background:#1a3a6b;padding:8px 15px;display:flex;align-items:center;justify-content:space-between;">
-        <div>
-          <div style="color:rgba(255,255,255,0.9);font-size:7.5px;font-weight:700;margin-bottom:2px;">🌐 Vérification en ligne :</div>
-          <div style="color:rgba(255,255,255,0.65);font-size:6.5px;font-style:italic;">${card.verifyUrl}</div>
-        </div>
+        <div style="color:rgba(255,255,255,0.7);font-size:7px;font-style:italic;">Scanner le QR code pour vérifier cette carte</div>
         <img src="${qrDataUrl}" alt="QR Code" style="width:44px;height:44px;border-radius:4px;" />
       </div>
     </div>
