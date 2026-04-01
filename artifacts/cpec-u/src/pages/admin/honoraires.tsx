@@ -3,6 +3,7 @@ import { AppLayout } from "@/components/layout";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { InputMontant } from "@/components/ui/input-montant";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -348,11 +349,10 @@ export default function HonorairesPage() {
             <form onSubmit={handleSetFee} className="space-y-4 mt-2">
               <div className="space-y-1.5">
                 <Label>Montant total (FCFA) <span className="text-destructive">*</span></Label>
-                <Input
-                  type="number" min="0" step="1000"
+                <InputMontant
                   value={feeForm.totalAmount}
-                  onChange={e => setFeeForm(f => ({ ...f, totalAmount: e.target.value }))}
-                  placeholder="Ex: 250000"
+                  onChange={raw => setFeeForm(f => ({ ...f, totalAmount: raw }))}
+                  placeholder="Ex: 250 000"
                   required
                 />
               </div>
@@ -388,11 +388,10 @@ export default function HonorairesPage() {
             <form onSubmit={handleAddPayment} className="space-y-4 mt-2">
               <div className="space-y-1.5">
                 <Label>Montant (FCFA) <span className="text-destructive">*</span></Label>
-                <Input
-                  type="number" min="0" step="1000"
+                <InputMontant
                   value={payForm.amount}
-                  onChange={e => setPayForm(f => ({ ...f, amount: e.target.value }))}
-                  placeholder="Ex: 100000"
+                  onChange={raw => setPayForm(f => ({ ...f, amount: raw }))}
+                  placeholder="Ex: 100 000"
                   required
                 />
               </div>

@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { InputMontant } from "@/components/ui/input-montant";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -677,13 +678,10 @@ export default function AdminStudentDetail() {
           <div className="space-y-4 pt-2">
             <div className="space-y-1.5">
               <Label>Montant (FCFA) *</Label>
-              <Input
-                type="number"
-                min="0"
-                step="500"
-                placeholder="ex: 150000"
+              <InputMontant
                 value={payAmount}
-                onChange={(e) => setPayAmount(e.target.value)}
+                onChange={(raw) => setPayAmount(raw)}
+                placeholder="Ex: 150 000"
               />
             </div>
             <div className="space-y-1.5">

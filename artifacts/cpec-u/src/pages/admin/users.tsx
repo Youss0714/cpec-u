@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Input } from "@/components/ui/input";
+import { InputMontant } from "@/components/ui/input-montant";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -129,7 +130,7 @@ function StudentPaymentModal({ student, onClose }: { student: StudentFeeRow; onC
       <div className="space-y-2 border rounded-xl p-4 bg-muted/20">
         <p className="text-xs font-bold uppercase text-muted-foreground tracking-wide">Frais de scolarité total</p>
         <div className="flex gap-2">
-          <Input type="number" value={feeAmount} onChange={e => setFeeAmount(e.target.value)} placeholder="Ex: 300000" className="flex-1" />
+          <InputMontant value={feeAmount} onChange={raw => setFeeAmount(raw)} placeholder="Ex: 300 000" className="flex-1" />
           <Input value={academicYear} onChange={e => setAcademicYear(e.target.value)} placeholder="Année (2024-25)" className="w-32" />
           <Button size="sm" onClick={handleSetFee} disabled={setFee.isPending}>
             <PenLine className="w-4 h-4 mr-1" /> Définir
@@ -152,7 +153,7 @@ function StudentPaymentModal({ student, onClose }: { student: StudentFeeRow; onC
           )}
         </div>
         <div className="grid grid-cols-2 gap-2">
-          <Input type="number" value={payAmount} onChange={e => setPayAmount(e.target.value)} placeholder="Montant (FCFA)" required min="1" />
+          <InputMontant value={payAmount} onChange={raw => setPayAmount(raw)} placeholder="Montant" required />
           <Input type="date" value={payDate} onChange={e => setPayDate(e.target.value)} required />
         </div>
         <Input value={payDesc} onChange={e => setPayDesc(e.target.value)} placeholder="Description (ex: 1ère tranche)" />
@@ -288,7 +289,7 @@ function ClassFeesSection() {
           <div className="space-y-4 pt-2">
             <div className="space-y-1.5">
               <Label>Montant total (FCFA)</Label>
-              <Input type="number" min={0} value={form.totalAmount} onChange={e => setForm(f => ({ ...f, totalAmount: e.target.value }))} placeholder="Ex: 500000" />
+              <InputMontant value={form.totalAmount} onChange={raw => setForm(f => ({ ...f, totalAmount: raw }))} placeholder="Ex: 500 000" />
             </div>
             <div className="space-y-1.5">
               <Label>Année académique <span className="text-muted-foreground text-xs">(optionnel)</span></Label>
@@ -527,7 +528,7 @@ function TeacherPaymentModal({ teacher, onClose }: { teacher: TeacherHonorariumR
       <div className="space-y-2 border rounded-xl p-4 bg-muted/20">
         <p className="text-xs font-bold uppercase text-muted-foreground tracking-wide">Honoraires totaux</p>
         <div className="flex gap-2">
-          <Input type="number" value={feeAmount} onChange={e => setFeeAmount(e.target.value)} placeholder="Ex: 150000" className="flex-1" />
+          <InputMontant value={feeAmount} onChange={raw => setFeeAmount(raw)} placeholder="Ex: 150 000" className="flex-1" />
           <Input value={periodLabel} onChange={e => setPeriodLabel(e.target.value)} placeholder="Période (ex: S1 2024)" className="w-36" />
           <Button size="sm" onClick={handleSetFee} disabled={setHonorarium.isPending}>
             <PenLine className="w-4 h-4 mr-1" /> Définir
@@ -538,7 +539,7 @@ function TeacherPaymentModal({ teacher, onClose }: { teacher: TeacherHonorariumR
       <form onSubmit={handleAddPayment} className="space-y-2 border rounded-xl p-4 bg-muted/20">
         <p className="text-xs font-bold uppercase text-muted-foreground tracking-wide">Enregistrer un versement</p>
         <div className="grid grid-cols-2 gap-2">
-          <Input type="number" value={payAmount} onChange={e => setPayAmount(e.target.value)} placeholder="Montant (FCFA)" required min="1" />
+          <InputMontant value={payAmount} onChange={raw => setPayAmount(raw)} placeholder="Montant" required />
           <Input type="date" value={payDate} onChange={e => setPayDate(e.target.value)} required />
         </div>
         <Input value={payDesc} onChange={e => setPayDesc(e.target.value)} placeholder="Description (ex: avance sur honoraires)" />
