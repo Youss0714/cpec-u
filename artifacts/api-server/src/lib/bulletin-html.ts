@@ -59,6 +59,7 @@ export interface BulletinData {
   studentMatricule: string;
   dateNaissance: string | null;
   lieuNaissance: string | null;
+  sexe: string | null;
   filiere: string;
   className: string;
   semesterName: string;
@@ -738,6 +739,18 @@ export function generateBulletinHTML(data: BulletinData): string {
             ${data.lieuNaissance
               ? `<span>${data.lieuNaissance}</span>`
               : `<span class="student-card-dotline">&nbsp;</span>`}
+          </div>
+          <div class="student-card-row">
+            <span class="student-card-label">Sexe :</span>
+            ${data.sexe === "M"
+              ? `<span>Masculin</span>`
+              : data.sexe === "F"
+              ? `<span>Féminin</span>`
+              : `<span class="student-card-dotline">&nbsp;</span>`}
+          </div>
+          <div class="student-card-row">
+            <span class="student-card-label">Classe :</span>
+            <span>${data.className}</span>
           </div>
           <div class="student-card-row">
             <span class="student-card-label">Redoublant(e) :</span>

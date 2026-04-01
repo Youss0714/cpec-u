@@ -1594,12 +1594,13 @@ router.get("/bulletin/:studentId/:semesterId", requireRole("admin"), async (req,
       .from(ecolesInphbTable)
       .orderBy(ecolesInphbTable.displayOrder);
 
-    // Fetch real matricule + naissance from student profile
+    // Fetch real matricule + naissance + sexe from student profile
     const [studentProfile] = await db
       .select({
         matricule: studentProfilesTable.matricule,
         dateNaissance: studentProfilesTable.dateNaissance,
         lieuNaissance: studentProfilesTable.lieuNaissance,
+        sexe: studentProfilesTable.sexe,
       })
       .from(studentProfilesTable)
       .where(eq(studentProfilesTable.studentId, studentId))
@@ -1611,6 +1612,7 @@ router.get("/bulletin/:studentId/:semesterId", requireRole("admin"), async (req,
       studentMatricule,
       dateNaissance: studentProfile?.dateNaissance ?? null,
       lieuNaissance: studentProfile?.lieuNaissance ?? null,
+      sexe: studentProfile?.sexe ?? null,
       filiere,
       className: result.className,
       semesterName: result.semesterName,
@@ -2299,6 +2301,25 @@ router.get("/bulletin/class/:classId/:semesterId", requireRole("admin"), async (
     const rankMap = new Map<number, number>();
     sortedAvgs.forEach(([sid], i) => rankMap.set(sid, i + 1));
 
+    // Fetch profiles for all students at once
+    const profiles = await db
+      .select({
+        studentId: studentProfilesTable.studentId,
+        matricule: studentProfilesTable.matricule,
+        dateNaissance: studentProfilesTable.dateNaissance,
+        lieuNaissance: studentProfilesTable.lieuNaissance,
+        sexe: studentProfilesTable.sexe,
+      })
+      .from(studentProfilesTable)
+      .where(inArray(studentProfilesTable.studentId, allStudentIds));
+    const profileMap = new Map(profiles.map(p => [p.studentId, p]));
+
+    const filiere = classRow.filiere ?? classRow.name ?? "";
+    const schoolRows = await db
+      .select({ acronym: ecolesInphbTable.acronym, name: ecolesInphbTable.name })
+      .from(ecolesInphbTable)
+      .orderBy(ecolesInphbTable.displayOrder);
+
     const bulletinHTMLParts: string[] = [];
     for (const { studentId } of enrolledStudents) {
       const result = await computeStudentResult(studentId, semesterId);
@@ -2311,19 +2332,35 @@ router.get("/bulletin/class/:classId/:semesterId", requireRole("admin"), async (
 
       const rank = rankMap.get(studentId) ?? null;
       const totalStudents = sortedAvgs.length;
+      const profile = profileMap.get(studentId);
+      const studentMatricule = profile?.matricule?.trim() || String(studentId).padStart(6, "0");
+      const averageBrute = result.average !== null
+        ? Math.round((result.average + result.absenceDeduction) * 100) / 100
+        : null;
+      const editionDate = new Date().toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" });
 
       const html = generateBulletinHTML({
-        student: result.student,
-        semester: semester as any,
-        classId,
-        className: classRow.name,
-        ueResults,
-        average: result.average,
-        absenceDeduction: result.absenceDeduction ?? 0,
-        decision: result.decision ?? "En attente",
+        studentName: result.studentName,
+        studentMatricule,
+        dateNaissance: profile?.dateNaissance ?? null,
+        lieuNaissance: profile?.lieuNaissance ?? null,
+        sexe: profile?.sexe ?? null,
+        filiere,
+        className: result.className,
+        semesterName: result.semesterName,
+        academicYear: semester?.academicYear ?? "",
+        average: averageBrute,
+        averageNette: result.average,
+        decision: result.decision,
         rank,
         totalStudents,
-      } as any);
+        absenceDeductionHours: result.absenceDeductionHours,
+        absenceDeduction: result.absenceDeduction,
+        ueResults,
+        unassignedSubjects: result.grades.filter((g: any) => !g.ueId || !ueResults.find(u => u.ueId === g.ueId)),
+        editionDate,
+        schools: schoolRows,
+      });
 
       bulletinHTMLParts.push(html);
     }
