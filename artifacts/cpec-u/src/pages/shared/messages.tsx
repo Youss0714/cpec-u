@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   MessageSquare, Send, UserCircle2, Paperclip, X,
   FileText, Sheet, Presentation, FileArchive, Download,
-  Plus, Search, Users, CheckCircle2,
+  Plus, Search, Users, CheckCircle2, ArrowLeft,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -334,10 +334,20 @@ export default function SharedMessages({ allowedRoles }: { allowedRoles: string[
     }
   };
 
+  const mobileThreadOpen = !!(selectedUserId || selectedClassId);
+
+  const handleBack = () => {
+    setSelectedUserId(null);
+    setSelectedClassId(null);
+    setSelectedClass(null);
+    setBroadcastDone(null);
+  };
+
   return (
     <AppLayout allowedRoles={allowedRoles} noScroll>
       <div className="flex flex-col flex-1 min-h-0">
-        <div className="mb-4 flex-shrink-0">
+        {/* Header — hidden on mobile when thread is open */}
+        <div className={`mb-4 flex-shrink-0 ${mobileThreadOpen ? "hidden md:block" : ""}`}>
           <h1 className="text-3xl font-serif font-bold text-foreground flex items-center gap-2">
             <MessageSquare className="w-8 h-8 text-primary" />
             Messages
@@ -349,9 +359,9 @@ export default function SharedMessages({ allowedRoles }: { allowedRoles: string[
           </p>
         </div>
 
-        <div className="flex flex-1 gap-4 min-h-0 rounded-2xl border border-border overflow-hidden bg-card shadow-sm">
-          {/* Left: conversations */}
-          <div className="w-64 flex-shrink-0 border-r border-border flex flex-col">
+        <div className="flex flex-1 min-h-0 rounded-2xl border border-border overflow-hidden bg-card shadow-sm">
+          {/* Left: conversations — hidden on mobile when thread open */}
+          <div className={`${mobileThreadOpen ? "hidden md:flex" : "flex"} w-full md:w-64 flex-shrink-0 border-r border-border flex-col`}>
             <div className="px-3 py-2 border-b border-border flex items-center justify-between gap-1">
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Conversations</p>
               {!isStudent && (
@@ -490,13 +500,17 @@ export default function SharedMessages({ allowedRoles }: { allowedRoles: string[
             )}
           </div>
 
-          {/* Right: thread or broadcast */}
-          <div className="flex-1 flex flex-col min-w-0">
+          {/* Right: thread or broadcast — hidden on mobile when list is showing */}
+          <div className={`${mobileThreadOpen ? "flex" : "hidden md:flex"} flex-1 flex-col min-w-0`}>
             {/* Broadcast panel */}
             {selectedClassId && !selectedUserId ? (
               <>
                 <div className="px-4 py-3 border-b border-border flex items-center gap-3 flex-shrink-0">
-                  <div className="w-9 h-9 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700">
+                  {/* Back button — mobile only */}
+                  <button onClick={handleBack} className="md:hidden flex items-center justify-center w-8 h-8 rounded-lg hover:bg-muted text-muted-foreground flex-shrink-0">
+                    <ArrowLeft className="w-4 h-4" />
+                  </button>
+                  <div className="w-9 h-9 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 flex-shrink-0">
                     <Users className="w-4 h-4" />
                   </div>
                   <div>
@@ -578,7 +592,11 @@ export default function SharedMessages({ allowedRoles }: { allowedRoles: string[
             ) : (
               <>
                 <div className="px-4 py-3 border-b border-border flex items-center gap-3 flex-shrink-0">
-                  <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+                  {/* Back button — mobile only */}
+                  <button onClick={handleBack} className="md:hidden flex items-center justify-center w-8 h-8 rounded-lg hover:bg-muted text-muted-foreground flex-shrink-0">
+                    <ArrowLeft className="w-4 h-4" />
+                  </button>
+                  <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center text-primary flex-shrink-0">
                     <UserCircle2 className="w-4 h-4" />
                   </div>
                   <div>
