@@ -4,6 +4,7 @@ import {
   studentFeesTable,
   classFeesTable,
   paymentsTable,
+  paymentInstallmentsTable,
   usersTable,
   classEnrollmentsTable,
   classesTable,
@@ -11,6 +12,7 @@ import {
 } from "@workspace/db";
 import { eq, and, sql, inArray } from "drizzle-orm";
 import { requireRole } from "../lib/auth.js";
+import { notifyParentsOfStudent } from "./parent.js";
 
 const router = Router();
 
@@ -230,22 +232,45 @@ router.get("/payments/:studentId", requireRole("admin"), requireScolariteOrDirec
 // ─── POST /api/scolarite/payments ─────────────────────────────────────────────
 router.post("/payments", requireRole("admin"), requireScolariteOrDirecteur, async (req, res) => {
   try {
-    const { studentId, amount, description, paymentDate } = req.body;
+    const { studentId, amount, description, paymentDate, paymentMethod, reference, status } = req.body;
     const recordedById = req.session!.userId!;
     if (!studentId || !amount || amount <= 0 || !paymentDate) {
       res.status(400).json({ error: "studentId, amount et paymentDate sont requis" });
       return;
     }
+
+    // Auto-generate reference if not provided: REC-YYYY-NNNNNN
+    const year = paymentDate.slice(0, 4);
+    const autoRef = reference || `REC-${year}-${String(Math.floor(Math.random() * 900000) + 100000)}`;
+
     const [student] = await db.select({ name: usersTable.name }).from(usersTable).where(eq(usersTable.id, studentId));
     const [row] = await db
       .insert(paymentsTable)
-      .values({ studentId, amount, description: description ?? null, paymentDate, recordedById })
+      .values({
+        studentId,
+        amount,
+        description: description ?? null,
+        paymentDate,
+        recordedById,
+        paymentMethod: paymentMethod ?? null,
+        reference: autoRef,
+        status: status ?? "validé",
+      })
       .returning();
     await db.insert(activityLogTable).values({
       userId: recordedById,
       action: "enregistrement_paiement",
       details: `Paiement de ${Number(amount).toLocaleString("fr-FR")} FCFA enregistré pour ${student?.name ?? `ID ${studentId}`}${description ? ` — ${description}` : ""} (date : ${paymentDate}).`,
     });
+
+    // Notify parents automatically
+    notifyParentsOfStudent(
+      studentId,
+      "payment_received",
+      "Nouveau paiement enregistré",
+      `Un versement de ${Number(amount).toLocaleString("fr-FR")} FCFA a été enregistré${description ? ` (${description})` : ""} le ${paymentDate}.`,
+    ).catch(() => {});
+
     res.status(201).json(row);
   } catch (err) {
     console.error(err);
@@ -358,6 +383,72 @@ router.put("/class-fees/:classId", requireRole("admin"), requireScolariteOrDirec
     }
 
     res.json({ classFee, appliedToStudents: enrollments.length });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// ─── GET /api/scolarite/installments/:studentId ──────────────────────────────
+router.get("/installments/:studentId", requireRole("admin"), requireScolariteOrDirecteur, async (req, res) => {
+  try {
+    const studentId = parseInt(req.params.studentId);
+    const rows = await db.select().from(paymentInstallmentsTable)
+      .where(eq(paymentInstallmentsTable.studentId, studentId))
+      .orderBy(paymentInstallmentsTable.dueDate);
+    res.json(rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// ─── POST /api/scolarite/installments ────────────────────────────────────────
+router.post("/installments", requireRole("admin"), requireScolariteOrDirecteur, async (req, res) => {
+  try {
+    const { studentId, label, dueDate, amount } = req.body;
+    if (!studentId || !dueDate || !amount || amount <= 0) {
+      res.status(400).json({ error: "studentId, dueDate et amount requis" }); return;
+    }
+    const [row] = await db.insert(paymentInstallmentsTable)
+      .values({ studentId, label: label ?? null, dueDate, amount })
+      .returning();
+    res.status(201).json(row);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// ─── PUT /api/scolarite/installments/:id ─────────────────────────────────────
+router.put("/installments/:id", requireRole("admin"), requireScolariteOrDirecteur, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const { label, dueDate, amount, paidAt } = req.body;
+    const [row] = await db.update(paymentInstallmentsTable)
+      .set({
+        label: label ?? undefined,
+        dueDate: dueDate ?? undefined,
+        amount: amount ?? undefined,
+        paidAt: paidAt ?? null,
+        updatedAt: new Date(),
+      })
+      .where(eq(paymentInstallmentsTable.id, id))
+      .returning();
+    if (!row) { res.status(404).json({ error: "Échéance introuvable" }); return; }
+    res.json(row);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// ─── DELETE /api/scolarite/installments/:id ───────────────────────────────────
+router.delete("/installments/:id", requireRole("admin"), requireScolariteOrDirecteur, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    await db.delete(paymentInstallmentsTable).where(eq(paymentInstallmentsTable.id, id));
+    res.json({ ok: true });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Internal Server Error" });

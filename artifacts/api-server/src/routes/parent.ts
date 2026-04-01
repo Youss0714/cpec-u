@@ -12,8 +12,11 @@ import {
   subjectsTable,
   scheduleEntriesTable,
   gradesTable,
+  studentFeesTable,
+  paymentsTable,
+  paymentInstallmentsTable,
 } from "@workspace/db";
-import { eq, and, desc, inArray, or } from "drizzle-orm";
+import { eq, and, desc, inArray, sql } from "drizzle-orm";
 import { requireRole } from "../lib/auth.js";
 import { sendPushToUser } from "./push.js";
 
@@ -231,6 +234,136 @@ router.get("/parent/student/:studentId/info", requireRole("parent"), async (req,
       .limit(1);
 
     res.json({ ...info, className: enroll?.className ?? null });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// ─── GET /parent/student/:studentId/scolarite ─────────────────────────────
+// Situation financière complète de l'enfant — lecture seule pour le parent
+router.get("/parent/student/:studentId/scolarite", requireRole("parent"), async (req, res) => {
+  try {
+    const parentId = req.session!.userId!;
+    const studentId = parseInt(req.params.studentId);
+    if (isNaN(studentId)) { res.status(400).json({ error: "studentId invalide" }); return; }
+
+    // 🔒 Security: strict link check
+    const linkedIds = await getLinkedStudentIds(parentId);
+    if (!linkedIds.includes(studentId)) {
+      res.status(403).json({ error: "Accès refusé — cet étudiant ne vous est pas lié." });
+      return;
+    }
+
+    // ── Fee info ──────────────────────────────────────────────────────────────
+    const [fee] = await db.select().from(studentFeesTable)
+      .where(eq(studentFeesTable.studentId, studentId)).limit(1);
+
+    const [paidAgg] = await db
+      .select({ totalPaid: sql<number>`COALESCE(SUM(${paymentsTable.amount}), 0)` })
+      .from(paymentsTable)
+      .where(eq(paymentsTable.studentId, studentId));
+
+    const totalAmount = fee?.totalAmount ?? 0;
+    const totalPaid = Number(paidAgg?.totalPaid ?? 0);
+    const remaining = Math.max(0, totalAmount - totalPaid);
+    let status: "À jour" | "Partiellement payé" | "Impayé" = "Impayé";
+    if (totalAmount > 0) {
+      if (totalPaid >= totalAmount) status = "À jour";
+      else if (totalPaid > 0) status = "Partiellement payé";
+    }
+
+    // ── Payments list ─────────────────────────────────────────────────────────
+    const payments = await db
+      .select({
+        id: paymentsTable.id,
+        amount: paymentsTable.amount,
+        description: paymentsTable.description,
+        paymentDate: paymentsTable.paymentDate,
+        paymentMethod: paymentsTable.paymentMethod,
+        reference: paymentsTable.reference,
+        status: paymentsTable.status,
+        createdAt: paymentsTable.createdAt,
+        recordedByName: usersTable.name,
+      })
+      .from(paymentsTable)
+      .leftJoin(usersTable, eq(usersTable.id, paymentsTable.recordedById))
+      .where(eq(paymentsTable.studentId, studentId))
+      .orderBy(desc(paymentsTable.paymentDate));
+
+    // ── Installments / Échéancier ─────────────────────────────────────────────
+    const rawInstallments = await db
+      .select()
+      .from(paymentInstallmentsTable)
+      .where(eq(paymentInstallmentsTable.studentId, studentId))
+      .orderBy(paymentInstallmentsTable.dueDate);
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const in3days = new Date(today);
+    in3days.setDate(in3days.getDate() + 3);
+
+    // Check for upcoming/overdue installments and send reminder once per day
+    const installmentsToNotify: typeof rawInstallments = [];
+    const installments = rawInstallments.map(inst => {
+      const due = new Date(inst.dueDate);
+      due.setHours(0, 0, 0, 0);
+      let instStatus: "Payée" | "En attente" | "En retard" = "En attente";
+      if (inst.paidAt) {
+        instStatus = "Payée";
+      } else if (due < today) {
+        instStatus = "En retard";
+      }
+
+      // Flag for notification (upcoming in 3 days or overdue, not yet reminded today)
+      const lastReminder = inst.lastReminderAt ? new Date(inst.lastReminderAt) : null;
+      const reminderNeeded = !inst.paidAt && lastReminder?.toDateString() !== today.toDateString();
+      if (reminderNeeded && (due < today || (due <= in3days && due >= today))) {
+        installmentsToNotify.push(inst);
+      }
+
+      return {
+        id: inst.id,
+        label: inst.label,
+        dueDate: inst.dueDate,
+        amount: inst.amount,
+        paidAt: inst.paidAt,
+        status: instStatus,
+      };
+    });
+
+    // Fire-and-forget: send notifications for upcoming/overdue installments
+    if (installmentsToNotify.length > 0) {
+      (async () => {
+        for (const inst of installmentsToNotify) {
+          const due = new Date(inst.dueDate);
+          due.setHours(0, 0, 0, 0);
+          const isOverdue = due < today;
+          const label = inst.label ?? `Échéance du ${inst.dueDate}`;
+          const title = isOverdue ? "Échéance impayée" : "Rappel d'échéance";
+          const body = isOverdue
+            ? `L'échéance "${label}" de ${Number(inst.amount).toLocaleString("fr-FR")} FCFA est en retard.`
+            : `L'échéance "${label}" de ${Number(inst.amount).toLocaleString("fr-FR")} FCFA est due dans 3 jours.`;
+
+          await db.update(paymentInstallmentsTable)
+            .set({ lastReminderAt: today.toISOString().slice(0, 10) })
+            .where(eq(paymentInstallmentsTable.id, inst.id));
+
+          await notifyParentsOfStudent(studentId, isOverdue ? "payment_overdue" : "payment_upcoming", title, body);
+        }
+      })().catch(() => {});
+    }
+
+    res.json({
+      fee: fee ?? null,
+      totalAmount,
+      totalPaid,
+      remaining,
+      status,
+      academicYear: fee?.academicYear ?? null,
+      payments,
+      installments,
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Internal Server Error" });

@@ -293,6 +293,7 @@ export function AppLayout({ children, allowedRoles, noScroll = false }: AppLayou
           { name: "Résultats", href: "/parent/results", icon: GraduationCap, badge: null },
           { name: "Absences", href: "/parent/absences", icon: CalendarOff, badge: null },
           { name: "Emploi du temps", href: "/parent/schedule", icon: CalendarDays, badge: null },
+          { name: "Scolarité", href: "/parent/scolarite", icon: Wallet, badge: null },
           { name: "Notifications", href: "/parent/notifications", icon: Bell, badge: (unreadData?.count ?? 0) > 0 ? unreadData!.count : null },
           { name: "Messages", href: "/parent/messages", icon: MessageSquare, badge: unreadMsgCount > 0 ? unreadMsgCount : undefined },
           { name: "Changer mon mot de passe", href: "/change-password", icon: KeyRound, badge: null },

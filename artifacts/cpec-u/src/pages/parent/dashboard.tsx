@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Link } from "wouter";
 import {
   User2, Mail, Phone, GraduationCap, CalendarOff,
-  CalendarDays, Bell, MessageSquare, ChevronRight, BookOpen, AlertCircle,
+  CalendarDays, Bell, MessageSquare, ChevronRight, BookOpen, AlertCircle, Wallet,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { motion } from "framer-motion";
@@ -38,6 +38,7 @@ const LINKS = [
   { href: "/parent/results", label: "Résultats", icon: GraduationCap, color: "text-violet-600 bg-violet-50" },
   { href: "/parent/absences", label: "Absences", icon: CalendarOff, color: "text-red-600 bg-red-50" },
   { href: "/parent/schedule", label: "Emploi du temps", icon: CalendarDays, color: "text-blue-600 bg-blue-50" },
+  { href: "/parent/scolarite", label: "Scolarité", icon: Wallet, color: "text-indigo-600 bg-indigo-50" },
   { href: "/parent/notifications", label: "Notifications", icon: Bell, color: "text-amber-600 bg-amber-50" },
   { href: "/parent/messages", label: "Messages", icon: MessageSquare, color: "text-emerald-600 bg-emerald-50" },
 ];

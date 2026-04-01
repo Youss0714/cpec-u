@@ -19,6 +19,9 @@ export const paymentsTable = pgTable("payments", {
   description: varchar("description", { length: 255 }),
   paymentDate: date("payment_date").notNull(),
   recordedById: integer("recorded_by_id").references(() => usersTable.id, { onDelete: "set null" }),
+  paymentMethod: varchar("payment_method", { length: 50 }),
+  reference: varchar("reference", { length: 100 }),
+  status: varchar("status", { length: 30 }).default("validé"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -36,3 +39,17 @@ export const classFeesTable = pgTable("class_fees", {
 });
 
 export type ClassFee = typeof classFeesTable.$inferSelect;
+
+export const paymentInstallmentsTable = pgTable("payment_installments", {
+  id: serial("id").primaryKey(),
+  studentId: integer("student_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
+  label: varchar("label", { length: 255 }),
+  dueDate: date("due_date").notNull(),
+  amount: real("amount").notNull(),
+  paidAt: date("paid_at"),
+  lastReminderAt: date("last_reminder_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export type PaymentInstallment = typeof paymentInstallmentsTable.$inferSelect;
