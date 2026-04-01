@@ -413,16 +413,17 @@ router.get("/approvals", requireRole("teacher"), async (req, res) => {
 
     if (assignments.length === 0) { res.json([]); return; }
 
-    // Find which ones are approved
+    // Find which ones are approved — join users table to get the approver's name
     const approvals = await db
       .select({
         subjectId: subjectApprovalsTable.subjectId,
         classId: subjectApprovalsTable.classId,
         semesterId: subjectApprovalsTable.semesterId,
-        approvedByName: subjectApprovalsTable.approvedByName,
+        approvedByName: usersTable.name,
         approvedAt: subjectApprovalsTable.approvedAt,
       })
-      .from(subjectApprovalsTable);
+      .from(subjectApprovalsTable)
+      .innerJoin(usersTable, eq(usersTable.id, subjectApprovalsTable.approvedById));
 
     const approvedKeys = new Set(approvals.map(a => `${a.subjectId}-${a.classId}-${a.semesterId}`));
     const result = assignments
@@ -434,7 +435,7 @@ router.get("/approvals", requireRole("teacher"), async (req, res) => {
           classId: a.classId,
           semesterId: a.semesterId,
           approvedByName: approval?.approvedByName ?? null,
-          approvedAt: approval?.approvedAt ?? null,
+          approvedAt: approval?.approvedAt ? approval.approvedAt.toISOString() : null,
         };
       });
 
