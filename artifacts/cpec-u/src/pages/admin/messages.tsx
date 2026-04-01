@@ -418,7 +418,7 @@ export default function AdminMessages() {
                             : "bg-muted text-foreground rounded-bl-sm"
                         }`}>
                           {m.content && !m.content.startsWith("📎") && (
-                            <p className="leading-relaxed whitespace-pre-line break-words">{m.content}</p>
+                            <p className="leading-relaxed whitespace-normal break-words block w-full">{m.content}</p>
                           )}
                           {m.fileUrl && (
                             <FileAttachment
@@ -430,7 +430,7 @@ export default function AdminMessages() {
                             />
                           )}
                           {m.content && m.content.startsWith("📎") && !m.fileUrl && (
-                            <p className="leading-relaxed whitespace-pre-line break-words">{m.content}</p>
+                            <p className="leading-relaxed whitespace-normal break-words block w-full">{m.content}</p>
                           )}
                           <p className={`text-[10px] mt-1 ${isMe ? "text-primary-foreground/60" : "text-muted-foreground"}`}>
                             {formatTime(m.createdAt)}
