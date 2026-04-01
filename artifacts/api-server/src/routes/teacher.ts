@@ -397,6 +397,54 @@ router.get("/grade-submissions/status", requireRole("teacher"), async (req, res)
   }
 });
 
+// GET /teacher/approvals — get approval status for all teacher's assignments
+router.get("/approvals", requireRole("teacher"), async (req, res) => {
+  try {
+    const teacherId = req.session!.userId!;
+    // Get all assignments for this teacher
+    const assignments = await db
+      .select({
+        subjectId: teacherAssignmentsTable.subjectId,
+        classId: teacherAssignmentsTable.classId,
+        semesterId: teacherAssignmentsTable.semesterId,
+      })
+      .from(teacherAssignmentsTable)
+      .where(eq(teacherAssignmentsTable.teacherId, teacherId));
+
+    if (assignments.length === 0) { res.json([]); return; }
+
+    // Find which ones are approved
+    const approvals = await db
+      .select({
+        subjectId: subjectApprovalsTable.subjectId,
+        classId: subjectApprovalsTable.classId,
+        semesterId: subjectApprovalsTable.semesterId,
+        approvedByName: subjectApprovalsTable.approvedByName,
+        approvedAt: subjectApprovalsTable.approvedAt,
+      })
+      .from(subjectApprovalsTable);
+
+    const approvedKeys = new Set(approvals.map(a => `${a.subjectId}-${a.classId}-${a.semesterId}`));
+    const result = assignments
+      .filter(a => approvedKeys.has(`${a.subjectId}-${a.classId}-${a.semesterId}`))
+      .map(a => {
+        const approval = approvals.find(ap => ap.subjectId === a.subjectId && ap.classId === a.classId && ap.semesterId === a.semesterId);
+        return {
+          subjectId: a.subjectId,
+          classId: a.classId,
+          semesterId: a.semesterId,
+          approvedByName: approval?.approvedByName ?? null,
+          approvedAt: approval?.approvedAt ?? null,
+        };
+      });
+
+    res.json(result);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
 // POST /teacher/grade-submissions/notify-students — send personalized grade notifications to each student
 router.post("/grade-submissions/notify-students", requireRole("teacher"), async (req, res) => {
   try {

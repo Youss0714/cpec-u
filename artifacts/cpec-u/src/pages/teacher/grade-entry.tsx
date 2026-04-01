@@ -1,12 +1,12 @@
 import { useState, useEffect, useMemo } from "react";
 import { AppLayout } from "@/components/layout";
 import { useGetTeacherAssignments, useGetTeacherGrades, useSubmitGradesBulk } from "@workspace/api-client-react";
-import { useListSubjectApprovals, useGetClassStudents, useSubmitGradesForReview, useGetGradeSubmissionStatus, useSendGradesToStudents } from "@workspace/api-client-react";
+import { useGetTeacherApprovals, useGetClassStudents, useSubmitGradesForReview, useGetGradeSubmissionStatus, useSendGradesToStudents } from "@workspace/api-client-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { WifiOff, Save, CheckCircle2, Lock, Send, Clock, BellRing } from "lucide-react";
+import { WifiOff, Save, CheckCircle2, Send, Clock, BellRing, ShieldCheck } from "lucide-react";
 import { Card } from "@/components/ui/card";
 
 const EVAL_LABELS = ["Éval 1", "Éval 2", "Éval 3", "Éval 4"] as const;
@@ -73,16 +73,17 @@ export default function GradeEntry() {
     return () => { window.removeEventListener("online", on); window.removeEventListener("offline", off); };
   }, []);
 
-  // Check if subject is approved (locked)
-  const { data: approvals = [] } = useListSubjectApprovals(
-    selectedAssignment
-      ? { semesterId: selectedAssignment.semesterId, classId: selectedAssignment.classId }
-      : undefined,
-    { enabled: !!selectedAssignment }
-  );
-  const isLocked = (approvals as any[]).some(
-    (a) => a.subjectId === selectedAssignment?.subjectId && a.classId === selectedAssignment?.classId
-  );
+  // Check which of the teacher's assignments are approved by admin
+  const { data: teacherApprovals = [] } = useGetTeacherApprovals();
+  const approvedKey = (subjectId: number, classId: number, semesterId: number) =>
+    `${subjectId}-${classId}-${semesterId}`;
+  const approvedSet = useMemo(() => new Set(teacherApprovals.map(a => approvedKey(a.subjectId, a.classId, a.semesterId))), [teacherApprovals]);
+  const isLocked = selectedAssignment
+    ? approvedSet.has(approvedKey(selectedAssignment.subjectId, selectedAssignment.classId, selectedAssignment.semesterId))
+    : false;
+  const currentApproval = selectedAssignment
+    ? teacherApprovals.find(a => a.subjectId === selectedAssignment.subjectId && a.classId === selectedAssignment.classId && a.semesterId === selectedAssignment.semesterId)
+    : undefined;
 
   const submissionStatusParams = selectedAssignment && !isLocked
     ? { subjectId: selectedAssignment.subjectId, classId: selectedAssignment.classId, semesterId: selectedAssignment.semesterId }
@@ -227,23 +228,43 @@ export default function GradeEntry() {
               <SelectValue placeholder="Sélectionner une affectation..." />
             </SelectTrigger>
             <SelectContent>
-              {assignments?.map(a => (
-                <SelectItem key={a.id} value={a.id.toString()} className="py-3">
-                  {a.subjectName} — {a.className} ({a.semesterName})
-                </SelectItem>
-              ))}
+              {assignments?.map(a => {
+                const approved = approvedSet.has(approvedKey(a.subjectId, a.classId, a.semesterId));
+                return (
+                  <SelectItem key={a.id} value={a.id.toString()} className="py-3">
+                    <span className="flex items-center gap-2">
+                      <span>{a.subjectName} — {a.className} ({a.semesterName})</span>
+                      {approved && (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-emerald-100 text-emerald-700 border border-emerald-300 px-1.5 py-0.5 rounded-full shrink-0">
+                          <ShieldCheck className="w-2.5 h-2.5" />VALIDÉ
+                        </span>
+                      )}
+                    </span>
+                  </SelectItem>
+                );
+              })}
             </SelectContent>
           </Select>
         </Card>
 
-        {/* Locked banner */}
+        {/* Validation badge — shown when admin has approved the grades */}
         {isLocked && selectedAssignment && (
-          <div className="flex items-center gap-3 bg-red-50 border border-red-200 rounded-xl p-4">
-            <Lock className="w-5 h-5 text-red-500 shrink-0" />
-            <div>
-              <p className="font-semibold text-red-800 text-sm">Notes approuvées — lecture seule</p>
-              <p className="text-xs text-red-600 mt-0.5">
-                Le Assistant(e) de Direction a validé les notes de cette matière. Contactez-le pour toute modification exceptionnelle.
+          <div className="flex items-start gap-4 bg-emerald-50 border border-emerald-300 rounded-xl p-4 shadow-sm">
+            <div className="shrink-0 flex items-center justify-center w-10 h-10 rounded-full bg-emerald-100 border-2 border-emerald-400">
+              <ShieldCheck className="w-5 h-5 text-emerald-600" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-bold text-emerald-800 text-sm flex items-center gap-2">
+                Notes validées par l'administration
+                <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-emerald-600 text-white px-2 py-0.5 rounded-full">
+                  <ShieldCheck className="w-2.5 h-2.5" />APPROUVÉ
+                </span>
+              </p>
+              <p className="text-xs text-emerald-700 mt-0.5">
+                {currentApproval?.approvedByName
+                  ? `Validé par ${currentApproval.approvedByName}${currentApproval.approvedAt ? " · " + new Date(currentApproval.approvedAt).toLocaleDateString("fr-FR", { dateStyle: "long" }) : ""}.`
+                  : "L'administration a validé et verrouillé ces notes."}
+                {" "}Les notes sont désormais officielles — toute modification passe par dérogation.
               </p>
             </div>
           </div>
@@ -291,11 +312,14 @@ export default function GradeEntry() {
                   return (
                     <div
                       key={row.studentId}
-                      className={`p-4 bg-card rounded-xl border shadow-sm transition-colors ${isLocked ? "opacity-75 border-red-100" : hasNone ? "border-amber-200 hover:border-amber-400" : "border-border hover:border-primary/30"}`}
+                      className={`p-4 bg-card rounded-xl border shadow-sm transition-colors ${isLocked ? "border-emerald-200 bg-emerald-50/30" : hasNone ? "border-amber-200 hover:border-amber-400" : "border-border hover:border-primary/30"}`}
                     >
                       {/* Mobile: stacked layout */}
                       <div className="flex items-center justify-between mb-3 sm:hidden">
-                        <p className="font-bold text-base text-foreground">{row.studentName}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="font-bold text-base text-foreground">{row.studentName}</p>
+                          {isLocked && <ShieldCheck className="w-4 h-4 text-emerald-500 shrink-0" />}
+                        </div>
                         <span className={`text-sm font-bold px-2 py-0.5 rounded-full ${avg === "—" ? "text-muted-foreground bg-muted" : parseFloat(avg) >= 10 ? "text-green-700 bg-green-50" : "text-red-700 bg-red-50"}`}>
                           Moy. {avg}/20
                         </span>
@@ -327,7 +351,7 @@ export default function GradeEntry() {
                         <div className="flex items-center gap-2">
                           <p className="font-bold text-base text-foreground">{row.studentName}</p>
                           {hasAll && !isLocked && <CheckCircle2 className="w-4 h-4 text-emerald-500 opacity-60" />}
-                          {isLocked && <Lock className="w-4 h-4 text-red-400" />}
+                          {isLocked && <ShieldCheck className="w-4 h-4 text-emerald-500" title="Notes validées par l'administration" />}
                         </div>
                         {Array.from({ length: EVAL_COUNT }, (_, i) => i + 1).map(e => {
                           const k = gradeKey(row.studentId, e);

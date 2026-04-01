@@ -354,6 +354,27 @@ export const useGetPendingGradeSubmissionsCount = (options?: QueryOpts<{ count: 
     ...options,
   });
 
+// ─── Teacher Approvals ────────────────────────────────────────────────────────
+
+export type TeacherApproval = {
+  subjectId: number;
+  classId: number;
+  semesterId: number;
+  approvedByName: string | null;
+  approvedAt: string | null;
+};
+
+const getTeacherApprovals = (): Promise<TeacherApproval[]> =>
+  customFetch<TeacherApproval[]>("/api/teacher/approvals");
+
+export const useGetTeacherApprovals = (options?: QueryOpts<TeacherApproval[]>) =>
+  useQuery<TeacherApproval[]>({
+    queryKey: ["/api/teacher/approvals"],
+    queryFn: getTeacherApprovals,
+    refetchInterval: 30000,
+    ...options,
+  });
+
 // ─── Derogation ───────────────────────────────────────────────────────────────
 
 export type DerogateGradeRequest = {
