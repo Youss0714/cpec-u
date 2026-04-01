@@ -19,7 +19,11 @@ export interface CardPdfData {
 
 function fmtDate(d: string | Date | null | undefined): string {
   if (!d) return "—";
-  return new Date(d).toLocaleDateString("fr-FR", {
+  // Already in DD/MM/YYYY French format — return as-is
+  if (typeof d === "string" && /^\d{2}\/\d{2}\/\d{4}$/.test(d)) return d;
+  const parsed = new Date(d);
+  if (isNaN(parsed.getTime())) return typeof d === "string" ? d : "—";
+  return parsed.toLocaleDateString("fr-FR", {
     day: "2-digit", month: "2-digit", year: "numeric",
   });
 }
