@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, Fragment } from "react";
 import { AppLayout } from "@/components/layout";
 import { useQuery } from "@tanstack/react-query";
 import { customFetch } from "@workspace/api-client-react";
@@ -9,12 +9,13 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-  PieChart, Pie, Cell, AreaChart, Area,
+  PieChart, Pie, Cell, AreaChart, Area, Line, ComposedChart,
 } from "recharts";
 import {
-  Users, GraduationCap, TrendingUp, Wallet, Building2, Printer,
+  Users, GraduationCap, TrendingUp, TrendingDown, Wallet, Building2, Printer,
   Download, Loader2, CheckCircle, XCircle, AlertTriangle,
-  Trophy, BookOpen, UserX, DollarSign, BarChart2,
+  Trophy, BookOpen, UserX, DollarSign, BarChart2, CalendarDays,
+  ArrowUp, ArrowDown, Minus, Lightbulb, Activity,
 } from "lucide-react";
 
 // ─── Palette ──────────────────────────────────────────────────────────────────
@@ -116,6 +117,18 @@ export default function ReportsPage() {
     staleTime: 60000,
   });
 
+  // ── Comparatif filters ─────────────────────────────────────────────────────
+  const [cmpFiliere, setCmpFiliere] = useState<string>("all");
+  const [failureThreshold, setFailureThreshold] = useState<number>(40);
+  const cmpFiliereParam = cmpFiliere !== "all" ? `filiere=${encodeURIComponent(cmpFiliere)}&` : "";
+
+  const { data: cmpData, isLoading: loadingCmp } = useQuery({
+    queryKey: ["/api/admin/reports/comparatif", cmpFiliere],
+    queryFn: () => customFetch<any>(`/api/admin/reports/comparatif?${cmpFiliereParam}`),
+    staleTime: 60000,
+    enabled: activeTab === "comparatif",
+  });
+
   // Dérive les années académiques disponibles depuis les semestres
   const academicYears = useMemo(() => {
     const set = new Set<string>();
@@ -183,7 +196,7 @@ export default function ReportsPage() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4 h-11 print:hidden">
+          <TabsList className="grid w-full grid-cols-5 h-11 print:hidden">
             <TabsTrigger value="overview" className="gap-1.5 text-xs sm:text-sm">
               <BarChart2 className="w-4 h-4" /><span className="hidden sm:inline">Vue Générale</span><span className="sm:hidden">Général</span>
             </TabsTrigger>
@@ -195,6 +208,9 @@ export default function ReportsPage() {
             </TabsTrigger>
             <TabsTrigger value="financial" className="gap-1.5 text-xs sm:text-sm">
               <Wallet className="w-4 h-4" /><span className="hidden sm:inline">Financier</span><span className="sm:hidden">Finances</span>
+            </TabsTrigger>
+            <TabsTrigger value="comparatif" className="gap-1.5 text-xs sm:text-sm">
+              <CalendarDays className="w-4 h-4" /><span className="hidden sm:inline">Comparatif</span><span className="sm:hidden">Évolution</span>
             </TabsTrigger>
           </TabsList>
 
@@ -790,6 +806,353 @@ export default function ReportsPage() {
               )}
             </Card>
           </TabsContent>
+          {/* ═══════════ COMPARATIF MULTI-ANNÉES ════════════════════════════════ */}
+          <TabsContent value="comparatif" className="space-y-6">
+            {/* Filters */}
+            <div className="flex flex-wrap gap-3 items-center">
+              <Select value={cmpFiliere} onValueChange={setCmpFiliere}>
+                <SelectTrigger className="h-9 w-48 text-sm"><SelectValue placeholder="Filière" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Toutes les filières</SelectItem>
+                  {(cmpData?.filieres ?? []).map((f: string) => <SelectItem key={f} value={f}>{f}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <div className="flex items-center gap-2 ml-auto">
+                <span className="text-xs text-muted-foreground whitespace-nowrap">Seuil d'échec :</span>
+                <input
+                  type="number" min={10} max={80} value={failureThreshold}
+                  onChange={e => setFailureThreshold(Number(e.target.value))}
+                  className="h-9 w-20 rounded-md border border-input bg-background px-3 text-sm text-center"
+                />
+                <span className="text-xs text-muted-foreground">%</span>
+              </div>
+            </div>
+
+            {loadingCmp ? (
+              <div className="flex items-center justify-center h-48">
+                <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+              </div>
+            ) : !cmpData || (cmpData.yearlyKpis?.length ?? 0) === 0 ? (
+              <Card className="p-12 text-center">
+                <CalendarDays className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
+                <p className="text-muted-foreground font-medium">Aucune donnée historique disponible.</p>
+                <p className="text-xs text-muted-foreground mt-1">Les données apparaîtront dès que des notes seront enregistrées sur plusieurs années académiques.</p>
+              </Card>
+            ) : (() => {
+              const kpis: any[] = cmpData.yearlyKpis ?? [];
+              const latest = kpis[kpis.length - 1];
+              const prev   = kpis.length >= 2 ? kpis[kpis.length - 2] : null;
+
+              // Subject analysis: group by subject, collect yearly failure rates
+              const subjectMap = new Map<number, { name: string; years: Record<string, number>; avgs: Record<string, number> }>();
+              for (const row of (cmpData.subjectByYear ?? [])) {
+                if (!subjectMap.has(row.subjectId)) {
+                  subjectMap.set(row.subjectId, { name: row.subjectName, years: {}, avgs: {} });
+                }
+                const s = subjectMap.get(row.subjectId)!;
+                s.years[row.academicYear] = row.failureRate;
+                s.avgs[row.academicYear]  = row.avgGrade;
+              }
+
+              // Teacher map: subjectId+year → teacher name
+              const teacherMap = new Map<string, string[]>();
+              for (const row of (cmpData.teacherBySubjectYear ?? [])) {
+                const key = `${row.subjectId}__${row.academicYear}`;
+                if (!teacherMap.has(key)) teacherMap.set(key, []);
+                teacherMap.get(key)!.push(row.teacherName);
+              }
+
+              const allYears = kpis.map((k: any) => k.academicYear);
+
+              // Detect recurring problem subjects (failure > threshold on 2+ consecutive years)
+              const problemSubjects: { name: string; status: "recurring"|"watch"|"improving"; yearData: any[]; trend: number }[] = [];
+              for (const [subjectId, { name, years, avgs }] of subjectMap.entries()) {
+                const yearRates = allYears.map(y => ({ year: y, rate: years[y] ?? null, avg: avgs[y] ?? null, teachers: (teacherMap.get(`${subjectId}__${y}`) ?? []).join(", ") })).filter(r => r.rate !== null);
+                if (yearRates.length < 1) continue;
+
+                let recurringCount = 0;
+                for (let i = 1; i < yearRates.length; i++) {
+                  if ((yearRates[i].rate ?? 0) > failureThreshold && (yearRates[i-1].rate ?? 0) > failureThreshold) recurringCount++;
+                }
+
+                const rates = yearRates.map(r => r.rate ?? 0);
+                const trend = rates.length >= 2 ? (rates[rates.length-1] - rates[0]) / (rates.length - 1) : 0;
+
+                let status: "recurring"|"watch"|"improving";
+                if (recurringCount >= 2) status = "recurring";
+                else if (recurringCount >= 1) status = "watch";
+                else status = "improving";
+
+                if (yearRates.some(r => (r.rate ?? 0) > failureThreshold)) {
+                  problemSubjects.push({ name, status, yearData: yearRates, trend });
+                }
+              }
+              problemSubjects.sort((a, b) => {
+                const order = { recurring: 0, watch: 1, improving: 2 };
+                return order[a.status] - order[b.status];
+              });
+
+              // Auto-generated recommendations
+              const recommendations: { icon: string; text: string; color: string }[] = [];
+
+              for (const sub of problemSubjects) {
+                if (sub.status === "recurring") {
+                  recommendations.push({ icon: "🔴", text: `"${sub.name}" présente un taux d'échec récurrent > ${failureThreshold}% — Révision du contenu ou changement d'enseignant recommandé`, color: "red" });
+                }
+              }
+              if (prev && latest) {
+                const dropPts = prev.passRate - latest.passRate;
+                if (dropPts > 5) recommendations.push({ icon: "🟠", text: `Baisse du taux de réussite de ${dropPts.toFixed(1)} pts en ${latest.academicYear} — Audit pédagogique de la promotion recommandé`, color: "amber" });
+              }
+              const risingStreak = (() => {
+                let streak = 0;
+                for (let i = kpis.length - 1; i > 0; i--) {
+                  if (kpis[i].passRate > kpis[i-1].passRate) streak++;
+                  else break;
+                }
+                return streak;
+              })();
+              if (risingStreak >= 3) recommendations.push({ icon: "🟢", text: `Taux de réussite en hausse depuis ${risingStreak} années consécutives — Bonnes pratiques à documenter et partager`, color: "green" });
+
+              const avgAbsence = (cmpData.absenceByYear ?? []).reduce((s: number, r: any) => s + r.absenceRate, 0) / Math.max((cmpData.absenceByYear?.length ?? 1), 1);
+              if (avgAbsence > 25) recommendations.push({ icon: "🟡", text: `Taux d'absence moyen de ${avgAbsence.toFixed(1)}% — Renforcement du suivi de présence recommandé`, color: "amber" });
+
+              // Teacher comparison data grouped by teacher
+              const tcMap = new Map<number, { name: string; years: any[] }>();
+              for (const row of (cmpData.teacherComparison ?? [])) {
+                if (!tcMap.has(row.teacherId)) tcMap.set(row.teacherId, { name: row.teacherName, years: [] });
+                tcMap.get(row.teacherId)!.years.push(row);
+              }
+              const teacherList = Array.from(tcMap.values()).filter(t => t.years.length >= 2);
+
+              const TrendIcon = ({ val }: { val: number }) =>
+                val > 2 ? <ArrowUp className="w-3.5 h-3.5 text-emerald-600" /> :
+                val < -2 ? <ArrowDown className="w-3.5 h-3.5 text-red-500" /> :
+                <Minus className="w-3.5 h-3.5 text-muted-foreground" />;
+
+              return (
+                <>
+                  {/* KPI cards (latest year) */}
+                  {latest && (
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                      <KpiCard icon={GraduationCap} label={`Réussite ${latest.academicYear}`} color="green"
+                        value={`${latest.passRate}%`}
+                        sub={prev ? `${latest.passRate > prev.passRate ? "+" : ""}${(latest.passRate - prev.passRate).toFixed(1)} pts vs ${prev.academicYear}` : `${latest.totalStudents} étudiants`} />
+                      <KpiCard icon={BookOpen} label="Moyenne générale" color="blue"
+                        value={`${fmt(latest.avgGrade)}/20`}
+                        sub={prev ? `${latest.avgGrade > prev.avgGrade ? "+" : ""}${(latest.avgGrade - prev.avgGrade).toFixed(2)} vs an dernier` : "Toutes matières"} />
+                      <KpiCard icon={Activity} label="Taux rattrapage" color="amber"
+                        value={`${latest.retakeRate}%`}
+                        sub={`${latest.retakeStudents} étudiant${latest.retakeStudents > 1 ? "s" : ""} en session 2`} />
+                      <KpiCard icon={AlertTriangle} label="Jury spécial" color="red"
+                        value={`${latest.juryRate}%`}
+                        sub={`${latest.juryStudents} dossier${latest.juryStudents > 1 ? "s" : ""} délibérés`} />
+                    </div>
+                  )}
+
+                  {/* Main evolution chart */}
+                  <Card className="p-5">
+                    <h2 className="font-bold text-base mb-1">Évolution par année académique</h2>
+                    <p className="text-xs text-muted-foreground mb-4">Taux de réussite, rattrapage et moyenne générale</p>
+                    <ResponsiveContainer width="100%" height={280}>
+                      <ComposedChart data={kpis} margin={{ left: -10 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                        <XAxis dataKey="academicYear" tick={{ fontSize: 11 }} />
+                        <YAxis yAxisId="left" domain={[0, 100]} tickFormatter={v => `${v}%`} tick={{ fontSize: 11 }} />
+                        <YAxis yAxisId="right" orientation="right" domain={[0, 20]} tickFormatter={v => `${v}/20`} tick={{ fontSize: 11 }} />
+                        <Tooltip formatter={(v: any, name: string) => {
+                          if (name === "Moy. générale") return [`${Number(v).toFixed(2)}/20`, name];
+                          return [`${Number(v).toFixed(1)}%`, name];
+                        }} />
+                        <Legend />
+                        <Bar yAxisId="left" dataKey="passRate" name="Taux de réussite" fill="#10b981" radius={[3,3,0,0]} />
+                        <Bar yAxisId="left" dataKey="retakeRate" name="Taux rattrapage" fill="#f59e0b" radius={[3,3,0,0]} />
+                        <Bar yAxisId="left" dataKey="failureRate" name="Taux d'échec" fill="#ef4444" radius={[3,3,0,0]} />
+                        <Line yAxisId="right" type="monotone" dataKey="avgGrade" name="Moy. générale" stroke="#6366f1" strokeWidth={2.5} dot={{ r: 4 }} />
+                      </ComposedChart>
+                    </ResponsiveContainer>
+                  </Card>
+
+                  {/* Absence trend */}
+                  {(cmpData.absenceByYear?.length ?? 0) > 0 && (
+                    <Card className="p-5">
+                      <h2 className="font-bold text-base mb-1">Évolution du taux d'absence</h2>
+                      <p className="text-xs text-muted-foreground mb-4">Proportion de séances avec absence enregistrée</p>
+                      <ResponsiveContainer width="100%" height={180}>
+                        <AreaChart data={cmpData.absenceByYear} margin={{ left: -10 }}>
+                          <defs>
+                            <linearGradient id="absGrad" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.3} />
+                              <stop offset="95%" stopColor="#f59e0b" stopOpacity={0.05} />
+                            </linearGradient>
+                          </defs>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                          <XAxis dataKey="academicYear" tick={{ fontSize: 11 }} />
+                          <YAxis domain={[0, 100]} tickFormatter={v => `${v}%`} tick={{ fontSize: 11 }} />
+                          <Tooltip formatter={(v: any) => [`${Number(v).toFixed(1)}%`, "Taux d'absence"]} />
+                          <Area type="monotone" dataKey="absenceRate" name="Taux d'absence" stroke="#f59e0b" strokeWidth={2} fill="url(#absGrad)" />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    </Card>
+                  )}
+
+                  {/* Problem subjects table */}
+                  {problemSubjects.length > 0 && (
+                    <Card className="p-5">
+                      <div className="flex items-center justify-between mb-4">
+                        <div>
+                          <h2 className="font-bold text-base">Matières à taux d'échec élevé</h2>
+                          <p className="text-xs text-muted-foreground">Seuil : {failureThreshold}% · Récurrent = même seuil dépassé 2 années consécutives</p>
+                        </div>
+                        <Button variant="outline" size="sm" className="gap-1.5 text-xs"
+                          onClick={() => exportCsv(problemSubjects.map(s => ({
+                            Matière: s.name,
+                            Statut: s.status === "recurring" ? "Récurrent" : s.status === "watch" ? "Surveillance" : "Amélioration",
+                            ...Object.fromEntries(s.yearData.map(y => [y.year, `${y.rate?.toFixed(1)}%`])),
+                          })), "matieres-problematiques.csv")}>
+                          <Download className="w-3.5 h-3.5" />CSV
+                        </Button>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="border-b">
+                              <th className="text-left py-2 pr-4 font-semibold text-muted-foreground">Matière</th>
+                              {allYears.map(y => (
+                                <th key={y} className="text-center py-2 px-2 font-semibold text-muted-foreground whitespace-nowrap">{y}</th>
+                              ))}
+                              <th className="text-center py-2 px-3 font-semibold text-muted-foreground">Tendance</th>
+                              <th className="text-center py-2 font-semibold text-muted-foreground">Statut</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-border">
+                            {problemSubjects.map((sub, i) => {
+                              const yearRateMap = Object.fromEntries(sub.yearData.map(y => [y.year, y]));
+                              return (
+                                <tr key={i} className="hover:bg-muted/30">
+                                  <td className="py-2 pr-4 font-medium max-w-[200px] truncate" title={sub.name}>{sub.name}</td>
+                                  {allYears.map(y => {
+                                    const d = yearRateMap[y];
+                                    const rate = d?.rate ?? null;
+                                    const teachers = d?.teachers;
+                                    return (
+                                      <td key={y} className="py-2 px-2 text-center" title={teachers ? `Enseignant : ${teachers}` : undefined}>
+                                        {rate === null ? (
+                                          <span className="text-muted-foreground text-xs">—</span>
+                                        ) : (
+                                          <span className={`text-xs font-semibold rounded px-1.5 py-0.5 ${rate > failureThreshold ? "bg-red-100 text-red-700" : "bg-emerald-100 text-emerald-700"}`}>
+                                            {rate.toFixed(0)}%
+                                          </span>
+                                        )}
+                                      </td>
+                                    );
+                                  })}
+                                  <td className="py-2 px-3 text-center">
+                                    <TrendIcon val={-sub.trend} />
+                                  </td>
+                                  <td className="py-2 text-center">
+                                    {sub.status === "recurring" && <Badge className="bg-red-100 text-red-700 border-0 text-xs">🔴 Récurrent</Badge>}
+                                    {sub.status === "watch"     && <Badge className="bg-amber-100 text-amber-700 border-0 text-xs">🟡 Surveillance</Badge>}
+                                    {sub.status === "improving" && <Badge className="bg-emerald-100 text-emerald-700 border-0 text-xs">🟢 Amélioration</Badge>}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </Card>
+                  )}
+
+                  {/* Recommendations */}
+                  {recommendations.length > 0 && (
+                    <Card className="p-5">
+                      <h2 className="font-bold text-base mb-3 flex items-center gap-2">
+                        <Lightbulb className="w-5 h-5 text-amber-500" />
+                        Recommandations pédagogiques
+                      </h2>
+                      <div className="space-y-3">
+                        {recommendations.map((r, i) => (
+                          <div key={i} className={`flex items-start gap-3 rounded-lg p-3 border ${
+                            r.color === "red" ? "bg-red-50 border-red-200" :
+                            r.color === "amber" ? "bg-amber-50 border-amber-200" :
+                            "bg-emerald-50 border-emerald-200"
+                          }`}>
+                            <span className="text-lg leading-none mt-0.5 shrink-0">{r.icon}</span>
+                            <p className="text-sm">{r.text}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </Card>
+                  )}
+
+                  {/* Teacher comparison */}
+                  {teacherList.length > 0 && (
+                    <Card className="p-5">
+                      <h2 className="font-bold text-base mb-1">Comparatif enseignants</h2>
+                      <p className="text-xs text-muted-foreground mb-4">Évolution des résultats par enseignant sur plusieurs années</p>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="border-b">
+                              <th className="text-left py-2 pr-6 font-semibold text-muted-foreground">Enseignant</th>
+                              {allYears.map(y => (
+                                <th key={y} className="text-center py-2 px-3 font-semibold text-muted-foreground whitespace-nowrap" colSpan={2}>{y}</th>
+                              ))}
+                            </tr>
+                            <tr className="border-b bg-muted/20">
+                              <th className="py-1 pr-6"></th>
+                              {allYears.map(y => (
+                                <Fragment key={y}>
+                                  <th className="text-center py-1 px-2 text-xs font-medium text-muted-foreground">Moy.</th>
+                                  <th className="text-center py-1 px-2 text-xs font-medium text-muted-foreground">Échecs</th>
+                                </Fragment>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-border">
+                            {teacherList.map((t, i) => {
+                              const yearMap = Object.fromEntries(t.years.map((y: any) => [y.academicYear, y]));
+                              const yearAvgs = allYears.map(y => yearMap[y]?.avgGradeGiven ?? null).filter(v => v !== null) as number[];
+                              const teacherTrend = yearAvgs.length >= 2 ? yearAvgs[yearAvgs.length - 1] - yearAvgs[0] : 0;
+                              return (
+                                <tr key={i} className="hover:bg-muted/30">
+                                  <td className="py-2 pr-6">
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-medium">{t.name}</span>
+                                      <TrendIcon val={teacherTrend} />
+                                    </div>
+                                  </td>
+                                  {allYears.map(y => {
+                                    const d = yearMap[y];
+                                    return (
+                                      <Fragment key={y}>
+                                        <td className="text-center py-2 px-2 text-xs">
+                                          {d ? <span className="font-semibold">{fmt(d.avgGradeGiven)}</span> : <span className="text-muted-foreground">—</span>}
+                                        </td>
+                                        <td className="text-center py-2 px-2 text-xs">
+                                          {d ? (
+                                            <span className={`rounded px-1.5 py-0.5 ${d.failureRate > failureThreshold ? "bg-red-100 text-red-700 font-semibold" : "text-muted-foreground"}`}>
+                                              {d.failureRate.toFixed(0)}%
+                                            </span>
+                                          ) : <span className="text-muted-foreground">—</span>}
+                                        </td>
+                                      </Fragment>
+                                    );
+                                  })}
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </Card>
+                  )}
+                </>
+              );
+            })()}
+          </TabsContent>
+
         </Tabs>
       </div>
 

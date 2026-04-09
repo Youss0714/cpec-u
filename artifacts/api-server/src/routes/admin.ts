@@ -3591,6 +3591,202 @@ router.delete("/parents/:id", requireRole("admin"), async (req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ error: "Internal Server Error" }); }
 });
 
+// ─── GET /admin/reports/comparatif — Multi-year comparative analytics ─────────
+router.get("/reports/comparatif", requireRole("admin"), async (req, res) => {
+  try {
+    const { filiere } = req.query;
+
+    // Filter conditions for class
+    const classFilterSql = filiere ? sql`
+      AND ce.class_id IN (
+        SELECT id FROM classes WHERE filiere = ${filiere as string}
+      )
+    ` : sql``;
+
+    // ── 1. Year-by-year KPIs ──────────────────────────────────────────────────
+    const yearlyKpis = allRows(await db.execute(sql`
+      WITH student_year_avg AS (
+        SELECT
+          s.academic_year,
+          g.student_id,
+          AVG(g.value)::numeric AS avg_grade
+        FROM grades g
+        JOIN semesters s ON s.id = g.semester_id
+        JOIN class_enrollments ce ON ce.student_id = g.student_id
+        WHERE 1=1 ${classFilterSql}
+        GROUP BY s.academic_year, g.student_id
+      ),
+      retake_by_year AS (
+        SELECT DISTINCT rg.student_id, s.academic_year
+        FROM retake_grades rg
+        JOIN retake_sessions rs ON rs.id = rg.session_id
+        JOIN semesters s ON s.id = rs.semester_id
+      ),
+      jury_by_year AS (
+        SELECT DISTINCT sjd.student_id, sjs.academic_year
+        FROM special_jury_decisions sjd
+        JOIN special_jury_sessions sjs ON sjs.id = sjd.session_id
+      ),
+      enrolled_by_year AS (
+        SELECT DISTINCT ce.student_id, s.academic_year
+        FROM class_enrollments ce
+        JOIN grades g ON g.student_id = ce.student_id
+        JOIN semesters s ON s.id = g.semester_id
+        WHERE 1=1 ${classFilterSql}
+      )
+      SELECT
+        sya.academic_year,
+        COUNT(DISTINCT sya.student_id)::int            AS total_students,
+        SUM(CASE WHEN sya.avg_grade >= 10 THEN 1 ELSE 0 END)::int AS passed,
+        SUM(CASE WHEN sya.avg_grade < 10 THEN 1 ELSE 0 END)::int  AS failed,
+        ROUND(AVG(sya.avg_grade), 2)::numeric          AS avg_grade,
+        COUNT(DISTINCT rby.student_id)::int            AS retake_students,
+        COUNT(DISTINCT jby.student_id)::int            AS jury_students
+      FROM student_year_avg sya
+      LEFT JOIN retake_by_year rby
+        ON rby.student_id = sya.student_id AND rby.academic_year = sya.academic_year
+      LEFT JOIN jury_by_year jby
+        ON jby.student_id = sya.student_id AND jby.academic_year = sya.academic_year
+      GROUP BY sya.academic_year
+      ORDER BY sya.academic_year
+    `));
+
+    // ── 2. Subject failure rates by year ──────────────────────────────────────
+    const subjectByYear = allRows(await db.execute(sql`
+      SELECT
+        s.academic_year,
+        sub.id   AS subject_id,
+        sub.name AS subject_name,
+        COUNT(DISTINCT g.student_id)::int  AS total_graded,
+        SUM(CASE WHEN g.value < 10 THEN 1 ELSE 0 END)::int AS failed,
+        ROUND(AVG(g.value)::numeric, 2)    AS avg_grade
+      FROM grades g
+      JOIN semesters s   ON s.id   = g.semester_id
+      JOIN subjects sub  ON sub.id = g.subject_id
+      JOIN class_enrollments ce ON ce.student_id = g.student_id
+      WHERE 1=1 ${classFilterSql}
+      GROUP BY s.academic_year, sub.id, sub.name
+      ORDER BY s.academic_year, sub.name
+    `));
+
+    // ── 3. Teacher assignments per subject per year ───────────────────────────
+    const teacherBySubjectYear = allRows(await db.execute(sql`
+      SELECT
+        s.academic_year,
+        ta.subject_id,
+        u.name AS teacher_name
+      FROM teacher_assignments ta
+      JOIN semesters s ON s.id = ta.semester_id
+      JOIN users u     ON u.id = ta.teacher_id
+      GROUP BY s.academic_year, ta.subject_id, u.name
+      ORDER BY s.academic_year, ta.subject_id
+    `));
+
+    // ── 4. Attendance by year ─────────────────────────────────────────────────
+    const absenceByYear = allRows(await db.execute(sql`
+      SELECT
+        s.academic_year,
+        COUNT(*)::int AS total,
+        SUM(CASE WHEN a.status = 'absent' THEN 1 ELSE 0 END)::int AS absent
+      FROM attendance a
+      JOIN semesters s ON s.id = a.semester_id
+      JOIN class_enrollments ce ON ce.student_id = a.student_id AND ce.class_id = a.class_id
+      WHERE 1=1 ${classFilterSql}
+      GROUP BY s.academic_year
+      ORDER BY s.academic_year
+    `));
+
+    // ── 5. Teacher comparison (directeur view) ────────────────────────────────
+    const teacherComparison = allRows(await db.execute(sql`
+      SELECT
+        u.id AS teacher_id,
+        u.name AS teacher_name,
+        s.academic_year,
+        COUNT(DISTINCT g.subject_id)::int AS subject_count,
+        COUNT(DISTINCT g.student_id)::int AS student_count,
+        ROUND(AVG(g.value)::numeric, 2)   AS avg_grade_given,
+        SUM(CASE WHEN g.value < 10 THEN 1 ELSE 0 END)::int AS failed_count,
+        COUNT(DISTINCT g.id)::int                          AS total_grades
+      FROM teacher_assignments ta
+      JOIN users u     ON u.id  = ta.teacher_id
+      JOIN semesters s ON s.id  = ta.semester_id
+      JOIN grades g    ON g.subject_id = ta.subject_id AND g.semester_id = ta.semester_id
+      GROUP BY u.id, u.name, s.academic_year
+      ORDER BY s.academic_year, u.name
+    `));
+
+    // ── 6. Available filieres for filters ────────────────────────────────────
+    const filieresRows = allRows(await db.execute(sql`
+      SELECT DISTINCT filiere FROM classes WHERE filiere IS NOT NULL ORDER BY filiere
+    `));
+
+    res.json({
+      yearlyKpis: yearlyKpis.map(r => ({
+        academicYear: r.academic_year,
+        totalStudents: Number(r.total_students ?? 0),
+        passed: Number(r.passed ?? 0),
+        failed: Number(r.failed ?? 0),
+        avgGrade: Number(r.avg_grade ?? 0),
+        retakeStudents: Number(r.retake_students ?? 0),
+        juryStudents: Number(r.jury_students ?? 0),
+        passRate: Number(r.total_students) > 0
+          ? Math.round((Number(r.passed) / Number(r.total_students)) * 1000) / 10
+          : 0,
+        retakeRate: Number(r.total_students) > 0
+          ? Math.round((Number(r.retake_students) / Number(r.total_students)) * 1000) / 10
+          : 0,
+        juryRate: Number(r.total_students) > 0
+          ? Math.round((Number(r.jury_students) / Number(r.total_students)) * 1000) / 10
+          : 0,
+        failureRate: Number(r.total_students) > 0
+          ? Math.round((Number(r.failed) / Number(r.total_students)) * 1000) / 10
+          : 0,
+      })),
+      subjectByYear: subjectByYear.map(r => ({
+        academicYear: r.academic_year as string,
+        subjectId: Number(r.subject_id),
+        subjectName: r.subject_name as string,
+        totalGraded: Number(r.total_graded ?? 0),
+        failed: Number(r.failed ?? 0),
+        avgGrade: Number(r.avg_grade ?? 0),
+        failureRate: Number(r.total_graded) > 0
+          ? Math.round((Number(r.failed) / Number(r.total_graded)) * 1000) / 10
+          : 0,
+      })),
+      teacherBySubjectYear: teacherBySubjectYear.map(r => ({
+        academicYear: r.academic_year as string,
+        subjectId: Number(r.subject_id),
+        teacherName: r.teacher_name as string,
+      })),
+      absenceByYear: absenceByYear.map(r => ({
+        academicYear: r.academic_year as string,
+        total: Number(r.total ?? 0),
+        absent: Number(r.absent ?? 0),
+        absenceRate: Number(r.total) > 0
+          ? Math.round((Number(r.absent) / Number(r.total)) * 1000) / 10
+          : 0,
+      })),
+      teacherComparison: teacherComparison.map(r => ({
+        teacherId: Number(r.teacher_id),
+        teacherName: r.teacher_name as string,
+        academicYear: r.academic_year as string,
+        subjectCount: Number(r.subject_count ?? 0),
+        studentCount: Number(r.student_count ?? 0),
+        avgGradeGiven: Number(r.avg_grade_given ?? 0),
+        failedCount: Number(r.failed_count ?? 0),
+        totalGrades: Number(r.total_grades ?? 0),
+        failureRate: Number(r.total_grades) > 0
+          ? Math.round((Number(r.failed_count) / Number(r.total_grades)) * 1000) / 10
+          : 0,
+      })),
+      filieres: filieresRows.map(r => r.filiere as string).filter(Boolean),
+    });
+  } catch (err) {
+    console.error("GET /admin/reports/comparatif error:", err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
 // POST /admin/parents/:id/students/:studentId — link parent ↔ student
 router.post("/parents/:id/students/:studentId", requireRole("admin"), async (req, res) => {
   try {
