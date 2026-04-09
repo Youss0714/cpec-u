@@ -545,4 +545,157 @@ router.get("/schedule", requireRole("student"), async (req, res) => {
   }
 });
 
+// ─── GET /student/academic-tracking — Personal academic progression ───────────
+router.get("/academic-tracking", requireRole("student"), async (req, res) => {
+  try {
+    const studentId = (req as any).user?.id;
+    if (!studentId) { res.status(401).json({ error: "Non authentifié" }); return; }
+
+    // Semester grades + subjects
+    const semesterGrades = (await db.execute(sql`
+      SELECT s.id AS semester_id, s.name AS semester_name, s.academic_year,
+        sub.id AS subject_id, sub.name AS subject_name,
+        COALESCE(sub.coefficient, 1)::numeric AS coefficient,
+        COALESCE(sub.credits, 1)::numeric AS credits, g.value AS grade
+      FROM grades g
+      JOIN semesters s  ON s.id  = g.semester_id
+      JOIN subjects sub ON sub.id = g.subject_id
+      WHERE g.student_id = ${studentId}
+      ORDER BY s.academic_year, s.name, sub.name
+    `)).rows as any[];
+
+    // Retake grades
+    const retakeRows = (await db.execute(sql`
+      SELECT rs.semester_id, sub.name AS subject_name, rg.value AS retake_grade
+      FROM retake_grades rg
+      JOIN retake_sessions rs ON rs.id = rg.session_id
+      JOIN subjects sub ON sub.id = rg.subject_id
+      WHERE rg.student_id = ${studentId}
+    `)).rows as any[];
+
+    // Class averages
+    const studentClass = ((await db.execute(sql`
+      SELECT class_id FROM class_enrollments WHERE student_id = ${studentId} ORDER BY id DESC LIMIT 1
+    `)).rows as any[])[0];
+
+    const classAvgRows = studentClass?.class_id ? (await db.execute(sql`
+      WITH class_sem_avgs AS (
+        SELECT g.student_id, g.semester_id,
+          SUM(g.value * COALESCE(sub.coefficient, 1)) / NULLIF(SUM(COALESCE(sub.coefficient, 1)), 0) AS avg
+        FROM grades g
+        JOIN subjects sub ON sub.id = g.subject_id
+        JOIN class_enrollments ce ON ce.student_id = g.student_id AND ce.class_id = ${studentClass.class_id}
+        GROUP BY g.student_id, g.semester_id
+      )
+      SELECT semester_id, COUNT(DISTINCT student_id)::int AS total_students,
+        ROUND(AVG(avg)::numeric, 2) AS class_avg
+      FROM class_sem_avgs GROUP BY semester_id
+    `)).rows as any[] : [];
+
+    // Ranks
+    const rankRows = studentClass?.class_id ? (await db.execute(sql`
+      WITH class_sem_avgs AS (
+        SELECT g.student_id, g.semester_id,
+          SUM(g.value * COALESCE(sub.coefficient, 1)) / NULLIF(SUM(COALESCE(sub.coefficient, 1)), 0) AS avg
+        FROM grades g
+        JOIN subjects sub ON sub.id = g.subject_id
+        JOIN class_enrollments ce ON ce.student_id = g.student_id AND ce.class_id = ${studentClass.class_id}
+        GROUP BY g.student_id, g.semester_id
+      ),
+      ranked AS (
+        SELECT student_id, semester_id, RANK() OVER (PARTITION BY semester_id ORDER BY avg DESC) AS rank
+        FROM class_sem_avgs
+      )
+      SELECT semester_id, rank::int FROM ranked WHERE student_id = ${studentId}
+    `)).rows as any[] : [];
+
+    // Absence by subject
+    const absenceRows = (await db.execute(sql`
+      SELECT a.semester_id, sub.name AS subject_name,
+        COUNT(*)::int AS total,
+        SUM(CASE WHEN a.status = 'absent' THEN 1 ELSE 0 END)::int AS absent,
+        SUM(CASE WHEN a.status = 'absent' AND a.justified THEN 1 ELSE 0 END)::int AS justified
+      FROM attendance a
+      JOIN subjects sub ON sub.id = a.subject_id
+      WHERE a.student_id = ${studentId}
+      GROUP BY a.semester_id, sub.id, sub.name ORDER BY a.semester_id, sub.name
+    `)).rows as any[];
+
+    // Build response
+    const semMap = new Map<number, any>();
+    for (const r of semesterGrades) {
+      const sid = Number(r.semester_id);
+      if (!semMap.has(sid)) semMap.set(sid, { semesterId: sid, semesterName: r.semester_name, academicYear: r.academic_year, subjects: [] });
+      semMap.get(sid).subjects.push({ subjectId: Number(r.subject_id), subjectName: r.subject_name, coefficient: Number(r.coefficient), credits: Number(r.credits), grade: r.grade !== null ? Number(r.grade) : null });
+    }
+
+    const classAvgMap = new Map(classAvgRows.map((r: any) => [Number(r.semester_id), { classAvg: Number(r.class_avg), totalStudents: Number(r.total_students) }]));
+    const rankMap = new Map(rankRows.map((r: any) => [Number(r.semester_id), Number(r.rank)]));
+    const retakeMap = new Map<string, number>();
+    for (const r of retakeRows) retakeMap.set(`${r.semester_id}_${r.subject_name}`, Number(r.retake_grade));
+
+    const absencesBySem = new Map<number, any[]>();
+    for (const r of absenceRows) {
+      const sid = Number(r.semester_id);
+      if (!absencesBySem.has(sid)) absencesBySem.set(sid, []);
+      absencesBySem.get(sid)!.push({ subjectName: r.subject_name, total: Number(r.total), absent: Number(r.absent), justified: Number(r.justified), absenceRate: Number(r.total) > 0 ? Math.round((Number(r.absent) / Number(r.total)) * 1000) / 10 : 0 });
+    }
+
+    const semesters = Array.from(semMap.values()).map(sem => {
+      const subjects = sem.subjects;
+      const totalCoef = subjects.reduce((s: number, g: any) => s + (g.grade !== null ? g.coefficient : 0), 0);
+      const weightedSum = subjects.reduce((s: number, g: any) => s + (g.grade !== null ? g.grade * g.coefficient : 0), 0);
+      const average = totalCoef > 0 ? Math.round((weightedSum / totalCoef) * 100) / 100 : null;
+      const { classAvg, totalStudents } = classAvgMap.get(sem.semesterId) ?? { classAvg: null, totalStudents: 0 };
+      const creditsEarned = subjects.filter((s: any) => s.grade !== null && s.grade >= 10).reduce((t: number, s: any) => t + s.credits, 0);
+      const creditsTotal  = subjects.filter((s: any) => s.grade !== null).reduce((t: number, s: any) => t + s.credits, 0);
+      return {
+        ...sem,
+        average, classAverage: classAvg, totalStudents, rank: rankMap.get(sem.semesterId) ?? null,
+        creditsEarned, creditsTotal,
+        absences: absencesBySem.get(sem.semesterId) ?? [],
+        subjects: subjects.map((s: any) => ({ ...s, retakeGrade: retakeMap.get(`${sem.semesterId}_${s.subjectName}`) ?? null })),
+      };
+    }).sort((a, b) => a.academicYear < b.academicYear ? -1 : a.academicYear > b.academicYear ? 1 : a.semesterName < b.semesterName ? -1 : 1);
+
+    const totalCreditsEarned = semesters.reduce((t, s) => t + (s.creditsEarned ?? 0), 0);
+    const totalCreditsAttempted = semesters.reduce((t, s) => t + (s.creditsTotal ?? 0), 0);
+    const latestSem = semesters[semesters.length - 1];
+    const prevSem   = semesters.length >= 2 ? semesters[semesters.length - 2] : null;
+    let trend: "up"|"down"|"stable" = "stable";
+    if (latestSem?.average !== null && prevSem?.average !== null) {
+      const diff = (latestSem?.average ?? 0) - (prevSem?.average ?? 0);
+      if (diff >= 1) trend = "up"; else if (diff <= -1) trend = "down";
+    }
+
+    const alerts: any[] = [];
+    if (latestSem?.average !== null && latestSem.average < 8)
+      alerts.push({ type: "avg_critical", severity: "critical", message: `Moyenne actuelle ${latestSem.average.toFixed(2)}/20 — En dessous du seuil critique de 8/20.` });
+    else if (latestSem?.average !== null && latestSem.average < 10)
+      alerts.push({ type: "avg_low", severity: "high", message: `Moyenne actuelle ${latestSem.average.toFixed(2)}/20 — Validation du semestre en danger.` });
+    for (const sub of (latestSem?.subjects ?? []))
+      if (sub.grade !== null && sub.grade <= 6)
+        alerts.push({ type: "eliminatoire", severity: "high", message: `Note éliminatoire en ${sub.subjectName} : ${sub.grade.toFixed(2)}/20` });
+    const latestAbs = absencesBySem.get(latestSem?.semesterId ?? -1) ?? [];
+    for (const abs of latestAbs)
+      if (abs.absenceRate > 20)
+        alerts.push({ type: "absence", severity: "moderate", message: `Taux d'absence de ${abs.absenceRate}% en ${abs.subjectName} — Seuil critique dépassé.` });
+    if (trend === "down" && prevSem?.average !== null && latestSem?.average !== null)
+      alerts.push({ type: "trend_down", severity: "moderate", message: `Baisse de moyenne : ${prevSem.average.toFixed(2)} → ${latestSem.average?.toFixed(2)}/20` });
+
+    const totalSessions = absenceRows.reduce((t, r: any) => t + Number(r.total), 0);
+    const totalAbsent   = absenceRows.reduce((t, r: any) => t + Number(r.absent), 0);
+    const attendanceRate = totalSessions > 0 ? Math.round((1 - totalAbsent / totalSessions) * 1000) / 10 : null;
+
+    res.json({
+      semesters,
+      indicators: { creditsEarned: totalCreditsEarned, creditsAttempted: totalCreditsAttempted, passRate: totalCreditsAttempted > 0 ? Math.round((totalCreditsEarned / totalCreditsAttempted) * 1000) / 10 : null, attendanceRate, currentRank: latestSem?.rank ?? null, totalStudents: latestSem?.totalStudents ?? null, currentAverage: latestSem?.average ?? null, trend },
+      alerts,
+    });
+  } catch (err) {
+    console.error("GET /student/academic-tracking error:", err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
 export default router;

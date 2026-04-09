@@ -49,6 +49,7 @@ import {
   Star,
   User2,
   Scale,
+  ShieldAlert,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
@@ -232,6 +233,7 @@ export function AppLayout({ children, allowedRoles, noScroll = false }: AppLayou
     { name: "Cartes Étudiantes", href: "/admin/cards", icon: CreditCard },
     { name: "Évaluations Enseignants", href: "/admin/evaluations", icon: Star },
     { name: "Réclamations", href: "/admin/reclamations", icon: Scale, badge: adminReclamCount > 0 ? adminReclamCount : undefined },
+    { name: "Étudiants en Difficulté", href: "/admin/at-risk", icon: ShieldAlert },
     { name: "Rapports & Statistiques", href: "/admin/reports", icon: BarChart2 },
     { name: "Centre de Documents", href: "/admin/documents", icon: FileText },
     { name: "Gestion des Parents", href: "/admin/parents", icon: User2 },
@@ -276,6 +278,7 @@ export function AppLayout({ children, allowedRoles, noScroll = false }: AppLayou
     { name: "Cartes Étudiantes", href: "/admin/cards", icon: CreditCard },
     { name: "Évaluations Enseignants", href: "/admin/evaluations", icon: Star },
     { name: "Réclamations", href: "/admin/reclamations", icon: Scale, badge: adminReclamCount > 0 ? adminReclamCount : undefined },
+    { name: "Étudiants en Difficulté", href: "/admin/at-risk", icon: ShieldAlert },
     { name: "Rapports & Statistiques", href: "/admin/reports", icon: BarChart2 },
     { name: "Centre de Documents", href: "/admin/documents", icon: FileText },
     { name: "Gestion des Parents", href: "/admin/parents", icon: User2 },
@@ -327,6 +330,7 @@ export function AppLayout({ children, allowedRoles, noScroll = false }: AppLayou
           { name: "Mon Profil", href: "/student", icon: LayoutDashboard, badge: null },
           { name: "Mon Emploi du Temps", href: "/student/schedule", icon: CalendarDays, badge: null },
           { name: "Mes Résultats", href: "/student/grades", icon: FileText, badge: null },
+          { name: "Mon Suivi Académique", href: "/student/suivi", icon: TrendingUp, badge: null },
           { name: "Mes Absences", href: "/student/absences", icon: CalendarOff, badge: null },
           { name: "Cahier de texte", href: "/student/cahier-de-texte", icon: BookText, badge: null },
           { name: "Notifications", href: "/student/notifications", icon: Bell, badge: (unreadData?.count ?? 0) > 0 ? unreadData!.count : null },

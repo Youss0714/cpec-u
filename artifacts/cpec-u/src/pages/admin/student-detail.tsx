@@ -16,8 +16,13 @@ import {
 import {
   ArrowLeft, User, Mail, Phone, MapPin, Calendar, GraduationCap,
   BookOpen, AlertCircle, CheckCircle2, Wallet, Home, TrendingUp, Clock, Plus, Trash2,
-  CreditCard, Download, RefreshCw, XCircle, QrCode,
+  CreditCard, Download, RefreshCw, XCircle, QrCode, Activity, TrendingDown, Minus,
+  Award, BarChart2, ShieldAlert,
 } from "lucide-react";
+import {
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+  ResponsiveContainer, ReferenceLine,
+} from "recharts";
 import { motion } from "framer-motion";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -166,6 +171,150 @@ function AdminStudentCardTab({ studentId, studentName }: { studentId: number; st
         )}
       </CardContent>
     </Card>
+  );
+}
+
+// ─── Suivi Académique tab component ───────────────────────────────────────────
+function GradeColor(v: number | null): string {
+  if (v === null) return "#6b7280";
+  if (v >= 14) return "#10b981";
+  if (v >= 10) return "#3b82f6";
+  if (v >= 8)  return "#f59e0b";
+  return "#ef4444";
+}
+
+function AdminStudentSuiviTab({ studentId }: { studentId: number }) {
+  const { data, isLoading } = useQuery<any>({
+    queryKey: ["/api/admin/students/academic-tracking", studentId],
+    queryFn: async () => {
+      const res = await fetch(`/api/admin/students/${studentId}/academic-tracking`, { credentials: "include" });
+      if (!res.ok) throw new Error("Erreur");
+      return res.json();
+    },
+    staleTime: 60000,
+    enabled: !!studentId,
+  });
+
+  if (isLoading) return (
+    <div className="flex items-center justify-center h-48"><div className="animate-spin rounded-full h-8 w-8 border-t-2 border-primary" /></div>
+  );
+
+  const semesters: any[] = data?.semesters ?? [];
+  const indicators = data?.indicators ?? {};
+  const alerts: any[] = data?.alerts ?? [];
+
+  const chartData = semesters.map(s => ({ name: s.semesterName, moyenne: s.average, classeAvg: s.classAverage }));
+
+  return (
+    <div className="space-y-5">
+      {alerts.length > 0 && (
+        <div className="space-y-2">
+          {alerts.map((a: any, i: number) => (
+            <div key={i} className={`flex items-start gap-2 rounded-lg border p-3 text-sm ${a.severity === "critical" ? "bg-red-50 border-red-200 text-red-800" : a.severity === "high" ? "bg-orange-50 border-orange-200 text-orange-800" : "bg-amber-50 border-amber-200 text-amber-800"}`}>
+              <ShieldAlert className={`w-4 h-4 shrink-0 mt-0.5 ${a.severity === "critical" ? "text-red-600" : a.severity === "high" ? "text-orange-600" : "text-amber-600"}`} />
+              <p>{a.message}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* KPI indicators */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <Card className="p-3 text-center">
+          <p className="text-xs text-muted-foreground">Moy. actuelle</p>
+          <p className="text-xl font-extrabold font-mono" style={{ color: GradeColor(indicators.currentAverage) }}>
+            {indicators.currentAverage ? indicators.currentAverage.toFixed(2) : "—"}/20
+          </p>
+        </Card>
+        <Card className="p-3 text-center">
+          <p className="text-xs text-muted-foreground">Crédits validés</p>
+          <p className="text-xl font-extrabold">{indicators.creditsEarned ?? "—"}</p>
+        </Card>
+        <Card className="p-3 text-center">
+          <p className="text-xs text-muted-foreground">Rang</p>
+          <p className="text-xl font-extrabold">
+            {indicators.currentRank ? `${indicators.currentRank}/${indicators.totalStudents}` : "—"}
+          </p>
+        </Card>
+        <Card className="p-3 text-center">
+          <p className="text-xs text-muted-foreground">Présence</p>
+          <p className="text-xl font-extrabold">{indicators.attendanceRate !== null && indicators.attendanceRate !== undefined ? `${indicators.attendanceRate}%` : "—"}</p>
+        </Card>
+      </div>
+
+      {/* Progression chart */}
+      {chartData.length >= 2 && (
+        <Card className="p-4">
+          <p className="font-semibold text-sm mb-3">Évolution de la moyenne</p>
+          <ResponsiveContainer width="100%" height={220}>
+            <LineChart data={chartData} margin={{ left: -10 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+              <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+              <YAxis domain={[0, 20]} tickFormatter={v => `${v}`} tick={{ fontSize: 11 }} />
+              <Tooltip formatter={(v: any, name: string) => [`${Number(v).toFixed(2)}/20`, name === "moyenne" ? "Étudiant" : "Classe"]} />
+              <Legend formatter={v => v === "moyenne" ? "Étudiant" : "Moy. classe"} />
+              <ReferenceLine y={10} stroke="#94a3b8" strokeDasharray="5 3" />
+              <ReferenceLine y={8}  stroke="#fca5a5" strokeDasharray="4 2" />
+              <Line type="monotone" dataKey="moyenne"   stroke="#6366f1" strokeWidth={2.5} dot={{ r: 5 }} activeDot={{ r: 7 }} />
+              <Line type="monotone" dataKey="classeAvg" stroke="#94a3b8" strokeWidth={1.5} strokeDasharray="5 3" dot={{ r: 3 }} />
+            </LineChart>
+          </ResponsiveContainer>
+        </Card>
+      )}
+
+      {/* Per-semester breakdown */}
+      {semesters.length === 0 ? (
+        <Card><CardContent className="py-12 text-center text-muted-foreground">Aucune note enregistrée pour cet étudiant.</CardContent></Card>
+      ) : (
+        [...semesters].reverse().map((sem: any) => (
+          <Card key={sem.semesterId} className="overflow-hidden">
+            <CardHeader className="bg-muted/30 py-2.5 px-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-semibold text-sm">{sem.semesterName} <span className="text-xs font-normal text-muted-foreground">({sem.academicYear})</span></p>
+                  {sem.rank && <p className="text-xs text-muted-foreground">Rang {sem.rank}/{sem.totalStudents}</p>}
+                </div>
+                <div className="text-right">
+                  {sem.average !== null ? (
+                    <span className="font-mono font-bold text-base" style={{ color: GradeColor(sem.average) }}>
+                      {sem.average.toFixed(2)}/20
+                    </span>
+                  ) : <span className="text-muted-foreground text-sm">—</span>}
+                  {sem.classAverage && <p className="text-xs text-muted-foreground">Moy. classe: {sem.classAverage.toFixed(2)}</p>}
+                </div>
+              </div>
+            </CardHeader>
+            <div className="divide-y">
+              {sem.subjects.map((sub: any) => (
+                <div key={sub.subjectId} className="flex items-center gap-3 px-5 py-2">
+                  <div className="flex-1">
+                    <p className="text-sm">{sub.subjectName}</p>
+                    <p className="text-xs text-muted-foreground">Coef. {sub.coefficient}</p>
+                  </div>
+                  <div className="text-right">
+                    {sub.grade !== null ? (
+                      <span className="font-mono text-sm font-semibold" style={{ color: GradeColor(sub.grade) }}>
+                        {sub.grade.toFixed(2)}/20
+                      </span>
+                    ) : <span className="text-muted-foreground text-sm">—</span>}
+                    {sub.retakeGrade !== null && (
+                      <p className="text-xs text-amber-600">Ratt: {sub.retakeGrade.toFixed(2)}/20</p>
+                    )}
+                  </div>
+                  {sub.grade !== null && (
+                    <div className="w-20">
+                      <div className="w-full bg-muted rounded-full h-1.5">
+                        <div className="h-1.5 rounded-full" style={{ width: `${Math.min((sub.grade / 20) * 100, 100)}%`, background: GradeColor(sub.grade) }} />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </Card>
+        ))
+      )}
+    </div>
   );
 }
 
@@ -374,6 +523,7 @@ export default function AdminStudentDetail() {
             <TabsList className="bg-muted/60 rounded-xl p-1 mb-4 flex-wrap gap-1 h-auto">
               <TabsTrigger value="notes" className="rounded-lg text-xs sm:text-sm">Notes & Résultats</TabsTrigger>
               <TabsTrigger value="absences" className="rounded-lg text-xs sm:text-sm">Absences</TabsTrigger>
+              <TabsTrigger value="suivi" className="rounded-lg text-xs sm:text-sm">Suivi Académique</TabsTrigger>
               <TabsTrigger value="scolarite" className="rounded-lg text-xs sm:text-sm">Scolarité</TabsTrigger>
               <TabsTrigger value="housing" className="rounded-lg text-xs sm:text-sm">Hébergement</TabsTrigger>
               <TabsTrigger value="infos" className="rounded-lg text-xs sm:text-sm">Infos personnelles</TabsTrigger>
@@ -491,6 +641,11 @@ export default function AdminStudentDetail() {
                   )}
                 </CardContent>
               </Card>
+            </TabsContent>
+
+            {/* ── Suivi Académique ── */}
+            <TabsContent value="suivi">
+              <AdminStudentSuiviTab studentId={studentId} />
             </TabsContent>
 
             {/* ── Scolarité ── */}

@@ -3591,6 +3591,357 @@ router.delete("/parents/:id", requireRole("admin"), async (req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ error: "Internal Server Error" }); }
 });
 
+// ─── GET /admin/students/:id/academic-tracking ────────────────────────────────
+router.get("/students/:id/academic-tracking", requireRole("admin"), async (req, res) => {
+  try {
+    const studentId = parseInt(req.params.id);
+    if (isNaN(studentId)) { res.status(400).json({ error: "ID invalide" }); return; }
+
+    // 1. Student semester averages + subjects
+    const semesterGrades = allRows(await db.execute(sql`
+      SELECT
+        s.id          AS semester_id,
+        s.name        AS semester_name,
+        s.academic_year,
+        sub.id        AS subject_id,
+        sub.name      AS subject_name,
+        COALESCE(sub.coefficient, 1)::numeric AS coefficient,
+        COALESCE(sub.credits, 1)::numeric AS credits,
+        g.value       AS grade
+      FROM grades g
+      JOIN semesters s  ON s.id  = g.semester_id
+      JOIN subjects sub ON sub.id = g.subject_id
+      WHERE g.student_id = ${studentId}
+      ORDER BY s.academic_year, s.name, sub.name
+    `));
+
+    // 2. Retake grades
+    const retakeRows = allRows(await db.execute(sql`
+      SELECT rs.semester_id, sub.name AS subject_name, rg.value AS retake_grade
+      FROM retake_grades rg
+      JOIN retake_sessions rs ON rs.id = rg.session_id
+      JOIN subjects sub ON sub.id = rg.subject_id
+      WHERE rg.student_id = ${studentId}
+    `));
+
+    // 3. Class averages per semester (all students in same class)
+    const studentClass = firstRow(await db.execute(sql`
+      SELECT class_id FROM class_enrollments WHERE student_id = ${studentId} ORDER BY id DESC LIMIT 1
+    `));
+    const classAvgRows = studentClass?.class_id ? allRows(await db.execute(sql`
+      WITH class_sem_avgs AS (
+        SELECT g.student_id, g.semester_id,
+          SUM(g.value * COALESCE(sub.coefficient, 1)) / NULLIF(SUM(COALESCE(sub.coefficient, 1)), 0) AS avg
+        FROM grades g
+        JOIN subjects sub ON sub.id = g.subject_id
+        JOIN class_enrollments ce ON ce.student_id = g.student_id AND ce.class_id = ${studentClass.class_id}
+        GROUP BY g.student_id, g.semester_id
+      )
+      SELECT semester_id,
+        COUNT(DISTINCT student_id)::int AS total_students,
+        ROUND(AVG(avg)::numeric, 2)     AS class_avg
+      FROM class_sem_avgs
+      GROUP BY semester_id
+    `)) : [];
+
+    // 4. Ranks per semester
+    const rankRows = studentClass?.class_id ? allRows(await db.execute(sql`
+      WITH class_sem_avgs AS (
+        SELECT g.student_id, g.semester_id,
+          SUM(g.value * COALESCE(sub.coefficient, 1)) / NULLIF(SUM(COALESCE(sub.coefficient, 1)), 0) AS avg
+        FROM grades g
+        JOIN subjects sub ON sub.id = g.subject_id
+        JOIN class_enrollments ce ON ce.student_id = g.student_id AND ce.class_id = ${studentClass.class_id}
+        GROUP BY g.student_id, g.semester_id
+      ),
+      ranked AS (
+        SELECT student_id, semester_id, RANK() OVER (PARTITION BY semester_id ORDER BY avg DESC) AS rank
+        FROM class_sem_avgs
+      )
+      SELECT semester_id, rank::int FROM ranked WHERE student_id = ${studentId}
+    `)) : [];
+
+    // 5. Absence by subject
+    const absenceRows = allRows(await db.execute(sql`
+      SELECT
+        a.semester_id,
+        sub.name AS subject_name,
+        COUNT(*)::int AS total,
+        SUM(CASE WHEN a.status = 'absent' THEN 1 ELSE 0 END)::int AS absent,
+        SUM(CASE WHEN a.status = 'absent' AND a.justified THEN 1 ELSE 0 END)::int AS justified
+      FROM attendance a
+      JOIN subjects sub ON sub.id = a.subject_id
+      WHERE a.student_id = ${studentId}
+      GROUP BY a.semester_id, sub.id, sub.name
+      ORDER BY a.semester_id, sub.name
+    `));
+
+    // ── Build structured response ────────────────────────────────────────────
+    // Group grades by semester
+    const semMap = new Map<number, any>();
+    for (const r of semesterGrades) {
+      const sid = Number(r.semester_id);
+      if (!semMap.has(sid)) {
+        semMap.set(sid, {
+          semesterId: sid,
+          semesterName: r.semester_name,
+          academicYear: r.academic_year,
+          subjects: [],
+        });
+      }
+      semMap.get(sid).subjects.push({
+        subjectId: Number(r.subject_id),
+        subjectName: r.subject_name,
+        coefficient: Number(r.coefficient),
+        credits: Number(r.credits),
+        grade: r.grade !== null ? Number(r.grade) : null,
+      });
+    }
+
+    const classAvgMap = new Map(classAvgRows.map(r => [Number(r.semester_id), { classAvg: Number(r.class_avg), totalStudents: Number(r.total_students) }]));
+    const rankMap    = new Map(rankRows.map(r => [Number(r.semester_id), Number(r.rank)]));
+    const retakeMap  = new Map<string, number>();
+    for (const r of retakeRows) { retakeMap.set(`${r.semester_id}_${r.subject_name}`, Number(r.retake_grade)); }
+
+    const semesters = Array.from(semMap.values()).map(sem => {
+      const subjects = sem.subjects;
+      const totalCoef = subjects.reduce((s: number, g: any) => s + (g.grade !== null ? g.coefficient : 0), 0);
+      const weightedSum = subjects.reduce((s: number, g: any) => s + (g.grade !== null ? g.grade * g.coefficient : 0), 0);
+      const average = totalCoef > 0 ? Math.round((weightedSum / totalCoef) * 100) / 100 : null;
+      const { classAvg, totalStudents } = classAvgMap.get(sem.semesterId) ?? { classAvg: null, totalStudents: 0 };
+
+      // Subjects with retakes
+      const subjectsWithRetake = subjects.map((s: any) => ({
+        ...s,
+        retakeGrade: retakeMap.get(`${sem.semesterId}_${s.subjectName}`) ?? null,
+      }));
+
+      const creditsEarned = subjects.filter((s: any) => s.grade !== null && s.grade >= 10).reduce((t: number, s: any) => t + s.credits, 0);
+      const creditsTotal  = subjects.filter((s: any) => s.grade !== null).reduce((t: number, s: any) => t + s.credits, 0);
+
+      return {
+        ...sem,
+        average,
+        classAverage: classAvg,
+        totalStudents,
+        rank: rankMap.get(sem.semesterId) ?? null,
+        creditsEarned,
+        creditsTotal,
+        subjects: subjectsWithRetake,
+      };
+    }).sort((a, b) => a.academicYear < b.academicYear ? -1 : a.academicYear > b.academicYear ? 1 : a.semesterName < b.semesterName ? -1 : 1);
+
+    // Absences grouped by semester
+    const absencesBySem = new Map<number, any[]>();
+    for (const r of absenceRows) {
+      const sid = Number(r.semester_id);
+      if (!absencesBySem.has(sid)) absencesBySem.set(sid, []);
+      absencesBySem.get(sid)!.push({
+        subjectName: r.subject_name,
+        total: Number(r.total),
+        absent: Number(r.absent),
+        justified: Number(r.justified),
+        absenceRate: Number(r.total) > 0 ? Math.round((Number(r.absent) / Number(r.total)) * 1000) / 10 : 0,
+      });
+    }
+
+    // Key indicators
+    const totalCreditsEarned = semesters.reduce((t, s) => t + (s.creditsEarned ?? 0), 0);
+    const totalCreditsAttempted = semesters.reduce((t, s) => t + (s.creditsTotal ?? 0), 0);
+    const latestSem = semesters[semesters.length - 1];
+    const prevSem   = semesters.length >= 2 ? semesters[semesters.length - 2] : null;
+
+    let trend: "up"|"down"|"stable" = "stable";
+    if (latestSem?.average !== null && prevSem?.average !== null) {
+      const diff = (latestSem?.average ?? 0) - (prevSem?.average ?? 0);
+      if (diff >= 1) trend = "up";
+      else if (diff <= -1) trend = "down";
+    }
+
+    // Alerts
+    const alerts: { type: string; severity: "critical"|"high"|"moderate"; message: string }[] = [];
+    if (latestSem && latestSem.average !== null && latestSem.average < 8) {
+      alerts.push({ type: "avg_critical", severity: "critical", message: `Moyenne actuelle ${latestSem.average.toFixed(2)}/20 — En dessous du seuil critique de 8/20.` });
+    } else if (latestSem && latestSem.average !== null && latestSem.average < 10) {
+      alerts.push({ type: "avg_low", severity: "high", message: `Moyenne actuelle ${latestSem.average.toFixed(2)}/20 — Validation du semestre en danger.` });
+    }
+    for (const sub of (latestSem?.subjects ?? [])) {
+      if (sub.grade !== null && sub.grade <= 6) {
+        alerts.push({ type: "eliminatoire", severity: "high", message: `Note éliminatoire en ${sub.subjectName} : ${sub.grade.toFixed(2)}/20` });
+      }
+    }
+    const latestAbsences = absencesBySem.get(latestSem?.semesterId ?? -1) ?? [];
+    for (const abs of latestAbsences) {
+      if (abs.absenceRate > 20) {
+        alerts.push({ type: "absence", severity: "moderate", message: `Taux d'absence de ${abs.absenceRate}% en ${abs.subjectName} — Seuil critique dépassé.` });
+      }
+    }
+    if (trend === "down" && prevSem && prevSem.average !== null && latestSem && latestSem.average !== null) {
+      alerts.push({ type: "trend_down", severity: "moderate", message: `Baisse de moyenne : ${prevSem.average.toFixed(2)} → ${latestSem.average.toFixed(2)}/20` });
+    }
+
+    // Global attendance
+    const totalSessions = absenceRows.reduce((t, r) => t + Number(r.total), 0);
+    const totalAbsent   = absenceRows.reduce((t, r) => t + Number(r.absent), 0);
+    const attendanceRate = totalSessions > 0 ? Math.round((1 - totalAbsent / totalSessions) * 1000) / 10 : null;
+
+    res.json({
+      semesters: semesters.map(sem => ({
+        ...sem,
+        absences: absencesBySem.get(sem.semesterId) ?? [],
+      })),
+      indicators: {
+        creditsEarned: totalCreditsEarned,
+        creditsAttempted: totalCreditsAttempted,
+        passRate: totalCreditsAttempted > 0 ? Math.round((totalCreditsEarned / totalCreditsAttempted) * 1000) / 10 : null,
+        attendanceRate,
+        currentRank: latestSem?.rank ?? null,
+        totalStudents: latestSem?.totalStudents ?? null,
+        currentAverage: latestSem?.average ?? null,
+        trend,
+      },
+      alerts,
+    });
+  } catch (err) {
+    console.error("GET /admin/students/:id/academic-tracking error:", err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// ─── GET /admin/at-risk-students ──────────────────────────────────────────────
+router.get("/at-risk-students", requireRole("admin"), async (req, res) => {
+  try {
+    const { classId, semesterId } = req.query;
+    const classFilter = classId ? sql`AND ce.class_id = ${parseInt(classId as string)}` : sql``;
+    const semFilter   = semesterId ? sql`AND g.semester_id = ${parseInt(semesterId as string)}` : sql``;
+
+    // Get all students with their latest semester average + min grade
+    const atRiskRows = allRows(await db.execute(sql`
+      WITH student_sem_stats AS (
+        SELECT
+          g.student_id,
+          g.semester_id,
+          s.name AS semester_name,
+          s.academic_year,
+          SUM(g.value * COALESCE(sub.coefficient, 1)) / NULLIF(SUM(COALESCE(sub.coefficient, 1)), 0) AS avg,
+          MIN(g.value) AS min_grade,
+          SUM(CASE WHEN g.value <= 6 THEN 1 ELSE 0 END)::int AS eliminatoire_count,
+          SUM(CASE WHEN g.value < 10 THEN 1 ELSE 0 END)::int AS failed_subjects
+        FROM grades g
+        JOIN subjects sub ON sub.id = g.subject_id
+        JOIN class_enrollments ce ON ce.student_id = g.student_id
+        JOIN semesters s ON s.id = g.semester_id
+        WHERE 1=1 ${classFilter} ${semFilter}
+        GROUP BY g.student_id, g.semester_id, s.name, s.academic_year
+      ),
+      latest_per_student AS (
+        SELECT DISTINCT ON (student_id) student_id, semester_id, semester_name, academic_year, avg, min_grade, eliminatoire_count, failed_subjects
+        FROM student_sem_stats
+        ORDER BY student_id, semester_id DESC
+      ),
+      absence_stats AS (
+        SELECT a.student_id, a.semester_id,
+          MAX(CASE WHEN att_total > 0 THEN (att_absent::float / att_total) ELSE 0 END) AS max_absence_rate
+        FROM (
+          SELECT student_id, semester_id, subject_id,
+            COUNT(*)::int AS att_total,
+            SUM(CASE WHEN status = 'absent' THEN 1 ELSE 0 END)::int AS att_absent
+          FROM attendance
+          GROUP BY student_id, semester_id, subject_id
+        ) a
+        GROUP BY a.student_id, a.semester_id
+      ),
+      prev_sem AS (
+        SELECT DISTINCT ON (student_id) student_id, avg AS prev_avg
+        FROM student_sem_stats
+        WHERE (student_id, semester_id) NOT IN (
+          SELECT student_id, semester_id FROM latest_per_student
+        )
+        ORDER BY student_id, semester_id DESC
+      )
+      SELECT
+        u.id AS student_id,
+        u.name AS student_name,
+        c.id AS class_id,
+        c.name AS class_name,
+        lps.semester_name,
+        lps.academic_year,
+        lps.semester_id,
+        ROUND(lps.avg::numeric, 2) AS average,
+        ROUND(lps.min_grade::numeric, 2) AS min_grade,
+        lps.eliminatoire_count,
+        lps.failed_subjects,
+        ROUND(COALESCE(asb.max_absence_rate * 100, 0)::numeric, 1) AS max_absence_pct,
+        ROUND(ps.prev_avg::numeric, 2) AS prev_avg
+      FROM latest_per_student lps
+      JOIN users u ON u.id = lps.student_id
+      JOIN class_enrollments ce ON ce.student_id = u.id
+      JOIN classes c ON c.id = ce.class_id
+      LEFT JOIN absence_stats asb ON asb.student_id = lps.student_id AND asb.semester_id = lps.semester_id
+      LEFT JOIN prev_sem ps ON ps.student_id = lps.student_id
+      WHERE (
+        lps.avg < 10 OR
+        lps.min_grade <= 6 OR
+        COALESCE(asb.max_absence_rate * 100, 0) > 20 OR
+        lps.failed_subjects >= 2
+      )
+      ORDER BY lps.avg ASC
+      LIMIT 200
+    `));
+
+    const students = atRiskRows.map(r => {
+      const avg = Number(r.average ?? 0);
+      const prevAvg = r.prev_avg !== null ? Number(r.prev_avg) : null;
+      const minGrade = Number(r.min_grade ?? 20);
+      const absencePct = Number(r.max_absence_pct ?? 0);
+      const failedSubjects = Number(r.failed_subjects ?? 0);
+      const eliminatoire = Number(r.eliminatoire_count ?? 0);
+
+      const reasons: string[] = [];
+      if (avg < 8) reasons.push("avg_critical");
+      else if (avg < 10) reasons.push("avg_low");
+      if (minGrade <= 6) reasons.push("eliminatoire");
+      if (absencePct > 20) reasons.push("absence_high");
+      if (failedSubjects >= 2) reasons.push("multi_failure");
+      if (prevAvg !== null && avg < prevAvg - 1) reasons.push("declining");
+
+      let riskLevel: "critical"|"high"|"moderate";
+      if (avg < 8 || minGrade <= 4) riskLevel = "critical";
+      else if (minGrade <= 6 || failedSubjects >= 3 || eliminatoire > 0) riskLevel = "high";
+      else riskLevel = "moderate";
+
+      return {
+        studentId: Number(r.student_id),
+        studentName: r.student_name,
+        classId: Number(r.class_id),
+        className: r.class_name,
+        semesterName: r.semester_name,
+        academicYear: r.academic_year,
+        average: avg,
+        prevAverage: prevAvg,
+        minGrade,
+        maxAbsencePct: absencePct,
+        failedSubjects,
+        eliminatoireCount: eliminatoire,
+        riskLevel,
+        reasons,
+      };
+    });
+
+    res.json({
+      students,
+      counts: {
+        critical: students.filter(s => s.riskLevel === "critical").length,
+        high: students.filter(s => s.riskLevel === "high").length,
+        moderate: students.filter(s => s.riskLevel === "moderate").length,
+      },
+    });
+  } catch (err) {
+    console.error("GET /admin/at-risk-students error:", err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
 // ─── GET /admin/reports/comparatif — Multi-year comparative analytics ─────────
 router.get("/reports/comparatif", requireRole("admin"), async (req, res) => {
   try {

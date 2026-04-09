@@ -70,6 +70,8 @@ import ParentAbsences from "@/pages/parent/absences";
 import ParentSchedule from "@/pages/parent/schedule";
 import ParentNotifications from "@/pages/parent/notifications";
 import ParentScolarite from "@/pages/parent/scolarite";
+import AtRiskPage from "@/pages/admin/at-risk";
+import StudentSuiviPage from "@/pages/student/suivi";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -167,6 +169,8 @@ function Router() {
       <Route path="/parent/messages">
         {() => <SharedMessages allowedRoles={["parent"]} />}
       </Route>
+      <Route path="/admin/at-risk" component={AtRiskPage} />
+      <Route path="/student/suivi" component={StudentSuiviPage} />
       <Route path="/student/evaluations" component={StudentEvaluations} />
       <Route path="/teacher/evaluations" component={TeacherEvaluations} />
       <Route path="/student/reclamations" component={StudentReclamations} />
