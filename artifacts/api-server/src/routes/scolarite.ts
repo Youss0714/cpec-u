@@ -13,6 +13,8 @@ import {
 import { eq, and, sql, inArray } from "drizzle-orm";
 import { requireRole } from "../lib/auth.js";
 import { notifyParentsOfStudent } from "./parent.js";
+import { sendPushToUser } from "./push.js";
+import { parentStudentLinksTable } from "@workspace/db";
 
 const router = Router();
 
@@ -425,6 +427,13 @@ router.put("/installments/:id", requireRole("admin"), requireScolariteOrDirecteu
   try {
     const id = parseInt(req.params.id);
     const { label, dueDate, amount, paidAt } = req.body;
+
+    const [existing] = await db.select().from(paymentInstallmentsTable).where(eq(paymentInstallmentsTable.id, id)).limit(1);
+    if (!existing) { res.status(404).json({ error: "Échéance introuvable" }); return; }
+
+    const wasUnpaid = !existing.paidAt;
+    const isNowPaid = !!paidAt;
+
     const [row] = await db.update(paymentInstallmentsTable)
       .set({
         label: label ?? undefined,
@@ -436,6 +445,26 @@ router.put("/installments/:id", requireRole("admin"), requireScolariteOrDirecteu
       .where(eq(paymentInstallmentsTable.id, id))
       .returning();
     if (!row) { res.status(404).json({ error: "Échéance introuvable" }); return; }
+
+    if (wasUnpaid && isNowPaid) {
+      const paidDateStr = new Date(paidAt).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
+      const amountStr = new Intl.NumberFormat("fr-FR").format(row.amount);
+      const receiptRef = row.reference ?? `#${row.id}`;
+      const title = "Paiement reçu ✓";
+      const body = `🎉 Bonjour ! Votre paiement de ${amountStr} FCFA a bien été reçu le ${paidDateStr}. Reçu N°${receiptRef} disponible dans votre espace. Merci pour votre confiance !`;
+
+      (async () => {
+        await sendPushToUser(row.studentId, { title, body, type: "payment_confirmed" });
+        const parentLinks = await db
+          .select({ parentId: parentStudentLinksTable.parentId })
+          .from(parentStudentLinksTable)
+          .where(eq(parentStudentLinksTable.studentId, row.studentId));
+        for (const link of parentLinks) {
+          await sendPushToUser(link.parentId, { title, body, type: "payment_confirmed" });
+        }
+      })().catch((err) => console.error("[Scolarite] Erreur notification confirmation paiement:", err));
+    }
+
     res.json(row);
   } catch (err) {
     console.error(err);

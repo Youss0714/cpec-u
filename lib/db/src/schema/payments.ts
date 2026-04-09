@@ -1,4 +1,4 @@
-import { pgTable, serial, integer, real, text, varchar, date, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, real, text, varchar, date, timestamp, unique } from "drizzle-orm/pg-core";
 import { usersTable } from "./users";
 import { classesTable } from "./classes";
 
@@ -53,3 +53,12 @@ export const paymentInstallmentsTable = pgTable("payment_installments", {
 });
 
 export type PaymentInstallment = typeof paymentInstallmentsTable.$inferSelect;
+
+export const feeRemindersLogTable = pgTable("fee_reminders_log", {
+  id: serial("id").primaryKey(),
+  installmentId: integer("installment_id").notNull().references(() => paymentInstallmentsTable.id, { onDelete: "cascade" }),
+  reminderType: varchar("reminder_type", { length: 20 }).notNull(),
+  sentAt: date("sent_at").notNull(),
+}, (t) => [unique().on(t.installmentId, t.reminderType)]);
+
+export type FeeReminderLog = typeof feeRemindersLogTable.$inferSelect;

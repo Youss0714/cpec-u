@@ -5,6 +5,7 @@ import { initSocketIO } from "./lib/socket.js";
 import { db } from "@workspace/db";
 import { usersTable } from "@workspace/db";
 import { sql } from "drizzle-orm";
+import { startFeeReminderScheduler } from "./lib/fee-reminder-scheduler.js";
 
 const rawPort = process.env["PORT"];
 
@@ -50,4 +51,5 @@ initSocketIO(httpServer);
 httpServer.listen(port, () => {
   console.log(`Server listening on port ${port}`);
   seedInitialAdmin();
+  startFeeReminderScheduler();
 });

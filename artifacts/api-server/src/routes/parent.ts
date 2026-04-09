@@ -300,11 +300,7 @@ router.get("/parent/student/:studentId/scolarite", requireRole("parent"), async 
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const in3days = new Date(today);
-    in3days.setDate(in3days.getDate() + 3);
 
-    // Check for upcoming/overdue installments and send reminder once per day
-    const installmentsToNotify: typeof rawInstallments = [];
     const installments = rawInstallments.map(inst => {
       const due = new Date(inst.dueDate);
       due.setHours(0, 0, 0, 0);
@@ -314,14 +310,6 @@ router.get("/parent/student/:studentId/scolarite", requireRole("parent"), async 
       } else if (due < today) {
         instStatus = "En retard";
       }
-
-      // Flag for notification (upcoming in 3 days or overdue, not yet reminded today)
-      const lastReminder = inst.lastReminderAt ? new Date(inst.lastReminderAt) : null;
-      const reminderNeeded = !inst.paidAt && lastReminder?.toDateString() !== today.toDateString();
-      if (reminderNeeded && (due < today || (due <= in3days && due >= today))) {
-        installmentsToNotify.push(inst);
-      }
-
       return {
         id: inst.id,
         label: inst.label,
@@ -331,28 +319,6 @@ router.get("/parent/student/:studentId/scolarite", requireRole("parent"), async 
         status: instStatus,
       };
     });
-
-    // Fire-and-forget: send notifications for upcoming/overdue installments
-    if (installmentsToNotify.length > 0) {
-      (async () => {
-        for (const inst of installmentsToNotify) {
-          const due = new Date(inst.dueDate);
-          due.setHours(0, 0, 0, 0);
-          const isOverdue = due < today;
-          const label = inst.label ?? `Échéance du ${inst.dueDate}`;
-          const title = isOverdue ? "Échéance impayée" : "Rappel d'échéance";
-          const body = isOverdue
-            ? `L'échéance "${label}" de ${Number(inst.amount).toLocaleString("fr-FR")} FCFA est en retard.`
-            : `L'échéance "${label}" de ${Number(inst.amount).toLocaleString("fr-FR")} FCFA est due dans 3 jours.`;
-
-          await db.update(paymentInstallmentsTable)
-            .set({ lastReminderAt: today.toISOString().slice(0, 10) })
-            .where(eq(paymentInstallmentsTable.id, inst.id));
-
-          await notifyParentsOfStudent(studentId, isOverdue ? "payment_overdue" : "payment_upcoming", title, body);
-        }
-      })().catch(() => {});
-    }
 
     res.json({
       fee: fee ?? null,
