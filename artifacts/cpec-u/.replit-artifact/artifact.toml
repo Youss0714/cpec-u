@@ -15,7 +15,7 @@ name = "web"
 paths = ["/"]
 
 [services.development]
-run = "pnpm --filter @workspace/cpec-u run dev"
+run = "PORT=8081 BASE_PATH=/ pnpm --filter @workspace/cpec-u run dev"
 
 [services.env]
 PORT = "8081"
