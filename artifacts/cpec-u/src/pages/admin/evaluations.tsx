@@ -17,43 +17,70 @@ import {
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
-  Star, Plus, Bell, Eye, EyeOff, CheckCircle, Clock, BarChart3,
+  Plus, Bell, Eye, EyeOff, CheckCircle, Clock, BarChart3,
   MessageSquare, Trophy, ChevronDown, ChevronRight, Users, Lock,
+  AlertTriangle, BookOpen,
 } from "lucide-react";
 
-const CRITERIA_LABELS = [
-  { key: "avgClarity", label: "Clarté des explications" },
-  { key: "avgMastery", label: "Maîtrise du cours" },
-  { key: "avgAvailability", label: "Disponibilité" },
-  { key: "avgProgram", label: "Respect du programme" },
-  { key: "avgPunctuality", label: "Ponctualité" },
-  { key: "avgOverall", label: "Appréciation générale" },
-];
+const UTILITE_LABELS: Record<string, { label: string; icon: string; color: string }> = {
+  "1": { label: "Très utile", icon: "⭐", color: "text-green-600" },
+  "2": { label: "Utile", icon: "👍", color: "text-blue-600" },
+  "3": { label: "Peu utile", icon: "👎", color: "text-orange-500" },
+  "4": { label: "Inutile", icon: "❌", color: "text-red-500" },
+};
 
-function StarRating({ value, max = 5 }: { value: number | null; max?: number }) {
-  if (value === null) return <span className="text-muted-foreground text-xs">—</span>;
-  const pct = (value / max) * 100;
-  const color = value >= 4 ? "text-green-500" : value >= 3 ? "text-yellow-500" : "text-red-400";
-  return (
-    <span className={`font-bold tabular-nums ${color}`}>
-      {value.toFixed(2)} <span className="text-yellow-400">★</span>
-    </span>
-  );
+function getMentionColor(mention: string | null) {
+  if (!mention) return "text-muted-foreground";
+  if (mention === "Excellent") return "text-green-600";
+  if (mention === "Bien") return "text-blue-600";
+  if (mention === "Moyen") return "text-yellow-600";
+  if (mention === "Insuffisant") return "text-orange-500";
+  return "text-red-500";
 }
 
-function ScoreBar({ value, max = 5 }: { value: number | null; max?: number }) {
+function ScoreBar({ value, max = 10 }: { value: number | null; max?: number }) {
   if (value === null) return null;
   const pct = Math.round((value / max) * 100);
-  const color = value >= 4 ? "bg-green-500" : value >= 3 ? "bg-yellow-400" : "bg-red-400";
+  const color = value >= 8 ? "bg-green-500" : value >= 6 ? "bg-blue-500" : value >= 4 ? "bg-yellow-400" : value >= 2 ? "bg-orange-400" : "bg-red-400";
   return (
     <div className="flex items-center gap-2">
       <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
         <div className={`h-full rounded-full transition-all ${color}`} style={{ width: `${pct}%` }} />
       </div>
-      <span className="text-xs font-semibold w-8 text-right tabular-nums">{value.toFixed(1)}</span>
+      <span className="text-xs font-semibold w-10 text-right tabular-nums">{value.toFixed(2)}/10</span>
     </div>
   );
 }
+
+function CriteriaGrid({ labels, values }: { labels: string[]; values: number[] }) {
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+      {labels.map((label, i) => (
+        <div key={i}>
+          <div className="text-xs text-muted-foreground mb-1 truncate">{i + 1}. {label}</div>
+          <ScoreBar value={values[i] ?? null} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+const SECTION_A_LABELS = [
+  "Contenu du cours", "Objectifs fixés", "Progression", "Clarté des concepts", "Théorie/Pratique",
+];
+const SECTION_B_LABELS = [
+  "Maîtrise du contenu", "Approche pédagogique", "Organisation", "Qualité des échanges",
+  "Comportement", "Difficultés individuelles", "Voix", "Présentation", "Gestion du temps",
+];
+const SECTION_C_LABELS = [
+  "Satisfaction attentes", "Réponses aux questions", "Documentation", "Application", "TD", "Évaluations",
+];
+const SECTION_D_QUESTIONS = [
+  { key: "d1" as const, label: "Thèmes les plus appréciés" },
+  { key: "d2" as const, label: "Thèmes les moins appréciés" },
+  { key: "d3" as const, label: "Éléments à modifier" },
+  { key: "d4" as const, label: "Propositions d'amélioration" },
+];
 
 export default function AdminEvaluations() {
   const { toast } = useToast();
@@ -69,12 +96,11 @@ export default function AdminEvaluations() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [form, setForm] = useState({ semesterId: "", deadline: "", isActive: false });
   const [selectedPeriodId, setSelectedPeriodId] = useState<number | null>(null);
-  const [expandedComments, setExpandedComments] = useState<Set<number>>(new Set());
+  const [expandedTeacher, setExpandedTeacher] = useState<string | null>(null);
+  const [expandedSection, setExpandedSection] = useState<Record<string, boolean>>({});
 
   const { data: resultsData, isLoading: isResultsLoading, error: resultsError } =
     useGetEvaluationResults(selectedPeriodId);
-
-  const selectedPeriod = (periods as any[]).find((p) => p.id === selectedPeriodId);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -123,23 +149,14 @@ export default function AdminEvaluations() {
   const handleReminder = async (periodId: number) => {
     try {
       const result = await sendReminder.mutateAsync(periodId);
-      toast({
-        title: `Rappel envoyé à ${result.sent} étudiant${result.sent > 1 ? "s" : ""}`,
-        description: result.sent === 0 ? "Tous les étudiants ont déjà soumis" : undefined,
-      });
+      toast({ title: `Rappel envoyé à ${result.sent} étudiant${result.sent > 1 ? "s" : ""}` });
     } catch {
       toast({ title: "Erreur", variant: "destructive" });
     }
   };
 
-  const toggleComments = (teacherId: number) => {
-    setExpandedComments((prev) => {
-      const next = new Set(prev);
-      if (next.has(teacherId)) next.delete(teacherId);
-      else next.add(teacherId);
-      return next;
-    });
-  };
+  const toggleTeacher = (key: string) => setExpandedTeacher((prev) => prev === key ? null : key);
+  const toggleSection = (key: string) => setExpandedSection((prev) => ({ ...prev, [key]: !prev[key] }));
 
   return (
     <AppLayout allowedRoles={["admin"]}>
@@ -148,7 +165,7 @@ export default function AdminEvaluations() {
         <div className="flex justify-between items-start flex-wrap gap-3">
           <div>
             <h1 className="text-3xl font-serif font-bold text-foreground">Évaluation des Enseignants</h1>
-            <p className="text-muted-foreground">Gérez les périodes d'évaluation et consultez les résultats anonymes.</p>
+            <p className="text-muted-foreground">Gérez les périodes d'évaluation et consultez les résultats.</p>
           </div>
           <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
             <DialogTrigger asChild>
@@ -275,14 +292,14 @@ export default function AdminEvaluations() {
                       ) : resultsError ? (
                         <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl p-4">
                           <Lock className="w-4 h-4 text-amber-600 shrink-0" />
-                          <p className="text-amber-700 text-sm">{(resultsError as any)?.message ?? "Résultats non disponibles — la période est encore ouverte ou les résultats ne sont pas publiés."}</p>
+                          <p className="text-amber-700 text-sm">{(resultsError as any)?.message ?? "Résultats non disponibles."}</p>
                         </div>
                       ) : !resultsData ? null : resultsData.results.length === 0 ? (
                         <div className="text-center py-6 text-muted-foreground">
                           <p className="font-medium">Aucun résultat disponible</p>
-                          <p className="text-xs mt-1">Un minimum de 5 évaluations par enseignant est requis pour afficher les résultats.</p>
+                          <p className="text-xs mt-1">Un minimum de 5 évaluations par enseignant est requis.</p>
                           {resultsData.hiddenCount > 0 && (
-                            <p className="text-xs mt-1 text-amber-600">{resultsData.hiddenCount} enseignant{resultsData.hiddenCount > 1 ? "s" : ""} en dessous du seuil de 5 évaluations.</p>
+                            <p className="text-xs mt-1 text-amber-600">{resultsData.hiddenCount} enseignant{resultsData.hiddenCount > 1 ? "s" : ""} en dessous du seuil.</p>
                           )}
                         </div>
                       ) : (
@@ -293,69 +310,161 @@ export default function AdminEvaluations() {
                               {resultsData.hiddenCount} enseignant{resultsData.hiddenCount > 1 ? "s" : ""} masqué{resultsData.hiddenCount > 1 ? "s" : ""} (moins de 5 évaluations reçues).
                             </div>
                           )}
+
                           {/* Ranking */}
                           <div className="space-y-3">
                             <h3 className="font-semibold flex items-center gap-2 text-foreground">
-                              <Trophy className="w-4 h-4 text-yellow-500" />Classement général
+                              <Trophy className="w-4 h-4 text-yellow-500" />Classement général (note /10)
                             </h3>
-                            {resultsData.results.map((r, idx) => (
-                              <div key={`${r.teacherId}-${r.subjectId}`}
-                                className="bg-background border border-border rounded-xl p-4 space-y-3">
-                                <div className="flex items-start justify-between gap-2 flex-wrap">
-                                  <div>
-                                    <div className="flex items-center gap-2">
-                                      <span className={`text-lg font-bold ${idx === 0 ? "text-yellow-500" : idx === 1 ? "text-slate-400" : idx === 2 ? "text-amber-600" : "text-muted-foreground"}`}>
-                                        #{idx + 1}
-                                      </span>
-                                      <span className="font-semibold text-foreground">{r.teacherName}</span>
-                                      <Badge variant="secondary" className="text-xs">{r.subjectName}</Badge>
-                                      <Badge variant="outline" className="text-xs">{r.className}</Badge>
+                            {resultsData.results.map((r, idx) => {
+                              const key = `${r.teacherId}-${r.subjectId}`;
+                              const isExpanded = expandedTeacher === key;
+                              const isAlert = r.globalAvg !== null && r.globalAvg < 5;
+                              return (
+                                <div key={key}
+                                  className={`bg-background border rounded-xl overflow-hidden shadow-sm ${isAlert ? "border-red-300" : "border-border"}`}>
+                                  {/* Teacher header */}
+                                  <div className="p-4">
+                                    <div className="flex items-start justify-between gap-2 flex-wrap">
+                                      <div className="flex items-center gap-2">
+                                        <span className={`text-lg font-bold ${idx === 0 ? "text-yellow-500" : idx === 1 ? "text-slate-400" : idx === 2 ? "text-amber-600" : "text-muted-foreground"}`}>
+                                          #{idx + 1}
+                                        </span>
+                                        <div>
+                                          <div className="flex items-center gap-2 flex-wrap">
+                                            <span className="font-semibold text-foreground">{r.teacherName}</span>
+                                            <Badge variant="secondary" className="text-xs">{r.subjectName}</Badge>
+                                            <Badge variant="outline" className="text-xs">{r.className}</Badge>
+                                            {isAlert && (
+                                              <Badge className="bg-red-100 text-red-700 border border-red-300 text-xs">
+                                                <AlertTriangle className="w-2.5 h-2.5 mr-1" />Alerte &lt;5/10
+                                              </Badge>
+                                            )}
+                                          </div>
+                                          <p className="text-xs text-muted-foreground mt-0.5">{r.evaluationCount} évaluation{r.evaluationCount > 1 ? "s" : ""}</p>
+                                        </div>
+                                      </div>
+                                      <div className="text-right">
+                                        <p className={`text-2xl font-bold tabular-nums ${isAlert ? "text-red-500" : "text-foreground"}`}>
+                                          {r.globalAvg?.toFixed(2)}<span className="text-sm text-muted-foreground">/10</span>
+                                        </p>
+                                        <p className={`text-xs font-semibold ${getMentionColor(r.mention)}`}>{r.mention}</p>
+                                      </div>
                                     </div>
-                                    <p className="text-xs text-muted-foreground mt-0.5">{r.evaluationCount} évaluation{r.evaluationCount > 1 ? "s" : ""}</p>
-                                  </div>
-                                  <div className="text-right">
-                                    <p className="text-2xl font-bold text-foreground">{r.globalAvg?.toFixed(2)}<span className="text-sm text-muted-foreground">/5</span></p>
-                                    <div className="flex">
-                                      {Array.from({ length: 5 }).map((_, i) => (
-                                        <Star key={i} className={`w-3.5 h-3.5 ${i < Math.round(r.globalAvg ?? 0) ? "text-yellow-400 fill-yellow-400" : "text-muted-foreground/30"}`} />
+
+                                    {/* Section averages */}
+                                    <div className="grid grid-cols-3 gap-3 mt-3">
+                                      {[
+                                        { label: "A. Contenu", value: r.avgA, weight: "30%" },
+                                        { label: "B. Formateur", value: r.avgB, weight: "50%" },
+                                        { label: "C. Apprenants", value: r.avgC, weight: "20%" },
+                                      ].map((s) => (
+                                        <div key={s.label} className="bg-muted/40 rounded-lg p-2 text-center">
+                                          <p className="text-xs text-muted-foreground">{s.label}</p>
+                                          <p className="font-bold text-sm tabular-nums">{s.value?.toFixed(1) ?? "—"}/10</p>
+                                          <p className="text-xs text-muted-foreground">{s.weight}</p>
+                                        </div>
                                       ))}
                                     </div>
-                                  </div>
-                                </div>
-                                {/* Criteria bars */}
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                  {CRITERIA_LABELS.map((c) => (
-                                    <div key={c.key}>
-                                      <div className="flex justify-between text-xs text-muted-foreground mb-1">
-                                        <span>{c.label}</span>
-                                      </div>
-                                      <ScoreBar value={(r as any)[c.key]} />
-                                    </div>
-                                  ))}
-                                </div>
-                                {/* Comments */}
-                                {r.comments.length > 0 && (
-                                  <div>
+
                                     <button
-                                      onClick={() => toggleComments(r.teacherId)}
-                                      className="flex items-center gap-1.5 text-xs text-primary hover:text-primary/80"
+                                      onClick={() => toggleTeacher(key)}
+                                      className="flex items-center gap-1.5 text-xs text-primary hover:text-primary/80 mt-3"
                                     >
-                                      <MessageSquare className="w-3.5 h-3.5" />
-                                      {expandedComments.has(r.teacherId) ? "Masquer" : "Voir"} {r.comments.length} commentaire{r.comments.length > 1 ? "s" : ""}
+                                      {isExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                                      {isExpanded ? "Masquer le détail" : "Voir le détail complet"}
                                     </button>
-                                    {expandedComments.has(r.teacherId) && (
-                                      <div className="mt-2 space-y-2">
-                                        {r.comments.map((c, i) => (
-                                          <div key={i} className="bg-muted/50 rounded-lg px-3 py-2 text-sm text-foreground italic border-l-2 border-primary/30">
-                                            "{c}"
-                                          </div>
-                                        ))}
-                                      </div>
-                                    )}
                                   </div>
-                                )}
-                              </div>
-                            ))}
+
+                                  {/* Expanded detail */}
+                                  {isExpanded && (
+                                    <div className="border-t bg-muted/10 p-4 space-y-4">
+                                      {/* Section A detail */}
+                                      <div>
+                                        <button
+                                          onClick={() => toggleSection(`${key}-A`)}
+                                          className="flex items-center gap-2 text-sm font-semibold text-foreground mb-2"
+                                        >
+                                          {expandedSection[`${key}-A`] ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                                          Section A — Contenu ({r.avgA?.toFixed(2)}/10)
+                                        </button>
+                                        {expandedSection[`${key}-A`] && (
+                                          <CriteriaGrid labels={SECTION_A_LABELS} values={r.criteriaA} />
+                                        )}
+                                      </div>
+
+                                      {/* Section B detail */}
+                                      <div>
+                                        <button
+                                          onClick={() => toggleSection(`${key}-B`)}
+                                          className="flex items-center gap-2 text-sm font-semibold text-foreground mb-2"
+                                        >
+                                          {expandedSection[`${key}-B`] ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                                          Section B — Formateur ({r.avgB?.toFixed(2)}/10)
+                                        </button>
+                                        {expandedSection[`${key}-B`] && (
+                                          <CriteriaGrid labels={SECTION_B_LABELS} values={r.criteriaB} />
+                                        )}
+                                      </div>
+
+                                      {/* Section C detail */}
+                                      <div>
+                                        <button
+                                          onClick={() => toggleSection(`${key}-C`)}
+                                          className="flex items-center gap-2 text-sm font-semibold text-foreground mb-2"
+                                        >
+                                          {expandedSection[`${key}-C`] ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                                          Section C — Apprenants ({r.avgC?.toFixed(2)}/10)
+                                        </button>
+                                        {expandedSection[`${key}-C`] && (
+                                          <CriteriaGrid labels={SECTION_C_LABELS} values={r.criteriaC} />
+                                        )}
+                                      </div>
+
+                                      {/* Section D comments */}
+                                      {SECTION_D_QUESTIONS.map((q) => {
+                                        const items = r.sectionDComments[q.key];
+                                        if (!items || items.length === 0) return null;
+                                        return (
+                                          <div key={q.key}>
+                                            <div className="flex items-center gap-2 text-sm font-semibold text-foreground mb-2">
+                                              <MessageSquare className="w-3.5 h-3.5 text-primary" />
+                                              {q.label} ({items.length} réponse{items.length > 1 ? "s" : ""})
+                                            </div>
+                                            <div className="space-y-1.5">
+                                              {items.map((c, i) => (
+                                                <div key={i} className="bg-background rounded-lg px-3 py-2 text-sm text-foreground italic border-l-2 border-primary/30">
+                                                  "{c}"
+                                                </div>
+                                              ))}
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
+
+                                      {/* Utilite distribution */}
+                                      {Object.keys(r.sectionDComments.utilite ?? {}).length > 0 && (
+                                        <div>
+                                          <p className="text-sm font-semibold text-foreground mb-2">Utilité globale de la formation</p>
+                                          <div className="flex flex-wrap gap-2">
+                                            {Object.entries(r.sectionDComments.utilite).map(([k, count]) => {
+                                              const opt = UTILITE_LABELS[k];
+                                              return opt ? (
+                                                <div key={k} className="flex items-center gap-1.5 bg-muted rounded-lg px-3 py-1.5 text-sm">
+                                                  <span>{opt.icon}</span>
+                                                  <span className={`font-medium ${opt.color}`}>{opt.label}</span>
+                                                  <span className="text-muted-foreground">× {count}</span>
+                                                </div>
+                                              ) : null;
+                                            })}
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
                           </div>
                         </>
                       )}

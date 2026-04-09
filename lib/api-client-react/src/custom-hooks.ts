@@ -1160,13 +1160,25 @@ export type SubmitEvaluationRequest = {
   teacherId: number;
   subjectId: number;
   classId: number;
-  clarityScore: number;
-  masteryScore: number;
-  availabilityScore: number;
-  programScore: number;
-  punctualityScore: number;
-  overallScore: number;
-  comment?: string;
+  // Section A — Contenu de la Formation
+  a1: number; a2: number; a3: number; a4: number; a5: number;
+  // Section B — Formateur
+  b1: number; b2: number; b3: number; b4: number; b5: number;
+  b6: number; b7: number; b8: number; b9: number;
+  // Section C — Apprenants
+  c1: number; c2: number; c3: number; c4: number; c5: number; c6: number;
+  // Section D — Appréciations libres
+  d1?: string; d2?: string; d3?: string; d4?: string;
+  // Question finale
+  utilite?: number;
+};
+
+export type EvaluationSectionDComments = {
+  d1: string[];
+  d2: string[];
+  d3: string[];
+  d4: string[];
+  utilite: Record<string, number>;
 };
 
 export type EvaluationResultRow = {
@@ -1177,14 +1189,15 @@ export type EvaluationResultRow = {
   classId: number;
   className: string | null;
   evaluationCount: number;
-  avgClarity: number | null;
-  avgMastery: number | null;
-  avgAvailability: number | null;
-  avgProgram: number | null;
-  avgPunctuality: number | null;
-  avgOverall: number | null;
+  avgA: number | null;
+  avgB: number | null;
+  avgC: number | null;
   globalAvg: number | null;
-  comments: string[];
+  mention: string | null;
+  criteriaA: number[];
+  criteriaB: number[];
+  criteriaC: number[];
+  sectionDComments: EvaluationSectionDComments;
 };
 
 export type AdminEvaluationResultsResponse = {
@@ -1193,12 +1206,29 @@ export type AdminEvaluationResultsResponse = {
   hiddenCount: number;
 };
 
+export type TeacherEvaluationResultRow = {
+  subjectId: number;
+  subjectName: string | null;
+  classId: number;
+  className: string | null;
+  evaluationCount: number;
+  avgA: number | null;
+  avgB: number | null;
+  avgC: number | null;
+  globalAvg: number | null;
+  mention: string | null;
+  criteriaA: number[];
+  criteriaB: number[];
+  criteriaC: number[];
+};
+
 export type TeacherEvaluationResultGroup = {
   periodId: number;
   semesterId: number;
   deadline: string;
-  rows: Omit<EvaluationResultRow, "teacherId" | "teacherName" | "comments">[];
-  comments: string[];
+  rows: TeacherEvaluationResultRow[];
+  sectionDComments: Omit<EvaluationSectionDComments, "utilite">;
+  utiliteDistribution: Record<string, number>;
   belowThreshold: boolean;
 };
 
