@@ -48,6 +48,7 @@ import {
   CreditCard,
   Star,
   User2,
+  Scale,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
@@ -123,6 +124,27 @@ export function AppLayout({ children, allowedRoles, noScroll = false }: AppLayou
   const isStudent = !!(user && user.role === "student");
   const { data: studentEvalData } = useStudentEvaluationsCurrent({ enabled: isStudent } as any);
   const hasActiveEvaluation = isStudent && !!(studentEvalData as any)?.period && !(studentEvalData as any)?.period?.expired;
+
+  const isTeacher = !!(user && user.role === "teacher");
+  const { data: teacherReclamData } = useQuery({
+    queryKey: ["/api/teacher/reclamations/pending-count"],
+    queryFn: () => fetch("/api/teacher/reclamations", { credentials: "include" })
+      .then(r => r.json())
+      .then((rows: any[]) => ({ count: rows.filter((r: any) => ["soumise", "en_cours"].includes(r.status)).length })),
+    enabled: isTeacher,
+    staleTime: 2 * 60 * 1000,
+  });
+  const teacherReclamCount = (teacherReclamData as any)?.count ?? 0;
+
+  const { data: adminReclamData } = useQuery({
+    queryKey: ["/api/admin/reclamations/pending-count"],
+    queryFn: () => fetch("/api/admin/reclamations", { credentials: "include" })
+      .then(r => r.json())
+      .then((rows: any[]) => ({ count: rows.filter((r: any) => ["soumise","en_cours","en_arbitrage"].includes(r.status)).length })),
+    enabled: !!(user && user.role === "admin"),
+    staleTime: 2 * 60 * 1000,
+  });
+  const adminReclamCount = (adminReclamData as any)?.count ?? 0;
 
   const logoutMutation = useLogout({
     mutation: {
@@ -209,6 +231,7 @@ export function AppLayout({ children, allowedRoles, noScroll = false }: AppLayou
     { name: "Jury Spécial", href: "/admin/jury-special", icon: Gavel },
     { name: "Cartes Étudiantes", href: "/admin/cards", icon: CreditCard },
     { name: "Évaluations Enseignants", href: "/admin/evaluations", icon: Star },
+    { name: "Réclamations", href: "/admin/reclamations", icon: Scale, badge: adminReclamCount > 0 ? adminReclamCount : undefined },
     { name: "Rapports & Statistiques", href: "/admin/reports", icon: BarChart2 },
     { name: "Centre de Documents", href: "/admin/documents", icon: FileText },
     { name: "Gestion des Parents", href: "/admin/parents", icon: User2 },
@@ -252,6 +275,7 @@ export function AppLayout({ children, allowedRoles, noScroll = false }: AppLayou
     { name: "Jury Spécial", href: "/admin/jury-special", icon: Gavel },
     { name: "Cartes Étudiantes", href: "/admin/cards", icon: CreditCard },
     { name: "Évaluations Enseignants", href: "/admin/evaluations", icon: Star },
+    { name: "Réclamations", href: "/admin/reclamations", icon: Scale, badge: adminReclamCount > 0 ? adminReclamCount : undefined },
     { name: "Rapports & Statistiques", href: "/admin/reports", icon: BarChart2 },
     { name: "Centre de Documents", href: "/admin/documents", icon: FileText },
     { name: "Gestion des Parents", href: "/admin/parents", icon: User2 },
@@ -281,6 +305,7 @@ export function AppLayout({ children, allowedRoles, noScroll = false }: AppLayou
           { name: "Saisie des Notes", href: "/teacher/grades", icon: PenTool },
           { name: "Rattrapage", href: "/teacher/rattrapage", icon: RotateCcw },
           { name: "Mes Évaluations", href: "/teacher/evaluations", icon: Star },
+          { name: "Réclamations", href: "/teacher/reclamations", icon: Scale, badge: teacherReclamCount > 0 ? teacherReclamCount : undefined },
           { name: "Cahier de texte", href: "/teacher/cahier-de-texte", icon: BookText },
           { name: "Mes Étudiants", href: "/teacher/students", icon: Users },
           { name: "Mon Profil", href: "/teacher/profile", icon: UserCircle },
@@ -307,6 +332,7 @@ export function AppLayout({ children, allowedRoles, noScroll = false }: AppLayou
           { name: "Notifications", href: "/student/notifications", icon: Bell, badge: (unreadData?.count ?? 0) > 0 ? unreadData!.count : null },
           { name: "Ma Carte Étudiante", href: "/student/card", icon: CreditCard, badge: null },
           ...(hasActiveEvaluation ? [{ name: "Évaluer mes Enseignants", href: "/student/evaluations", icon: Star, badge: null }] : []),
+          { name: "Mes Réclamations", href: "/student/reclamations", icon: Scale, badge: null },
           { name: "Messages", href: "/student/messages", icon: MessageSquare, badge: unreadMsgCount > 0 ? unreadMsgCount : undefined },
           { name: "Changer mon mot de passe", href: "/change-password", icon: KeyRound, badge: null },
         ];

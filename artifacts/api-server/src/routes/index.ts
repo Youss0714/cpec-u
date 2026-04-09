@@ -22,6 +22,7 @@ import publicRouter from "./public.js";
 import evaluationsRouter from "./evaluations.js";
 import parentRouter from "./parent.js";
 import webauthnRouter from "./webauthn.js";
+import reclamationsRouter from "./reclamations.js";
 
 const router: IRouter = Router();
 
@@ -48,5 +49,6 @@ router.use(publicRouter);
 router.use(evaluationsRouter);
 router.use(parentRouter);
 router.use("/auth", webauthnRouter);
+router.use(reclamationsRouter);
 
 export default router;

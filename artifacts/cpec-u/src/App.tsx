@@ -59,6 +59,9 @@ import AdminCards from "@/pages/admin/cards";
 import AdminEvaluations from "@/pages/admin/evaluations";
 import StudentEvaluations from "@/pages/student/evaluations";
 import TeacherEvaluations from "@/pages/teacher/evaluations";
+import AdminReclamations from "@/pages/admin/reclamations";
+import StudentReclamations from "@/pages/student/reclamations";
+import TeacherReclamations from "@/pages/teacher/reclamations";
 import AdminDocuments from "@/pages/admin/documents";
 import AdminParents from "@/pages/admin/parents";
 import ParentDashboard from "@/pages/parent/dashboard";
@@ -166,6 +169,9 @@ function Router() {
       </Route>
       <Route path="/student/evaluations" component={StudentEvaluations} />
       <Route path="/teacher/evaluations" component={TeacherEvaluations} />
+      <Route path="/student/reclamations" component={StudentReclamations} />
+      <Route path="/teacher/reclamations" component={TeacherReclamations} />
+      <Route path="/admin/reclamations" component={AdminReclamations} />
 
       {/* Public: Bulletin verification (must come before /verify/:hash) */}
       <Route path="/verify/bulletin/:token" component={VerifyBulletin} />
