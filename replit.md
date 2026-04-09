@@ -42,10 +42,13 @@ lib/
 - **Tooling**: pnpm workspaces, tsx, esbuild, Orval codegen
 
 ## Running the App
-The main workflow is **`artifacts/cpec-u: web`** which:
-1. Starts the Vite dev server on port 8081
-2. Automatically spawns the API server on port 8080
-3. Proxies `/api` requests from the frontend to the API server
+The main workflow is **`Start application`** which:
+1. Starts the API server on port 8080 (`pnpm --filter @workspace/api-server run dev`)
+2. Starts the Vite dev server on port 8081 (`pnpm --filter @workspace/cpec-u run dev`)
+3. Port 8081 is mapped to external port 80 (user-visible preview)
+4. Vite proxies `/api` requests to the API server on port 8080
+
+**Critical**: The Vite config must use `host: "0.0.0.0"` (not `host: true`) and `strictPort: true` for Replit's port detection to work correctly. Port 8081 is mapped to external port 80 in the `.replit` configuration.
 
 ## Environment Variables
 - `DATABASE_URL` — PostgreSQL connection string (Replit built-in DB)
