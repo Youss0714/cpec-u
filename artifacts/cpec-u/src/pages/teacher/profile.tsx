@@ -12,6 +12,7 @@ import { User, Mail, Phone, BookOpen, Clock, Calendar, TrendingUp, Award, Pencil
 import { motion } from "framer-motion";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import { WebAuthnDevicesSection } from "@/components/webauthn-devices-section";
 
 export default function TeacherProfile() {
   const { data: user } = useGetCurrentUser();
@@ -199,6 +200,11 @@ export default function TeacherProfile() {
               )}
             </CardContent>
           </Card>
+        </motion.div>
+
+        {/* Biometric devices */}
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}>
+          <WebAuthnDevicesSection userEmail={(user as any)?.email ?? ""} />
         </motion.div>
       </div>
 

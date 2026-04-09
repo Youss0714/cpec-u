@@ -12,7 +12,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
-import { Mail, Phone, HelpCircle, Eye, EyeOff } from "lucide-react";
+import { Mail, Phone, HelpCircle, Eye, EyeOff, Fingerprint, Loader2, ChevronDown } from "lucide-react";
+import {
+  useWebAuthnAuthenticate,
+  hasWebAuthnForEmail,
+  browserSupportsWebAuthn,
+} from "@/hooks/useWebAuthn";
+import { WebAuthnRegisterPrompt } from "@/components/webauthn-register-prompt";
 
 const loginSchema = z.object({
   email: z.string().email("Email invalide"),
@@ -32,6 +38,17 @@ const SLIDES = [
 
 const SLIDE_DURATION = 4000;
 
+function getRedirectPath(user: any): string {
+  if (user.mustChangePassword) return "/change-password";
+  if (user.role === "admin") {
+    if (user.adminSubRole === "hebergement") return "/admin/housing";
+    return "/admin";
+  }
+  if (user.role === "teacher") return "/teacher";
+  if (user.role === "parent") return "/parent";
+  return "/student";
+}
+
 export default function Login() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
@@ -41,6 +58,14 @@ export default function Login() {
   const [contactDialogOpen, setContactDialogOpen] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
+  // WebAuthn state
+  const { authenticate, loading: biometricLoading, error: biometricError, setError: setBiometricError } = useWebAuthnAuthenticate();
+  const [showBiometricBtn, setShowBiometricBtn] = useState(false);
+  const [showPasswordForm, setShowPasswordForm] = useState(false);
+  const [showRegisterPrompt, setShowRegisterPrompt] = useState(false);
+  const [pendingUser, setPendingUser] = useState<{ email: string; name: string } | null>(null);
+  const [pendingRedirectFn, setPendingRedirectFn] = useState<(() => void) | null>(null);
+
   useEffect(() => {
     const interval = setInterval(() => {
       setCurrentSlide((prev) => (prev + 1) % SLIDES.length);
@@ -48,34 +73,66 @@ export default function Login() {
     return () => clearInterval(interval);
   }, []);
 
+  const { register, handleSubmit, watch, formState: { errors } } = useForm<LoginForm>({
+    resolver: zodResolver(loginSchema),
+  });
+
+  const emailValue = watch("email") ?? "";
+
+  // Show biometric button when email has a registered passkey on this device
+  useEffect(() => {
+    const trimmed = emailValue.trim();
+    const isValidEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed);
+    if (isValidEmail && browserSupportsWebAuthn() && hasWebAuthnForEmail(trimmed)) {
+      setShowBiometricBtn(true);
+      setShowPasswordForm(false);
+    } else {
+      setShowBiometricBtn(false);
+      setShowPasswordForm(true);
+    }
+    setBiometricError(null);
+  }, [emailValue, setBiometricError]);
+
+  // Ensure password form is always shown if no biometric
+  useEffect(() => {
+    if (!showBiometricBtn) setShowPasswordForm(true);
+  }, [showBiometricBtn]);
+
+  const buildRedirect = (user: any) => () => {
+    const subRole = user.adminSubRole;
+    if (subRole === "directeur") {
+      setWelcomeUser({ name: user.name, initial: user.name.charAt(0), subRole: "directeur" });
+      setTimeout(() => setLocation(getRedirectPath(user)), 3000);
+    } else if (subRole === "scolarite" || subRole === "planificateur" || subRole === "hebergement") {
+      setWelcomeUser({ name: user.name, initial: user.name.charAt(0), subRole });
+      setTimeout(() => setLocation(getRedirectPath(user)), 2500);
+    } else {
+      toast({ title: "Connexion réussie", description: `Bienvenue ${user.name}` });
+      setLocation(getRedirectPath(user));
+    }
+  };
+
+  const handleAfterLogin = (user: any) => {
+    queryClient.clear();
+    const doRedirect = buildRedirect(user);
+
+    // If browser supports WebAuthn and no passkey is registered yet for this email on this device, prompt
+    if (
+      browserSupportsWebAuthn() &&
+      !hasWebAuthnForEmail(user.email)
+    ) {
+      setPendingUser({ email: user.email, name: user.name });
+      setPendingRedirectFn(() => doRedirect);
+      setShowRegisterPrompt(true);
+    } else {
+      doRedirect();
+    }
+  };
+
   const loginMutation = useLogin({
     mutation: {
       onSuccess: (data) => {
-        // Clear all cached queries so the new user's data is fetched fresh
-        queryClient.clear();
-        const subRole = (data.user as any).adminSubRole;
-        const redirect = () => {
-          if ((data.user as any).mustChangePassword) {
-            setLocation("/change-password");
-            return;
-          }
-          if (data.user.role === "admin") {
-            if ((data.user as any).adminSubRole === "hebergement") setLocation("/admin/housing");
-            else setLocation("/admin");
-          } else if (data.user.role === "teacher") setLocation("/teacher");
-          else setLocation("/student");
-        };
-
-        if (subRole === "directeur") {
-          setWelcomeUser({ name: data.user.name, initial: data.user.name.charAt(0), subRole: "directeur" });
-          setTimeout(redirect, 3000);
-        } else if (subRole === "scolarite" || subRole === "planificateur" || subRole === "hebergement") {
-          setWelcomeUser({ name: data.user.name, initial: data.user.name.charAt(0), subRole });
-          setTimeout(redirect, 2500);
-        } else {
-          toast({ title: "Connexion réussie", description: `Bienvenue ${data.user.name}` });
-          redirect();
-        }
+        handleAfterLogin(data.user as any);
       },
       onError: () => {
         toast({
@@ -87,9 +144,24 @@ export default function Login() {
     },
   });
 
-  const { register, handleSubmit, formState: { errors } } = useForm<LoginForm>({
-    resolver: zodResolver(loginSchema),
-  });
+  const handleBiometricLogin = async () => {
+    const email = emailValue.trim();
+    setBiometricError(null);
+    const result = await authenticate(email);
+    if (result?.user) {
+      handleAfterLogin(result.user);
+    }
+    // On failure, biometricError is set by the hook — user can switch to password
+  };
+
+  const handleRegisterPromptDone = () => {
+    setShowRegisterPrompt(false);
+    setPendingUser(null);
+    if (pendingRedirectFn) {
+      pendingRedirectFn();
+      setPendingRedirectFn(null);
+    }
+  };
 
   return (
     <div className="min-h-screen w-full flex bg-background">
@@ -150,9 +222,9 @@ export default function Login() {
       </div>
 
       <div className="flex-1 flex items-center justify-center p-8">
-        <motion.div 
-          initial={{ opacity: 0, scale: 0.95 }} 
-          animate={{ opacity: 1, scale: 1 }} 
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
           className="w-full max-w-md"
         >
           <Card className="border-none shadow-2xl bg-card/50 backdrop-blur-xl">
@@ -167,62 +239,146 @@ export default function Login() {
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSubmit((data) => loginMutation.mutate({ data }))} className="space-y-6">
+                {/* Email field — always visible */}
                 <div className="space-y-2">
                   <Label htmlFor="email" className="text-foreground/80 font-semibold">Adresse Email</Label>
-                  <Input 
-                    id="email" 
-                    placeholder="prenom.nom@inphb.ci" 
+                  <Input
+                    id="email"
+                    placeholder="prenom.nom@inphb.ci"
                     {...register("email")}
                     className="h-12 bg-background/50 border-border/50 focus:border-primary focus:ring-primary/20"
                   />
                   {errors.email && <p className="text-sm text-destructive mt-1">{errors.email.message}</p>}
                 </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="password" className="text-foreground/80 font-semibold">Mot de passe</Label>
-                  <div className="relative">
-                    <Input 
-                      id="password" 
-                      type={showPassword ? "text" : "password"}
-                      placeholder="••••••••" 
-                      {...register("password")}
-                      className="h-12 bg-background/50 border-border/50 focus:border-primary focus:ring-primary/20 pr-12"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(v => !v)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-1"
-                      tabIndex={-1}
-                      aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+
+                {/* Biometric login — shown when passkey exists for this email on this device */}
+                <AnimatePresence>
+                  {showBiometricBtn && !showPasswordForm && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -8 }}
+                      transition={{ duration: 0.25 }}
+                      className="space-y-3"
                     >
-                      {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                    </button>
-                  </div>
-                  {errors.password && <p className="text-sm text-destructive mt-1">{errors.password.message}</p>}
-                </div>
+                      <Button
+                        type="button"
+                        onClick={handleBiometricLogin}
+                        disabled={biometricLoading}
+                        className="w-full h-14 text-base font-semibold gap-3 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 shadow-lg shadow-indigo-500/25 hover:shadow-xl transition-all"
+                      >
+                        {biometricLoading ? (
+                          <>
+                            <Loader2 className="w-5 h-5 animate-spin" />
+                            Authentification…
+                          </>
+                        ) : (
+                          <>
+                            <Fingerprint className="w-5 h-5" />
+                            Se connecter avec Face ID / Empreinte
+                          </>
+                        )}
+                      </Button>
 
-                <Button 
-                  type="submit" 
-                  className="w-full h-12 text-lg font-semibold shadow-lg shadow-primary/25 hover:shadow-xl transition-all"
-                  disabled={loginMutation.isPending}
-                >
-                  {loginMutation.isPending ? "Connexion en cours..." : "Se connecter"}
-                </Button>
+                      {biometricError && (
+                        <motion.p
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          className="text-sm text-destructive text-center"
+                        >
+                          {biometricError}
+                        </motion.p>
+                      )}
 
-                <p className="text-center text-sm text-muted-foreground pt-1">
-                  Mot de passe oublié ?{" "}
-                  <span
-                    className="text-primary underline underline-offset-2 cursor-pointer hover:text-primary/80 transition-colors"
-                    onClick={() => setContactDialogOpen(true)}
-                  >
-                    Contacter l'administration
-                  </span>
-                </p>
+                      <button
+                        type="button"
+                        onClick={() => { setShowPasswordForm(true); setBiometricError(null); }}
+                        className="w-full flex items-center justify-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors py-1"
+                      >
+                        <ChevronDown className="w-4 h-4" />
+                        Utiliser le mot de passe
+                      </button>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {/* Password form — shown when no biometric, or user chose to use password */}
+                <AnimatePresence>
+                  {showPasswordForm && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -6 }}
+                      transition={{ duration: 0.2 }}
+                      className="space-y-6"
+                    >
+                      {/* Biometric fallback header when biometric exists but user chose password */}
+                      {showBiometricBtn && (
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <div className="flex-1 h-px bg-border" />
+                          <span>ou avec mot de passe</span>
+                          <div className="flex-1 h-px bg-border" />
+                        </div>
+                      )}
+
+                      <div className="space-y-2">
+                        <Label htmlFor="password" className="text-foreground/80 font-semibold">Mot de passe</Label>
+                        <div className="relative">
+                          <Input
+                            id="password"
+                            type={showPassword ? "text" : "password"}
+                            placeholder="••••••••"
+                            {...register("password")}
+                            className="h-12 bg-background/50 border-border/50 focus:border-primary focus:ring-primary/20 pr-12"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowPassword(v => !v)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-1"
+                            tabIndex={-1}
+                            aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+                          >
+                            {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                          </button>
+                        </div>
+                        {errors.password && <p className="text-sm text-destructive mt-1">{errors.password.message}</p>}
+                      </div>
+
+                      <Button
+                        type="submit"
+                        className="w-full h-12 text-lg font-semibold shadow-lg shadow-primary/25 hover:shadow-xl transition-all"
+                        disabled={loginMutation.isPending}
+                      >
+                        {loginMutation.isPending ? "Connexion en cours..." : "Se connecter"}
+                      </Button>
+
+                      <p className="text-center text-sm text-muted-foreground pt-1">
+                        Mot de passe oublié ?{" "}
+                        <span
+                          className="text-primary underline underline-offset-2 cursor-pointer hover:text-primary/80 transition-colors"
+                          onClick={() => setContactDialogOpen(true)}
+                        >
+                          Contacter l'administration
+                        </span>
+                      </p>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </form>
             </CardContent>
           </Card>
         </motion.div>
       </div>
+
+      {/* WebAuthn register prompt — shown after successful password login */}
+      {showRegisterPrompt && pendingUser && (
+        <WebAuthnRegisterPrompt
+          userEmail={pendingUser.email}
+          userName={pendingUser.name}
+          onDone={handleRegisterPromptDone}
+        />
+      )}
+
       {/* Welcome overlay */}
       <AnimatePresence>
         {welcomeUser && (
