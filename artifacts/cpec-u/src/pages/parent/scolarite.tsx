@@ -55,12 +55,13 @@ function methodLabel(m?: string) {
   if (!m) return "—";
   if (m === "mobile_money") return "Mobile Money";
   if (m === "especes") return "Espèces";
-  if (m === "virement") return "Virement";
+  if (m === "virement") return "Virement bancaire";
+  if (m === "cheque") return "Chèque";
   return m;
 }
 function MethodIcon({ method }: { method?: string }) {
   if (method === "mobile_money") return <Smartphone className="w-3.5 h-3.5" />;
-  if (method === "virement") return <CreditCard className="w-3.5 h-3.5" />;
+  if (method === "virement" || method === "cheque") return <CreditCard className="w-3.5 h-3.5" />;
   return <Banknote className="w-3.5 h-3.5" />;
 }
 

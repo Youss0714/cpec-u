@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { InputMontant } from "@/components/ui/input-montant";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
@@ -17,7 +18,7 @@ import {
   ArrowLeft, User, Mail, Phone, MapPin, Calendar, GraduationCap,
   BookOpen, AlertCircle, CheckCircle2, Wallet, Home, TrendingUp, Clock, Plus, Trash2,
   CreditCard, Download, RefreshCw, XCircle, QrCode, Activity, TrendingDown, Minus,
-  Award, BarChart2, ShieldAlert,
+  Award, BarChart2, ShieldAlert, Smartphone, Banknote,
 } from "lucide-react";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
@@ -332,6 +333,7 @@ export default function AdminStudentDetail() {
   const [payAmount, setPayAmount] = useState("");
   const [payDesc, setPayDesc] = useState("");
   const [payDate, setPayDate] = useState(new Date().toISOString().slice(0, 10));
+  const [payMethod, setPayMethod] = useState<string>("");
   const [payLoading, setPayLoading] = useState(false);
 
   const [deletePayId, setDeletePayId] = useState<number | null>(null);
@@ -348,12 +350,12 @@ export default function AdminStudentDetail() {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ studentId, amount: Number(payAmount), description: payDesc, paymentDate: payDate }),
+        body: JSON.stringify({ studentId, amount: Number(payAmount), description: payDesc, paymentDate: payDate, paymentMethod: payMethod || null }),
       });
       if (!res.ok) { const e = await res.json(); throw new Error(e.error ?? "Erreur"); }
       toast({ title: "Paiement enregistré", description: `${Number(payAmount).toLocaleString("fr-FR")} FCFA ajouté avec succès.` });
       setShowPayDialog(false);
-      setPayAmount(""); setPayDesc(""); setPayDate(new Date().toISOString().slice(0, 10));
+      setPayAmount(""); setPayDesc(""); setPayDate(new Date().toISOString().slice(0, 10)); setPayMethod("");
       qc.invalidateQueries({ queryKey: [`/api/admin/students/${studentId}/detail`] });
     } catch (err: any) {
       toast({ title: "Erreur", description: err.message, variant: "destructive" });
@@ -690,6 +692,7 @@ export default function AdminStudentDetail() {
                         <TableRow>
                           <TableHead>Date</TableHead>
                           <TableHead>Description</TableHead>
+                          <TableHead>Moyen</TableHead>
                           <TableHead className="text-right">Montant</TableHead>
                           {canRecordPayment && <TableHead className="w-10" />}
                         </TableRow>
@@ -699,6 +702,19 @@ export default function AdminStudentDetail() {
                           <TableRow key={p.id}>
                             <TableCell className="text-sm">{fmtDate(p.paymentDate)}</TableCell>
                             <TableCell>{p.description ?? "—"}</TableCell>
+                            <TableCell>
+                              <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                                {p.paymentMethod === "mobile_money" && <Smartphone className="w-3.5 h-3.5" />}
+                                {p.paymentMethod === "virement" && <CreditCard className="w-3.5 h-3.5" />}
+                                {p.paymentMethod === "cheque" && <CreditCard className="w-3.5 h-3.5" />}
+                                {(!p.paymentMethod || p.paymentMethod === "especes") && <Banknote className="w-3.5 h-3.5" />}
+                                {p.paymentMethod === "especes" ? "Espèces"
+                                  : p.paymentMethod === "mobile_money" ? "Mobile Money"
+                                  : p.paymentMethod === "virement" ? "Virement"
+                                  : p.paymentMethod === "cheque" ? "Chèque"
+                                  : "—"}
+                              </span>
+                            </TableCell>
                             <TableCell className="text-right font-mono font-semibold text-emerald-700">+{fmt(p.amount)} F</TableCell>
                             {canRecordPayment && (
                               <TableCell>
@@ -846,6 +862,20 @@ export default function AdminStudentDetail() {
                 value={payDesc}
                 onChange={(e) => setPayDesc(e.target.value)}
               />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Moyen de paiement</Label>
+              <Select value={payMethod} onValueChange={setPayMethod}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Sélectionner…" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="especes">Espèces</SelectItem>
+                  <SelectItem value="mobile_money">Mobile Money</SelectItem>
+                  <SelectItem value="virement">Virement bancaire</SelectItem>
+                  <SelectItem value="cheque">Chèque</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-1.5">
               <Label>Date du paiement</Label>
