@@ -11,6 +11,7 @@ import {
   Upload, Info, Plus, Eye, RefreshCw, Gavel,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { AttachmentViewer } from "@/components/attachment-viewer";
 
 const API = (path: string) => `/api${path}`;
 
@@ -441,15 +442,7 @@ export default function StudentReclamations() {
                       {/* Attachment */}
                       {detailData.attachmentPath && (
                         <div>
-                          <a
-                            href={API(`/student/reclamations/attachment/${r.id}`)}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex items-center gap-2 text-sm text-primary hover:underline"
-                          >
-                            <Eye className="h-4 w-4" />
-                            Voir la pièce jointe
-                          </a>
+                          <AttachmentViewer url={API(`/student/reclamations/attachment/${r.id}`)} />
                         </div>
                       )}
 
