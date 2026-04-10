@@ -368,6 +368,7 @@ export default function AdminSchedules() {
     try {
       await publishSchedule.mutateAsync({ semesterId: parseInt(filterSemester), published });
       toast({ title: published ? "Emploi du temps publié !" : "Emploi du temps mis en brouillon" });
+      await refetchPubs();
       invalidate();
     } catch {
       toast({ title: "Erreur", variant: "destructive" });
@@ -466,6 +467,7 @@ export default function AdminSchedules() {
         title: "Tout publié !",
         description: "Toutes les séances du semestre sont maintenant visibles pour les étudiants.",
       });
+      await refetchPubs();
       invalidate();
     } catch {
       toast({ title: "Erreur lors de la publication", variant: "destructive" });
