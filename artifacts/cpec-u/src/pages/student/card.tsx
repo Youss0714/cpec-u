@@ -1,13 +1,16 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { AppLayout } from "@/components/layout";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from "@/components/ui/dialog";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import {
   CreditCard, Download, RefreshCw, CheckCircle2, XCircle,
-  Clock, QrCode, User, GraduationCap, Camera, AlertCircle,
+  Clock, QrCode, User, GraduationCap, Camera, AlertCircle, Upload,
 } from "lucide-react";
 import { downloadCardAsPdf } from "@/lib/download-card-pdf";
 
@@ -15,11 +18,45 @@ function getApiBase() {
   return import.meta.env.BASE_URL.replace(/\/$/, "");
 }
 
+function cropToSquareDataUrl(dataUrl: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const size = Math.min(img.width, img.height);
+      const canvas = document.createElement("canvas");
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext("2d")!;
+      ctx.drawImage(
+        img,
+        (img.width - size) / 2,
+        (img.height - size) / 2,
+        size,
+        size,
+        0,
+        0,
+        size,
+        size,
+      );
+      resolve(canvas.toDataURL("image/jpeg", 0.85));
+    };
+    img.onerror = reject;
+    img.src = dataUrl;
+  });
+}
+
 export default function StudentCard() {
   const { toast } = useToast();
   const qc = useQueryClient();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const [generating, setGenerating] = useState(false);
   const [downloading, setDownloading] = useState(false);
+
+  const [photoDialogOpen, setPhotoDialogOpen] = useState(false);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [photoUploading, setPhotoUploading] = useState(false);
+  const [photoDimError, setPhotoDimError] = useState<string | null>(null);
 
   const { data: profile, isLoading: profileLoading } = useQuery<any>({
     queryKey: ["/api/student/profile"],
@@ -40,6 +77,65 @@ export default function StudentCard() {
 
   const hasNoCard = (error as any)?.error?.includes("Aucune carte") ||
     (error as any)?.includes?.("Aucune carte");
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+
+    if (!["image/jpeg", "image/png"].includes(file.type)) {
+      toast({ title: "Format invalide", description: "Seuls les formats JPG et PNG sont acceptés.", variant: "destructive" });
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast({ title: "Fichier trop lourd", description: "La photo ne doit pas dépasser 2 Mo.", variant: "destructive" });
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      const raw = ev.target?.result as string;
+      const img = new Image();
+      img.onload = async () => {
+        if (img.width < 200 || img.height < 200) {
+          setPhotoDimError(`Dimensions trop petites (${img.width}×${img.height}px). Minimum requis : 200×200px.`);
+          setPhotoPreview(raw);
+          setPhotoDialogOpen(true);
+          return;
+        }
+        setPhotoDimError(null);
+        const cropped = await cropToSquareDataUrl(raw);
+        setPhotoPreview(cropped);
+        setPhotoDialogOpen(true);
+      };
+      img.src = raw;
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handlePhotoSave = async () => {
+    if (!photoPreview || photoDimError) return;
+    setPhotoUploading(true);
+    try {
+      const res = await fetch(`${getApiBase()}/api/student/photo`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ photoUrl: photoPreview }),
+      });
+      if (!res.ok) throw new Error();
+      qc.invalidateQueries({ queryKey: ["/api/student/profile"] });
+      qc.invalidateQueries({ queryKey: ["/api/student/card"] });
+      qc.invalidateQueries({ queryKey: ["/api/student/me"] });
+      toast({ title: "Photo de profil mise à jour avec succès" });
+      setPhotoDialogOpen(false);
+      setPhotoPreview(null);
+    } catch {
+      toast({ title: "Erreur lors de l'envoi de la photo", variant: "destructive" });
+    } finally {
+      setPhotoUploading(false);
+    }
+  };
 
   const handleGenerate = async () => {
     setGenerating(true);
@@ -76,7 +172,7 @@ export default function StudentCard() {
         isExpired: card.isExpired,
         verifyUrl: card.verifyUrl,
       });
-    } catch (err: any) {
+    } catch {
       toast({ title: "Erreur PDF", description: "Impossible de générer le PDF. Réessayez.", variant: "destructive" });
     } finally {
       setDownloading(false);
@@ -92,6 +188,71 @@ export default function StudentCard() {
   return (
     <AppLayout allowedRoles={["student"]}>
       <div className="max-w-2xl mx-auto space-y-6">
+
+        {/* Hidden file input */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/jpeg,image/png"
+          className="hidden"
+          onChange={handleFileSelect}
+        />
+
+        {/* Photo upload dialog */}
+        <Dialog open={photoDialogOpen} onOpenChange={open => {
+          setPhotoDialogOpen(open);
+          if (!open) { setPhotoPreview(null); setPhotoDimError(null); }
+        }}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Photo de profil</DialogTitle>
+            </DialogHeader>
+            {photoPreview && (
+              <div className="flex flex-col items-center gap-4">
+                <img
+                  src={photoPreview}
+                  alt="Aperçu"
+                  className="w-40 h-40 rounded-full object-cover border-4 border-primary/20 shadow-lg"
+                />
+                {photoDimError ? (
+                  <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700 w-full">
+                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                    <span>{photoDimError}</span>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground text-center">
+                    Photo recadrée au format carré. Elle sera visible par l'administration.
+                  </p>
+                )}
+              </div>
+            )}
+            <DialogFooter className="gap-2">
+              <Button variant="outline" className="flex-1" onClick={() => {
+                setPhotoDialogOpen(false);
+                setPhotoPreview(null);
+                setPhotoDimError(null);
+              }}>
+                Annuler
+              </Button>
+              {!photoDimError && (
+                <Button className="flex-1 gap-2" onClick={handlePhotoSave} disabled={photoUploading}>
+                  {photoUploading ? "Envoi…" : <><Upload className="w-4 h-4" />Valider</>}
+                </Button>
+              )}
+              {photoDimError && (
+                <Button variant="outline" className="flex-1" onClick={() => {
+                  setPhotoDialogOpen(false);
+                  setPhotoPreview(null);
+                  setPhotoDimError(null);
+                  setTimeout(() => fileInputRef.current?.click(), 100);
+                }}>
+                  Choisir une autre
+                </Button>
+              )}
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
         {/* Header */}
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
@@ -116,15 +277,16 @@ export default function StudentCard() {
                   Vous devez ajouter une photo de profil avant de pouvoir générer ou consulter votre carte étudiante.
                 </p>
               </div>
-              <a href={`${import.meta.env.BASE_URL}student/profile`}>
-                <Button className="bg-orange-500 hover:bg-orange-600 text-white">
-                  <Camera className="w-4 h-4 mr-2" />
-                  Ajouter une photo de profil
-                </Button>
-              </a>
+              <Button
+                className="bg-orange-500 hover:bg-orange-600 text-white"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <Camera className="w-4 h-4 mr-2" />
+                Ajouter une photo de profil
+              </Button>
               <p className="text-xs text-orange-600/60 dark:text-orange-500/60 flex items-center gap-1">
                 <AlertCircle className="w-3 h-3" />
-                Revenez ici après avoir ajouté votre photo.
+                Formats acceptés : JPG, PNG — Taille max : 2 Mo — Minimum 200×200 px
               </p>
             </CardContent>
           </Card>
@@ -177,6 +339,10 @@ export default function StudentCard() {
                 </Badge>
               </div>
               <div className="flex gap-2 flex-wrap">
+                <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
+                  <Camera className="w-4 h-4 mr-1.5" />
+                  Changer la photo
+                </Button>
                 <Button variant="outline" size="sm" onClick={handleGenerate} disabled={generating}>
                   <RefreshCw className={`w-4 h-4 mr-1.5 ${generating ? "animate-spin" : ""}`} />
                   Régénérer
