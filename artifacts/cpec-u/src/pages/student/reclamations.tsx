@@ -87,20 +87,26 @@ export default function StudentReclamations() {
     staleTime: 30 * 1000,
   });
 
-  // Fetch student grades to show subjects + grades in dropdown
+  // Fetch student grades for the active period semester (semesterId is required by the API)
+  const periodSemesterId = period?.semesterId ? String(period.semesterId) : null;
   const { data: gradesData } = useQuery({
-    queryKey: ["/api/student/grades"],
-    queryFn: () => fetch(API("/student/grades"), { credentials: "include" }).then(r => r.json()),
+    queryKey: ["/api/student/grades", periodSemesterId],
+    queryFn: () => fetch(API(`/student/grades?semesterId=${periodSemesterId}`), { credentials: "include" }).then(r => r.json()),
+    enabled: !!periodSemesterId,
     staleTime: 5 * 60 * 1000,
   });
 
-  const gradeRows: any[] = Array.isArray(gradesData) ? gradesData : (gradesData?.grades ?? []);
+  const gradeRows: any[] = gradesData?.grades ?? [];
 
-  // Get subjects in active period semester
-  const periodSemesterId = period?.semesterId ? String(period.semesterId) : null;
-  const availableSubjects = periodSemesterId
-    ? gradeRows.filter((g: any) => String(g.semesterId) === periodSemesterId)
-    : [];
+  // Already-claimed subject IDs for the active semester (to disable them)
+  const claimedSubjectIds = new Set(
+    (reclamations as any[])
+      .filter((r: any) => periodSemesterId && String(r.semesterId ?? r.semester_id ?? "") === periodSemesterId)
+      .map((r: any) => String(r.subjectId))
+  );
+
+  // Only subjects that have a grade (value != null) in the active semester
+  const availableSubjects = gradeRows.filter((g: any) => g.value !== null && g.value !== undefined);
 
   const submitMutation = useMutation({
     mutationFn: async () => {
@@ -189,22 +195,39 @@ export default function StudentReclamations() {
                 {/* Subject select */}
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium text-foreground">Matière concernée *</label>
-                  <select
-                    value={form.subjectId}
-                    onChange={e => setForm(f => ({ ...f, subjectId: e.target.value }))}
-                    className="w-full rounded-md border bg-background px-3 py-2 text-sm focus:ring-2 focus:ring-primary"
-                  >
-                    <option value="">— Sélectionner une matière —</option>
-                    {availableSubjects.map((g: any) => (
-                      <option key={g.subjectId} value={g.subjectId}>
-                        {g.subjectName} — Note : {g.value}/20
-                      </option>
-                    ))}
-                  </select>
+                  {!periodSemesterId ? (
+                    <p className="text-sm text-muted-foreground italic">Aucune période active — impossible de sélectionner une matière.</p>
+                  ) : gradeRows.length === 0 ? (
+                    <p className="text-sm text-muted-foreground italic">Chargement des matières…</p>
+                  ) : (
+                    <select
+                      value={form.subjectId}
+                      onChange={e => setForm(f => ({ ...f, subjectId: e.target.value }))}
+                      className="w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                    >
+                      <option value="">— Sélectionner une matière —</option>
+                      {gradeRows.map((g: any) => {
+                        const isClaimed = claimedSubjectIds.has(String(g.subjectId));
+                        const hasGrade = g.value !== null && g.value !== undefined;
+                        const disabled = isClaimed || !hasGrade;
+                        const label = isClaimed
+                          ? `${g.subjectName} — Réclamation déjà soumise`
+                          : !hasGrade
+                          ? `${g.subjectName} — Aucune note disponible`
+                          : `${g.subjectName} — Note : ${g.value}/20`;
+                        return (
+                          <option key={g.subjectId} value={g.subjectId} disabled={disabled}>
+                            {label}
+                          </option>
+                        );
+                      })}
+                    </select>
+                  )}
                   {form.subjectId && selectedGrade && (
-                    <p className="text-xs text-muted-foreground">
-                      Note contestée : <span className="font-semibold text-foreground">{selectedGrade.value}/20</span>
-                    </p>
+                    <div className="flex items-center gap-2 text-xs bg-muted/50 rounded-md px-3 py-2">
+                      <span className="text-muted-foreground">Note contestée :</span>
+                      <span className="font-bold text-foreground text-base">{selectedGrade.value}/20</span>
+                    </div>
                   )}
                 </div>
 

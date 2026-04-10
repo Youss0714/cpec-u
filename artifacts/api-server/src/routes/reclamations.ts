@@ -137,7 +137,9 @@ router.get("/student/reclamations", requireRole("student"), async (req, res) => 
       .select({
         id: reclamationsTable.id,
         claimNumber: reclamationsTable.claimNumber,
+        subjectId: reclamationsTable.subjectId,
         subjectName: subjectsTable.name,
+        semesterId: reclamationsTable.semesterId,
         semesterName: semestersTable.name,
         contestedGrade: reclamationsTable.contestedGrade,
         type: reclamationsTable.type,
