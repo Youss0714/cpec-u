@@ -59,9 +59,9 @@ export default function StudentCard() {
   const [photoDimError, setPhotoDimError] = useState<string | null>(null);
 
   const { data: profile, isLoading: profileLoading } = useQuery<any>({
-    queryKey: ["/api/student/profile"],
+    queryKey: ["/api/student/me"],
     queryFn: () =>
-      fetch(`${getApiBase()}/api/student/profile`, { credentials: "include" })
+      fetch(`${getApiBase()}/api/student/me`, { credentials: "include" })
         .then(r => r.json()),
   });
 
@@ -124,9 +124,8 @@ export default function StudentCard() {
         body: JSON.stringify({ photoUrl: photoPreview }),
       });
       if (!res.ok) throw new Error();
-      qc.invalidateQueries({ queryKey: ["/api/student/profile"] });
-      qc.invalidateQueries({ queryKey: ["/api/student/card"] });
       qc.invalidateQueries({ queryKey: ["/api/student/me"] });
+      qc.invalidateQueries({ queryKey: ["/api/student/card"] });
       toast({ title: "Photo de profil mise à jour avec succès" });
       setPhotoDialogOpen(false);
       setPhotoPreview(null);
