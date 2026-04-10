@@ -48,6 +48,7 @@ export type CreateBlockedDateRequest = {
 export type PublishScheduleRequest = {
   semesterId: number;
   published: boolean;
+  classId?: number;
 };
 
 export type PublishPeriod = "today" | "1week" | "2weeks" | "1month";

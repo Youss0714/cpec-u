@@ -384,7 +384,11 @@ export default function AdminSchedules() {
       return;
     }
     try {
-      await publishSchedule.mutateAsync({ semesterId: parseInt(filterSemester), published });
+      await publishSchedule.mutateAsync({
+        semesterId: parseInt(filterSemester),
+        published,
+        ...(filterClass !== "all" ? { classId: parseInt(filterClass) } : {}),
+      });
       toast({ title: published ? "Emploi du temps publié !" : "Emploi du temps mis en brouillon" });
       await refetchPubs();
       invalidate();
@@ -480,10 +484,14 @@ export default function AdminSchedules() {
       return;
     }
     try {
-      await publishSchedule.mutateAsync({ semesterId: parseInt(filterSemester), published: true });
+      await publishSchedule.mutateAsync({
+        semesterId: parseInt(filterSemester),
+        published: true,
+        ...(filterClass !== "all" ? { classId: parseInt(filterClass) } : {}),
+      });
       toast({
         title: "Tout publié !",
-        description: "Toutes les séances du semestre sont maintenant visibles pour les étudiants.",
+        description: "Toutes les séances sont maintenant visibles pour les étudiants.",
       });
       await refetchPubs();
       invalidate();
@@ -813,7 +821,7 @@ export default function AdminSchedules() {
                             <p className="text-[10px] text-muted-foreground">Publie toutes les séances du semestre</p>
                           </div>
                         </DropdownMenuItem>
-                        {activePub && (
+                        {(globalStatus === "publie" || globalStatus === "partiel") && (
                           <>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem onClick={() => handlePublish(false)} className="cursor-pointer text-destructive focus:text-destructive gap-2">

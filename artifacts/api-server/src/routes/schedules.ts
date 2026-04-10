@@ -108,14 +108,17 @@ router.get("/", requireRole("admin"), async (req, res) => {
 
 router.post("/publish", requirePlanificateur, async (req, res) => {
   try {
-    const { semesterId, published } = req.body;
+    const { semesterId, published, classId } = req.body;
     if (!semesterId || published === undefined) {
       return res.status(400).json({ error: "semesterId et published requis" });
     }
+    const conditions = classId
+      ? and(eq(scheduleEntriesTable.semesterId, parseInt(semesterId)), eq(scheduleEntriesTable.classId, parseInt(classId)))
+      : eq(scheduleEntriesTable.semesterId, parseInt(semesterId));
     await db
       .update(scheduleEntriesTable)
       .set({ published: Boolean(published) })
-      .where(eq(scheduleEntriesTable.semesterId, semesterId));
+      .where(conditions);
 
     if (Boolean(published)) {
       const [sem] = await db.select({ name: semestersTable.name }).from(semestersTable).where(eq(semestersTable.id, parseInt(semesterId))).limit(1);
