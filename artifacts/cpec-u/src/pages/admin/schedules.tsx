@@ -239,24 +239,6 @@ export default function AdminSchedules() {
     }) ?? null;
   }, [publications]);
 
-  // Computed global status — single source of truth from actual entry statuses
-  const globalStatus = useMemo((): "publie" | "partiel" | "brouillon" | "vide" => {
-    if (filterClass === "all" || filterSemester === "all") return "vide";
-    if (filteredEntries.length === 0) return "vide";
-    const numPublished = (filteredEntries as any[]).filter((e: any) => e.published).length;
-    if (numPublished === filteredEntries.length) return "publie";
-    if (numPublished === 0) return "brouillon";
-    return "partiel";
-  }, [filteredEntries, filterClass, filterSemester]);
-
-  // Last published session date — used for "Visible jusqu'au" label
-  const lastPublishedDate = useMemo(() => {
-    const published = (filteredEntries as any[])
-      .filter((e: any) => e.published && e.sessionDate)
-      .sort((a: any, b: any) => (b.sessionDate as string).localeCompare(a.sessionDate as string));
-    return published[0]?.sessionDate as string | undefined;
-  }, [filteredEntries]);
-
   const numWeeks = viewMode === "1week" ? 1 : viewMode === "2weeks" ? 2 : 4;
 
   useEffect(() => {
@@ -279,6 +261,22 @@ export default function AdminSchedules() {
     if (filterClass !== "all" && e.classId !== parseInt(filterClass)) return false;
     return true;
   }), [entries, filterSemester, filterClass]);
+
+  const globalStatus = useMemo((): "publie" | "partiel" | "brouillon" | "vide" => {
+    if (filterClass === "all" || filterSemester === "all") return "vide";
+    if (filteredEntries.length === 0) return "vide";
+    const numPublished = (filteredEntries as any[]).filter((e: any) => e.published).length;
+    if (numPublished === filteredEntries.length) return "publie";
+    if (numPublished === 0) return "brouillon";
+    return "partiel";
+  }, [filteredEntries, filterClass, filterSemester]);
+
+  const lastPublishedDate = useMemo(() => {
+    const published = (filteredEntries as any[])
+      .filter((e: any) => e.published && e.sessionDate)
+      .sort((a: any, b: any) => (b.sessionDate as string).localeCompare(a.sessionDate as string));
+    return published[0]?.sessionDate as string | undefined;
+  }, [filteredEntries]);
 
   const { teacherConflicts, roomConflicts } = useMemo(() => detectConflicts(filteredEntries), [filteredEntries]);
   const conflictIds = useMemo(() => new Set([...teacherConflicts, ...roomConflicts]), [teacherConflicts, roomConflicts]);
