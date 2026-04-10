@@ -45,7 +45,7 @@ interface ScolariteData {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function fmt(n: number) {
-  return n.toLocaleString("fr-FR") + " FCFA";
+  return Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, "\u00A0") + " FCFA";
 }
 function fmtDate(iso: string) {
   const [y, m, d] = iso.split("-");
