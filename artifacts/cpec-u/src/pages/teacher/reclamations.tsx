@@ -189,7 +189,7 @@ export default function TeacherReclamations() {
                         <Icon className="h-5 w-5 text-muted-foreground shrink-0" />
                         <div className="min-w-0">
                           <p className="font-semibold text-foreground text-sm">
-                            {r.studentFirstName} {r.studentLastName}
+                            {r.studentName}
                           </p>
                           <p className="text-xs text-muted-foreground mt-0.5">
                             {r.claimNumber} · {r.subjectName} · {r.semesterName} · Note : {r.contestedGrade}/20

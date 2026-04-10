@@ -45,9 +45,9 @@ const router = Router();
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 async function getActorName(userId: number): Promise<string> {
-  const [u] = await db.select({ firstName: usersTable.firstName, lastName: usersTable.lastName })
+  const [u] = await db.select({ name: usersTable.name })
     .from(usersTable).where(eq(usersTable.id, userId)).limit(1);
-  return u ? `${u.firstName} ${u.lastName}` : "Inconnu";
+  return u?.name ?? "Inconnu";
 }
 
 async function appendHistory(
@@ -357,8 +357,7 @@ router.get("/teacher/reclamations", requireRole("teacher"), async (req, res) => 
       .select({
         id: reclamationsTable.id,
         claimNumber: reclamationsTable.claimNumber,
-        studentFirstName: usersTable.firstName,
-        studentLastName: usersTable.lastName,
+        studentName: usersTable.name,
         subjectName: subjectsTable.name,
         semesterName: semestersTable.name,
         contestedGrade: reclamationsTable.contestedGrade,
@@ -389,8 +388,8 @@ router.get("/teacher/reclamations/:id", requireRole("teacher"), async (req, res)
       .select({
         id: reclamationsTable.id,
         claimNumber: reclamationsTable.claimNumber,
-        studentFirstName: usersTable.firstName,
-        studentLastName: usersTable.lastName,
+        studentName: usersTable.name,
+        
         subjectName: subjectsTable.name,
         semesterName: semestersTable.name,
         contestedGrade: reclamationsTable.contestedGrade,
@@ -601,8 +600,8 @@ router.get("/admin/reclamations", requireRole("admin"), async (req, res) => {
         id: reclamationsTable.id,
         claimNumber: reclamationsTable.claimNumber,
         studentId: reclamationsTable.studentId,
-        studentFirstName: usersTable.firstName,
-        studentLastName: usersTable.lastName,
+        studentName: usersTable.name,
+        
         subjectName: subjectsTable.name,
         semesterName: semestersTable.name,
         contestedGrade: reclamationsTable.contestedGrade,
@@ -636,8 +635,8 @@ router.get("/admin/reclamations/stats", requireRole("admin"), async (req, res) =
     const all = await db.select({
       status: reclamationsTable.status,
       subjectName: subjectsTable.name,
-      teacherFirstName: usersTable.firstName,
-      teacherLastName: usersTable.lastName,
+      teacherName: usersTable.name,
+      
       createdAt: reclamationsTable.createdAt,
       resolvedAt: reclamationsTable.resolvedAt,
     })
@@ -656,7 +655,7 @@ router.get("/admin/reclamations/stats", requireRole("admin"), async (req, res) =
     const teacherCount: Record<string, number> = {};
     for (const r of all) {
       if (r.subjectName) subjectCount[r.subjectName] = (subjectCount[r.subjectName] ?? 0) + 1;
-      const tName = r.teacherFirstName && r.teacherLastName ? `${r.teacherFirstName} ${r.teacherLastName}` : null;
+      const tName = r.teacherName ?? null;
       if (tName) teacherCount[tName] = (teacherCount[tName] ?? 0) + 1;
     }
     const topSubjects = Object.entries(subjectCount).sort((a, b) => b[1] - a[1]).slice(0, 5);
@@ -687,8 +686,8 @@ router.get("/admin/reclamations/:id", requireRole("admin"), async (req, res) => 
         id: reclamationsTable.id,
         claimNumber: reclamationsTable.claimNumber,
         studentId: reclamationsTable.studentId,
-        studentFirstName: usersTable.firstName,
-        studentLastName: usersTable.lastName,
+        studentName: usersTable.name,
+        
         teacherId: reclamationsTable.teacherId,
         subjectId: reclamationsTable.subjectId,
         subjectName: subjectsTable.name,
