@@ -19,6 +19,7 @@ import {
   scheduleEntriesTable,
   schedulePublicationsTable,
   roomsTable,
+  reclamationPeriodsTable,
 } from "@workspace/db";
 import { eq, and, sql } from "drizzle-orm";
 import { requireRole } from "../lib/auth.js";
@@ -156,19 +157,49 @@ router.get("/grades", requireRole("student"), async (req, res) => {
       .from(gradesTable)
       .where(and(eq(gradesTable.studentId, studentId), eq(gradesTable.semesterId, semId)));
 
-    const gradeMap = new Map(studentGrades.map((g) => [g.subjectId, g.value]));
+    const gradeMap = new Map<number, number[]>();
+    for (const g of studentGrades) {
+      const arr = gradeMap.get(g.subjectId) ?? [];
+      arr.push(g.value);
+      gradeMap.set(g.subjectId, arr);
+    }
 
-    const grades = subjects.map((s) => ({
-      subjectId: s.id,
-      subjectName: s.name,
-      coefficient: s.coefficient,
-      value: semester.published ? (gradeMap.get(s.id) ?? null) : null,
-    }));
+    const now = new Date();
+    let hasActiveReclamationPeriod = false;
+    if (!semester.published) {
+      const [activePeriod] = await db
+        .select({ id: reclamationPeriodsTable.id })
+        .from(reclamationPeriodsTable)
+        .where(and(
+          eq(reclamationPeriodsTable.semesterId, semId),
+          eq(reclamationPeriodsTable.isActive, true),
+          sql`${reclamationPeriodsTable.openDate} <= ${now}`,
+          sql`${reclamationPeriodsTable.closeDate} >= ${now}`,
+        ))
+        .limit(1);
+      hasActiveReclamationPeriod = !!activePeriod;
+    }
+
+    const gradesVisible = semester.published || hasActiveReclamationPeriod;
+
+    const grades = subjects.map((s) => {
+      const values = gradeMap.get(s.id);
+      let value: number | null = null;
+      if (gradesVisible && values && values.length > 0) {
+        value = Math.round((values.reduce((a, b) => a + b, 0) / values.length) * 100) / 100;
+      }
+      return {
+        subjectId: s.id,
+        subjectName: s.name,
+        coefficient: s.coefficient,
+        value,
+      };
+    });
 
     let average: number | null = null;
     let decision: "Admis" | "Ajourné" | "En attente" | null = null;
 
-    if (semester.published) {
+    if (gradesVisible) {
       const gradedSubjects = grades.filter((g) => g.value !== null);
       if (gradedSubjects.length > 0) {
         const totalCoeff = gradedSubjects.reduce((sum, g) => sum + g.coefficient, 0);
@@ -233,13 +264,25 @@ router.get("/results", requireRole("student"), async (req, res) => {
       .from(gradesTable)
       .where(and(eq(gradesTable.studentId, studentId), eq(gradesTable.semesterId, semId)));
 
-    const gradeMap = new Map(studentGrades.map((g) => [g.subjectId, g.value]));
-    const grades = subjects.map((s) => ({
-      subjectId: s.id,
-      subjectName: s.name,
-      coefficient: s.coefficient,
-      value: gradeMap.get(s.id) ?? null,
-    }));
+    const gradeMap = new Map<number, number[]>();
+    for (const g of studentGrades) {
+      const arr = gradeMap.get(g.subjectId) ?? [];
+      arr.push(g.value);
+      gradeMap.set(g.subjectId, arr);
+    }
+    const grades = subjects.map((s) => {
+      const values = gradeMap.get(s.id);
+      let value: number | null = null;
+      if (values && values.length > 0) {
+        value = Math.round((values.reduce((a, b) => a + b, 0) / values.length) * 100) / 100;
+      }
+      return {
+        subjectId: s.id,
+        subjectName: s.name,
+        coefficient: s.coefficient,
+        value,
+      };
+    });
 
     let average: number | null = null;
     let decision: "Admis" | "Ajourné" | "En attente" = "En attente";
