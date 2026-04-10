@@ -77,9 +77,13 @@ async function notifyAndPush(userId: number, message: string, type: string, titl
 
 async function generateClaimNumber(): Promise<string> {
   const year = new Date().getFullYear();
-  const [{ ct }] = await db.select({ ct: count() }).from(reclamationsTable);
-  const seq = String(Number(ct) + 1).padStart(4, "0");
-  return `REC-${year}-${seq}`;
+  const prefix = `REC-${year}-`;
+  const [{ maxNum }] = await db.select({
+    maxNum: sql<string>`COALESCE(MAX(CAST(SUBSTRING(${reclamationsTable.claimNumber} FROM '\\d+$') AS INTEGER)), 0)`,
+  }).from(reclamationsTable)
+    .where(sql`${reclamationsTable.claimNumber} LIKE ${prefix + '%'}`);
+  const seq = String((Number(maxNum) || 0) + 1).padStart(4, "0");
+  return `${prefix}${seq}`;
 }
 
 function getActivePeriodCondition(now: Date) {
@@ -237,7 +241,11 @@ router.post(
 
       // Check duplicate
       const [existing] = await db
-        .select({ id: reclamationsTable.id })
+        .select({
+          id: reclamationsTable.id,
+          claimNumber: reclamationsTable.claimNumber,
+          status: reclamationsTable.status,
+        })
         .from(reclamationsTable)
         .where(and(
           eq(reclamationsTable.studentId, studentId),
@@ -246,7 +254,13 @@ router.post(
         ))
         .limit(1);
       if (existing) {
-        res.status(409).json({ error: "Vous avez déjà soumis une réclamation pour cette matière" });
+        res.status(409).json({
+          error: "Votre réclamation pour cette matière est déjà enregistrée.",
+          alreadyExists: true,
+          existingId: existing.id,
+          claimNumber: existing.claimNumber,
+          status: existing.status,
+        });
         return;
       }
 
@@ -297,35 +311,61 @@ router.post(
       await appendHistory(inserted.id, studentId, actorName, "submitted",
         `Réclamation soumise pour la note ${gradeRow.value}/20`);
 
-      // Get subject name for notifications
-      const [subj] = await db.select({ name: subjectsTable.name }).from(subjectsTable)
-        .where(eq(subjectsTable.id, Number(subjectId))).limit(1);
-      const subjName = subj?.name ?? "Matière inconnue";
-
-      // Notify teacher
-      if (assignRow?.teacherId) {
-        await notifyAndPush(
-          assignRow.teacherId,
-          `Nouvelle réclamation de ${actorName} sur ${subjName}`,
-          "reclamation",
-          "Réclamation reçue",
-        );
-      }
-
-      // Notify all admins (scolarite + directeur)
-      const admins = await db.select({ id: usersTable.id }).from(usersTable)
-        .where(eq(usersTable.role, "admin"));
-      for (const admin of admins) {
-        await notifyAndPush(
-          admin.id,
-          `Une réclamation a été soumise pour ${subjName} par ${actorName}`,
-          "reclamation",
-          "Réclamation soumise",
-        );
-      }
-
+      // Respond immediately — insertion succeeded
       res.status(201).json({ claimNumber, id: inserted.id });
-    } catch (err) {
+
+      // Notifications in background (never block the response)
+      (async () => {
+        try {
+          const [subj] = await db.select({ name: subjectsTable.name }).from(subjectsTable)
+            .where(eq(subjectsTable.id, Number(subjectId))).limit(1);
+          const subjName = subj?.name ?? "Matière inconnue";
+
+          if (assignRow?.teacherId) {
+            await notifyAndPush(
+              assignRow.teacherId,
+              `Nouvelle réclamation de ${actorName} sur ${subjName}`,
+              "reclamation",
+              "Réclamation reçue",
+            );
+          }
+
+          const admins = await db.select({ id: usersTable.id }).from(usersTable)
+            .where(eq(usersTable.role, "admin"));
+          for (const admin of admins) {
+            await notifyAndPush(
+              admin.id,
+              `Une réclamation a été soumise pour ${subjName} par ${actorName}`,
+              "reclamation",
+              "Réclamation soumise",
+            );
+          }
+        } catch (notifErr) {
+          console.error("POST /student/reclamations notification error (non-blocking):", notifErr);
+        }
+      })();
+    } catch (err: any) {
+      if (err?.code === "23505") {
+        const [existingRow] = await db
+          .select({ id: reclamationsTable.id, claimNumber: reclamationsTable.claimNumber, status: reclamationsTable.status })
+          .from(reclamationsTable)
+          .where(and(
+            eq(reclamationsTable.studentId, req.session!.userId!),
+            eq(reclamationsTable.subjectId, Number(req.body.subjectId)),
+            eq(reclamationsTable.semesterId, Number(req.body.semesterId)),
+          ))
+          .limit(1);
+        if (existingRow) {
+          res.status(409).json({
+            error: "Votre réclamation pour cette matière est déjà enregistrée.",
+            alreadyExists: true,
+            existingId: existingRow.id,
+            claimNumber: existingRow.claimNumber,
+            status: existingRow.status,
+          });
+          return;
+        }
+      }
       console.error("POST /student/reclamations error:", err);
       res.status(500).json({ error: "Internal Server Error" });
     }
@@ -490,28 +530,34 @@ router.put("/teacher/reclamations/:id", requireRole("teacher"), async (req, res)
     await appendHistory(id, teacherId, actorName, actionLabel, teacherComment.trim(),
       undefined, decision === "accept" ? Number(proposedGrade) : undefined);
 
-    // Notify student
-    const studentMsg = decision === "accept"
-      ? `Votre réclamation ${rec.claimNumber} a été acceptée par l'enseignant — en attente de validation administrative`
-      : decision === "reject"
-      ? `Votre réclamation ${rec.claimNumber} a été rejetée par l'enseignant`
-      : `Votre réclamation ${rec.claimNumber} a été transmise à l'administration`;
-    await notifyAndPush(rec.studentId, studentMsg, "reclamation", "Réclamation mise à jour");
-
-    // Notify admins if transmitted or accepted
-    if (decision !== "reject") {
-      const admins = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.role, "admin"));
-      for (const admin of admins) {
-        await notifyAndPush(
-          admin.id,
-          `La réclamation ${rec.claimNumber} ${decision === "accept" ? "acceptée par l'enseignant" : "transmise"} — arbitrage requis`,
-          "reclamation",
-          "Réclamation en attente d'arbitrage",
-        );
-      }
-    }
-
+    // Respond immediately
     res.json({ ok: true });
+
+    // Notifications in background
+    (async () => {
+      try {
+        const studentMsg = decision === "accept"
+          ? `Votre réclamation ${rec.claimNumber} a été acceptée par l'enseignant — en attente de validation administrative`
+          : decision === "reject"
+          ? `Votre réclamation ${rec.claimNumber} a été rejetée par l'enseignant`
+          : `Votre réclamation ${rec.claimNumber} a été transmise à l'administration`;
+        await notifyAndPush(rec.studentId, studentMsg, "reclamation", "Réclamation mise à jour");
+
+        if (decision !== "reject") {
+          const admins = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.role, "admin"));
+          for (const admin of admins) {
+            await notifyAndPush(
+              admin.id,
+              `La réclamation ${rec.claimNumber} ${decision === "accept" ? "acceptée par l'enseignant" : "transmise"} — arbitrage requis`,
+              "reclamation",
+              "Réclamation en attente d'arbitrage",
+            );
+          }
+        }
+      } catch (notifErr) {
+        console.error("PUT /teacher/reclamations/:id notification error (non-blocking):", notifErr);
+      }
+    })();
   } catch (err) {
     console.error("PUT /teacher/reclamations/:id error:", err);
     res.status(500).json({ error: "Internal Server Error" });
@@ -814,23 +860,29 @@ router.put("/admin/reclamations/:id", requireRole("admin"), async (req, res) => 
     await appendHistory(id, adminId, actorName, actionLabel, detail,
       rec.contestedGrade, newFinalGrade ?? undefined);
 
-    // Get subject name
-    const [subj] = await db.select({ name: subjectsTable.name }).from(subjectsTable)
-      .where(eq(subjectsTable.id, rec.subjectId)).limit(1);
-    const subjName = subj?.name ?? "Matière";
-
-    // Notify student of final decision
-    let studentMsg = "";
-    if (decision === "validate_accept" || decision === "override_reject") {
-      studentMsg = `Décision finale : Réclamation ACCEPTÉE — Votre note en ${subjName} a été mise à jour : ${rec.contestedGrade}/20 → ${newFinalGrade}/20`;
-    } else if (decision === "reject_accept") {
-      studentMsg = `Décision finale : Réclamation REJETÉE — La note en ${subjName} est maintenue à ${rec.contestedGrade}/20`;
-    } else {
-      studentMsg = `Votre réclamation ${rec.claimNumber} a été clôturée`;
-    }
-    await notifyAndPush(rec.studentId, studentMsg, "reclamation", "Décision finale");
-
+    // Respond immediately
     res.json({ ok: true });
+
+    // Notifications in background
+    (async () => {
+      try {
+        const [subj] = await db.select({ name: subjectsTable.name }).from(subjectsTable)
+          .where(eq(subjectsTable.id, rec.subjectId)).limit(1);
+        const subjName = subj?.name ?? "Matière";
+
+        let studentMsg = "";
+        if (decision === "validate_accept" || decision === "override_reject") {
+          studentMsg = `Décision finale : Réclamation ACCEPTÉE — Votre note en ${subjName} a été mise à jour : ${rec.contestedGrade}/20 → ${newFinalGrade}/20`;
+        } else if (decision === "reject_accept") {
+          studentMsg = `Décision finale : Réclamation REJETÉE — La note en ${subjName} est maintenue à ${rec.contestedGrade}/20`;
+        } else {
+          studentMsg = `Votre réclamation ${rec.claimNumber} a été clôturée`;
+        }
+        await notifyAndPush(rec.studentId, studentMsg, "reclamation", "Décision finale");
+      } catch (notifErr) {
+        console.error("PUT /admin/reclamations/:id notification error (non-blocking):", notifErr);
+      }
+    })();
   } catch (err) {
     console.error("PUT /admin/reclamations/:id error:", err);
     res.status(500).json({ error: "Internal Server Error" });

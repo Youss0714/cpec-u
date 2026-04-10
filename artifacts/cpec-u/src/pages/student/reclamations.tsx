@@ -123,11 +123,27 @@ export default function StudentReclamations() {
       });
       if (!r.ok) {
         const err = await r.json();
+        if (err.alreadyExists) {
+          return { alreadyExists: true, claimNumber: err.claimNumber, existingId: err.existingId };
+        }
         throw new Error(err.error ?? "Erreur");
       }
       return r.json();
     },
     onSuccess: (data: any) => {
+      if (data.alreadyExists) {
+        toast({
+          title: "Réclamation déjà enregistrée",
+          description: `Votre réclamation N° ${data.claimNumber} est déjà en cours de traitement. Consultez son statut ci-dessous.`,
+        });
+        setShowForm(false);
+        setStep("form");
+        setForm({ subjectId: "", semesterId: "", type: "", motif: "" });
+        setFile(null);
+        setExpandedId(data.existingId);
+        qc.invalidateQueries({ queryKey: ["/api/student/reclamations"] });
+        return;
+      }
       toast({
         title: "Réclamation soumise",
         description: `N° ${data.claimNumber} — Vous recevrez une notification lors de la réponse.`,
