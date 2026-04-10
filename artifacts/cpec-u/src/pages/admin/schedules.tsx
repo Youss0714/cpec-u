@@ -239,6 +239,24 @@ export default function AdminSchedules() {
     }) ?? null;
   }, [publications]);
 
+  // Computed global status — single source of truth from actual entry statuses
+  const globalStatus = useMemo((): "publie" | "partiel" | "brouillon" | "vide" => {
+    if (filterClass === "all" || filterSemester === "all") return "vide";
+    if (filteredEntries.length === 0) return "vide";
+    const numPublished = (filteredEntries as any[]).filter((e: any) => e.published).length;
+    if (numPublished === filteredEntries.length) return "publie";
+    if (numPublished === 0) return "brouillon";
+    return "partiel";
+  }, [filteredEntries, filterClass, filterSemester]);
+
+  // Last published session date — used for "Visible jusqu'au" label
+  const lastPublishedDate = useMemo(() => {
+    const published = (filteredEntries as any[])
+      .filter((e: any) => e.published && e.sessionDate)
+      .sort((a: any, b: any) => (b.sessionDate as string).localeCompare(a.sessionDate as string));
+    return published[0]?.sessionDate as string | undefined;
+  }, [filteredEntries]);
+
   const numWeeks = viewMode === "1week" ? 1 : viewMode === "2weeks" ? 2 : 4;
 
   useEffect(() => {
@@ -712,12 +730,14 @@ export default function AdminSchedules() {
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button
-                      variant={activePub ? "outline" : "default"}
+                      variant={globalStatus === "publie" ? "outline" : "default"}
                       disabled={publishPeriod.isPending}
-                      className={activePub ? "border-green-400 text-green-700 hover:bg-green-50 gap-1" : "gap-1"}
+                      className={globalStatus === "publie" ? "border-green-400 text-green-700 hover:bg-green-50 gap-1" : globalStatus === "partiel" ? "border-blue-400 text-blue-700 hover:bg-blue-50 gap-1" : "gap-1"}
                     >
-                      {activePub
+                      {globalStatus === "publie"
                         ? <><CheckCircle className="w-4 h-4 text-green-600" />Publié<ChevronDown className="w-3 h-3 ml-1" /></>
+                        : globalStatus === "partiel"
+                        ? <><Send className="w-4 h-4" />Partiel<ChevronDown className="w-3 h-3 ml-1" /></>
                         : <><Send className="w-4 h-4" />Publier<ChevronDown className="w-3 h-3 ml-1" /></>}
                     </Button>
                   </DropdownMenuTrigger>
@@ -865,11 +885,17 @@ export default function AdminSchedules() {
                 {classes.map((c: any) => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}
               </SelectContent>
             </Select>
-            {filterClass !== "all" && filterSemester !== "all" && (
-              activePub ? (
+            {filterClass !== "all" && filterSemester !== "all" && globalStatus !== "vide" && (
+              globalStatus === "publie" ? (
                 <Badge variant="outline" className="border-green-300 text-green-700 bg-green-50 gap-1">
                   <Eye className="w-3 h-3" />
-                  Visible jusqu'au {new Date(activePub.publishedUntil).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })}
+                  {lastPublishedDate
+                    ? <>Publié — jusqu'au {new Date(lastPublishedDate).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })}</>
+                    : <>Publié</>}
+                </Badge>
+              ) : globalStatus === "partiel" ? (
+                <Badge variant="outline" className="border-blue-300 text-blue-700 bg-blue-50 gap-1">
+                  <Eye className="w-3 h-3" />Partiellement publié
                 </Badge>
               ) : (
                 <Badge variant="outline" className="border-amber-300 text-amber-700 bg-amber-50 gap-1">
