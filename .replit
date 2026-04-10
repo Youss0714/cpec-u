@@ -61,7 +61,7 @@ localPort = 8082
 [userenv]
 
 [userenv.shared]
-VAPID_PUBLIC_KEY = "BNPGiVlKmpMBohqe5JN5X-IIC_PB3llnzs4NQi_O0nG6sa9K8i67LqQryV8IsdoP6ggXI5iT9BytPvT8-j3i-5k"
-VAPID_PRIVATE_KEY = "gV21By4xvrnSzSiokppLpi4yc17Ro3rf7-zQDLvaU1w"
-VAPID_EMAIL = "mailto:contact@cpecdigital.replit.app"
+VAPID_PUBLIC_KEY = "BJNuG033eUOGvSPRBepp0mQX3Mc5dxJF7JP5lItp3sAZcbiXC5lLAhAQdU3Um5nkf6MsYl82NMqZYD8EZ6Wp-V4"
+VAPID_PRIVATE_KEY = "-I6Sf0Oka9rfjWRfRxCE9bLkWEWEgM74CGE6ozyx9Kk"
+VAPID_EMAIL = "mailto:admin@cpec-u.fr"
 DEV_MASTER_KEY = "@Youss054626"
