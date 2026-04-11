@@ -7,8 +7,9 @@ import {
   classesTable,
   semestersTable,
   scheduleEntriesTable,
+  attendanceSessionsTable,
 } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, isNotNull } from "drizzle-orm";
 import { requireRole } from "../lib/auth.js";
 
 const router = Router();
@@ -47,10 +48,13 @@ async function getEnriched() {
   return rows;
 }
 
-// Compute hours done from schedule entries (each entry = 1 slot, duration computed)
 async function computeHoursDone(assignmentId: number, ta: any) {
   const entries = await db
-    .select()
+    .select({
+      sessionDate: scheduleEntriesTable.sessionDate,
+      startTime: scheduleEntriesTable.startTime,
+      endTime: scheduleEntriesTable.endTime,
+    })
     .from(scheduleEntriesTable)
     .where(
       and(
@@ -61,11 +65,30 @@ async function computeHoursDone(assignmentId: number, ta: any) {
       )
     );
 
-  const totalHours = entries.reduce((sum, e) => {
-    const [sh, sm] = e.startTime.split(":").map(Number);
-    const [eh, em] = e.endTime.split(":").map(Number);
-    return sum + (eh * 60 + em - sh * 60 - sm) / 60;
-  }, 0);
+  const submitted = await db
+    .select({ sessionDate: attendanceSessionsTable.sessionDate })
+    .from(attendanceSessionsTable)
+    .where(
+      and(
+        eq(attendanceSessionsTable.teacherId, ta.teacherId),
+        eq(attendanceSessionsTable.subjectId, ta.subjectId),
+        eq(attendanceSessionsTable.classId, ta.classId),
+        eq(attendanceSessionsTable.semesterId, ta.semesterId),
+        isNotNull(attendanceSessionsTable.sentAt),
+      )
+    );
+
+  const submittedDates = new Set(submitted.map(s => s.sessionDate));
+
+  let totalHours = 0;
+  for (const e of entries) {
+    if (submittedDates.has(e.sessionDate)) {
+      const [sh, sm] = e.startTime.split(":").map(Number);
+      const [eh, em] = e.endTime.split(":").map(Number);
+      const dur = (eh * 60 + em - sh * 60 - sm) / 60;
+      if (dur > 0) totalHours += dur;
+    }
+  }
   return Math.round(totalHours * 10) / 10;
 }
 

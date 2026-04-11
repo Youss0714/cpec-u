@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { TrendingUp, Download, CheckCircle2, AlertTriangle, Clock } from "lucide-react";
+import { TrendingUp, Download, CheckCircle2, AlertTriangle, Clock, CircleDot } from "lucide-react";
 
 async function apiFetch(path: string) {
   const res = await fetch(`/api${path}`, { credentials: "include" });
@@ -15,7 +15,7 @@ async function apiFetch(path: string) {
 }
 
 function ProgressBar({ pct, planned }: { pct: number | null; planned: number }) {
-  if (planned === 0) return <span className="text-xs text-muted-foreground italic">—</span>;
+  if (planned === 0) return <span className="text-xs text-muted-foreground italic">---</span>;
   const p = pct ?? 0;
   const color = p >= 100 ? "bg-emerald-500" : p >= 60 ? "bg-amber-400" : "bg-red-400";
   return (
@@ -28,12 +28,18 @@ function ProgressBar({ pct, planned }: { pct: number | null; planned: number }) 
   );
 }
 
-function StatusBadge({ pct, planned }: { pct: number | null; planned: number }) {
-  if (planned === 0) return <Badge variant="outline" className="text-xs">Non défini</Badge>;
-  const p = pct ?? 0;
-  if (p >= 100) return <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 text-xs"><CheckCircle2 className="w-3 h-3 mr-1" />Complété</Badge>;
-  if (p >= 60) return <Badge className="bg-amber-100 text-amber-700 border-amber-200 text-xs"><Clock className="w-3 h-3 mr-1" />En cours</Badge>;
-  return <Badge className="bg-red-100 text-red-700 border-red-200 text-xs"><AlertTriangle className="w-3 h-3 mr-1" />En retard</Badge>;
+function StatusBadge({ statut }: { statut: string }) {
+  switch (statut) {
+    case "A_JOUR":
+      return <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 text-xs"><CheckCircle2 className="w-3 h-3 mr-1" />A jour</Badge>;
+    case "A_SURVEILLER":
+      return <Badge className="bg-amber-100 text-amber-700 border-amber-200 text-xs"><Clock className="w-3 h-3 mr-1" />A surveiller</Badge>;
+    case "EN_RETARD":
+      return <Badge className="bg-red-100 text-red-700 border-red-200 text-xs"><AlertTriangle className="w-3 h-3 mr-1" />En retard</Badge>;
+    case "NON_DEMARRE":
+    default:
+      return <Badge variant="outline" className="text-xs text-muted-foreground"><CircleDot className="w-3 h-3 mr-1" />Non demarre</Badge>;
+  }
 }
 
 export default function SuiviHeures() {
@@ -66,13 +72,15 @@ export default function SuiviHeures() {
 
   const totalPlanned = data.reduce((s: number, r: any) => s + (r.plannedHours ?? 0), 0);
   const totalDone = data.reduce((s: number, r: any) => s + (r.heuresRealisees ?? 0), 0);
+  const totalRemaining = Math.max(0, Math.round((totalPlanned - totalDone) * 10) / 10);
   const totalSessions = data.reduce((s: number, r: any) => s + (r.sessions ?? 0), 0);
   const globalPct = totalPlanned > 0 ? Math.round((totalDone / totalPlanned) * 100) : 0;
 
   const handleExportCSV = () => {
     if (!data.length) return;
     const escape = (v: string) => `"${String(v).replace(/"/g, '""')}"`;
-    const header = ["Enseignant", "Matière", "Classe", "Semestre", "Heures prévues", "Heures réalisées", "Séances", "Avancement (%)"];
+    const header = ["Enseignant", "Matiere", "Classe", "Semestre", "Prevues", "Realisees", "Restantes", "Seances", "Avancement (%)", "Statut"];
+    const statutLabels: Record<string, string> = { A_JOUR: "A jour", A_SURVEILLER: "A surveiller", EN_RETARD: "En retard", NON_DEMARRE: "Non demarre" };
     const csvData = data.map((r: any) => [
       r.teacherName,
       r.subjectName,
@@ -80,8 +88,10 @@ export default function SuiviHeures() {
       r.semesterName,
       String(r.plannedHours ?? 0),
       String(r.heuresRealisees ?? 0),
+      String(r.heuresRestantes ?? 0),
       String(r.sessions ?? 0),
-      r.progressPct !== null ? String(r.progressPct) : "—",
+      r.progressPct !== null ? String(r.progressPct) : "---",
+      statutLabels[r.statut] ?? r.statut,
     ]);
     const bom = "\uFEFF";
     const csv = bom + [header, ...csvData].map(row => row.map(escape).join(";")).join("\r\n");
@@ -103,7 +113,7 @@ export default function SuiviHeures() {
             Suivi des Heures
           </h1>
           <p className="text-muted-foreground">
-            Comparaison entre les volumes horaires prévus et les heures réellement effectuées.
+            Heures comptabilisees sur la base des feuilles de presence soumises par les enseignants.
           </p>
         </div>
 
@@ -112,7 +122,7 @@ export default function SuiviHeures() {
             <label className="text-sm font-medium text-foreground">Semestre</label>
             <Select value={semesterId} onValueChange={setSemesterId}>
               <SelectTrigger className="bg-background">
-                <SelectValue placeholder="Sélectionner un semestre…" />
+                <SelectValue placeholder="Selectionner un semestre..." />
               </SelectTrigger>
               <SelectContent>
                 {(semesters as any[]).map((s: any) => (
@@ -140,28 +150,29 @@ export default function SuiviHeures() {
         {!semesterId && (
           <div className="text-center py-16 text-muted-foreground">
             <TrendingUp className="w-12 h-12 mx-auto mb-3 opacity-20" />
-            <p>Sélectionnez un semestre pour afficher le suivi.</p>
+            <p>Selectionnez un semestre pour afficher le suivi.</p>
           </div>
         )}
 
         {semesterId && !isLoading && data.length === 0 && (
           <div className="text-center py-16 text-muted-foreground">
             <TrendingUp className="w-12 h-12 mx-auto mb-3 opacity-20" />
-            <p>Aucune affectation trouvée pour les filtres sélectionnés.</p>
+            <p>Aucune affectation trouvee pour les filtres selectionnes.</p>
           </div>
         )}
 
         {semesterId && data.length > 0 && (
           <>
-            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
               {[
-                { label: "Heures prévues", value: `${totalPlanned}h`, color: "text-foreground", icon: Clock },
-                { label: "Heures réalisées", value: `${totalDone}h`, color: "text-emerald-600", icon: CheckCircle2 },
-                { label: "Séances tenues", value: totalSessions, color: "text-primary", icon: TrendingUp },
+                { label: "Heures prevues", value: `${totalPlanned}h`, color: "text-foreground", icon: Clock },
+                { label: "Heures realisees", value: `${totalDone}h`, color: "text-emerald-600", icon: CheckCircle2 },
+                { label: "Heures restantes", value: `${totalRemaining}h`, color: "text-amber-600", icon: Clock },
+                { label: "Seances tenues", value: totalSessions, color: "text-primary", icon: TrendingUp },
                 { label: "Avancement global", value: `${globalPct}%`, color: globalPct >= 80 ? "text-emerald-600" : globalPct >= 50 ? "text-amber-600" : "text-red-600", icon: TrendingUp },
               ].map((s, i) => (
                 <Card key={i} className="border-border shadow-sm">
-                  <CardContent className="p-5 text-center">
+                  <CardContent className="p-4 text-center">
                     <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide mb-1">{s.label}</p>
                     <p className={`text-2xl font-bold font-mono ${s.color}`}>{s.value}</p>
                   </CardContent>
@@ -182,11 +193,12 @@ export default function SuiviHeures() {
                   <TableHeader className="bg-muted/30">
                     <TableRow>
                       <TableHead>Enseignant</TableHead>
-                      <TableHead>Matière</TableHead>
+                      <TableHead>Matiere</TableHead>
                       <TableHead>Classe</TableHead>
-                      <TableHead className="text-center">Prévues</TableHead>
-                      <TableHead className="text-center">Réalisées</TableHead>
-                      <TableHead className="text-center">Séances</TableHead>
+                      <TableHead className="text-center">Prevues</TableHead>
+                      <TableHead className="text-center">Realisees</TableHead>
+                      <TableHead className="text-center">Restantes</TableHead>
+                      <TableHead className="text-center">Seances</TableHead>
                       <TableHead>Avancement</TableHead>
                       <TableHead className="text-center">Statut</TableHead>
                     </TableRow>
@@ -195,7 +207,7 @@ export default function SuiviHeures() {
                     {isLoading ? (
                       Array.from({ length: 5 }).map((_, i) => (
                         <TableRow key={i}>
-                          {Array.from({ length: 8 }).map((__, j) => (
+                          {Array.from({ length: 9 }).map((__, j) => (
                             <TableCell key={j}>
                               <div className="h-4 bg-muted animate-pulse rounded" />
                             </TableCell>
@@ -209,19 +221,24 @@ export default function SuiviHeures() {
                           <TableCell className="text-sm">{r.subjectName}</TableCell>
                           <TableCell className="text-muted-foreground text-sm">{r.className}</TableCell>
                           <TableCell className="text-center font-mono text-sm">
-                            {r.plannedHours > 0 ? `${r.plannedHours}h` : <span className="text-muted-foreground">—</span>}
+                            {r.plannedHours > 0 ? `${r.plannedHours}h` : <span className="text-muted-foreground">---</span>}
                           </TableCell>
                           <TableCell className="text-center font-mono font-semibold">
                             <span className={r.heuresRealisees > 0 ? "text-emerald-600" : "text-muted-foreground"}>
                               {r.heuresRealisees > 0 ? `${r.heuresRealisees}h` : "0h"}
                             </span>
                           </TableCell>
-                          <TableCell className="text-center text-sm text-muted-foreground">{r.sessions}</TableCell>
+                          <TableCell className="text-center font-mono text-sm text-amber-600">
+                            {r.heuresRestantes > 0 ? `${r.heuresRestantes}h` : <span className="text-emerald-600">0h</span>}
+                          </TableCell>
+                          <TableCell className="text-center text-sm text-muted-foreground">
+                            {r.sessions}/{r.totalSeances ?? "?"}
+                          </TableCell>
                           <TableCell>
                             <ProgressBar pct={r.progressPct} planned={r.plannedHours} />
                           </TableCell>
                           <TableCell className="text-center">
-                            <StatusBadge pct={r.progressPct} planned={r.plannedHours} />
+                            <StatusBadge statut={r.statut} />
                           </TableCell>
                         </TableRow>
                       ))

@@ -37,6 +37,8 @@ import {
   bulletinTokensTable,
   bulletinVerificationLogsTable,
   parentStudentLinksTable,
+  attendanceSessionsTable,
+  scheduleEntriesTable,
 } from "@workspace/db";
 import { eq, and, sql, count, inArray, desc, ne, isNotNull, isNull, asc, ilike, or, lte, gte } from "drizzle-orm";
 import { requireRole } from "../lib/auth.js";
@@ -2758,6 +2760,8 @@ router.get("/suivi-heures", requireRole("admin"), async (req, res) => {
         className: classesTable.name,
         semesterId: teacherAssignmentsTable.semesterId,
         semesterName: semestersTable.name,
+        semesterStart: semestersTable.startDate,
+        semesterEnd: semestersTable.endDate,
         plannedHours: teacherAssignmentsTable.plannedHours,
       })
       .from(teacherAssignmentsTable)
@@ -2769,31 +2773,86 @@ router.get("/suivi-heures", requireRole("admin"), async (req, res) => {
       .orderBy(asc(usersTable.name), asc(subjectsTable.name));
 
     const result = await Promise.all(assignments.map(async (a) => {
-      const [row] = await db
+      const schedEntries = await db
         .select({
-          sessions: sql<number>`COUNT(*)`,
-          heuresRealisees: sql<number>`COALESCE(SUM(${cahierDeTexteTable.heuresEffectuees}), 0)`,
+          sessionDate: scheduleEntriesTable.sessionDate,
+          startTime: scheduleEntriesTable.startTime,
+          endTime: scheduleEntriesTable.endTime,
         })
-        .from(cahierDeTexteTable)
+        .from(scheduleEntriesTable)
         .where(
           and(
-            eq(cahierDeTexteTable.teacherId, a.teacherId),
-            eq(cahierDeTexteTable.subjectId, a.subjectId),
-            eq(cahierDeTexteTable.classId, a.classId),
-            eq(cahierDeTexteTable.semesterId, a.semesterId),
+            eq(scheduleEntriesTable.teacherId, a.teacherId),
+            eq(scheduleEntriesTable.subjectId, a.subjectId),
+            eq(scheduleEntriesTable.classId, a.classId),
+            eq(scheduleEntriesTable.semesterId, a.semesterId),
           )
         );
 
+      const submittedSessions = await db
+        .select({ sessionDate: attendanceSessionsTable.sessionDate })
+        .from(attendanceSessionsTable)
+        .where(
+          and(
+            eq(attendanceSessionsTable.teacherId, a.teacherId),
+            eq(attendanceSessionsTable.subjectId, a.subjectId),
+            eq(attendanceSessionsTable.classId, a.classId),
+            eq(attendanceSessionsTable.semesterId, a.semesterId),
+            isNotNull(attendanceSessionsTable.sentAt),
+          )
+        );
+
+      const submittedDates = new Set(submittedSessions.map(s => s.sessionDate));
+
+      let heuresRealisees = 0;
+      let sessionsCount = 0;
+      let totalSeancesProgrammees = schedEntries.length;
+
+      for (const entry of schedEntries) {
+        if (submittedDates.has(entry.sessionDate)) {
+          const [sh, sm] = entry.startTime.split(":").map(Number);
+          const [eh, em] = entry.endTime.split(":").map(Number);
+          const duration = (eh * 60 + em - sh * 60 - sm) / 60;
+          if (duration > 0) {
+            heuresRealisees += duration;
+            sessionsCount++;
+          }
+        }
+      }
+
+      heuresRealisees = Math.round(heuresRealisees * 10) / 10;
       const planned = Number(a.plannedHours ?? 0);
-      const done = Number(row?.heuresRealisees ?? 0);
-      const pct = planned > 0 ? Math.round((done / planned) * 100) : null;
+      const pct = planned > 0 ? Math.round((heuresRealisees / planned) * 100) : null;
+
+      let statut: "A_JOUR" | "A_SURVEILLER" | "EN_RETARD" | "NON_DEMARRE" = "NON_DEMARRE";
+      if (sessionsCount > 0 && planned > 0) {
+        const semStart = a.semesterStart ? new Date(a.semesterStart) : null;
+        const semEnd = a.semesterEnd ? new Date(a.semesterEnd) : null;
+        if (semStart && semEnd) {
+          const now = new Date();
+          const totalDuration = semEnd.getTime() - semStart.getTime();
+          const elapsed = Math.max(0, now.getTime() - semStart.getTime());
+          const tauxAttendu = Math.min((elapsed / totalDuration) * 100, 100);
+          const tauxAvancement = (heuresRealisees / planned) * 100;
+          if (tauxAvancement >= tauxAttendu - 5) statut = "A_JOUR";
+          else if (tauxAvancement >= tauxAttendu - 20) statut = "A_SURVEILLER";
+          else statut = "EN_RETARD";
+        } else {
+          statut = (pct ?? 0) >= 100 ? "A_JOUR" : (pct ?? 0) >= 60 ? "A_SURVEILLER" : "EN_RETARD";
+        }
+      } else if (sessionsCount === 0 && totalSeancesProgrammees > 0) {
+        statut = "NON_DEMARRE";
+      }
 
       return {
         ...a,
         plannedHours: planned,
-        heuresRealisees: done,
-        sessions: Number(row?.sessions ?? 0),
+        heuresRealisees,
+        heuresRestantes: Math.max(0, Math.round((planned - heuresRealisees) * 10) / 10),
+        sessions: sessionsCount,
+        totalSeances: totalSeancesProgrammees,
         progressPct: pct,
+        statut,
       };
     }));
 
