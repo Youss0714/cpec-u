@@ -1560,17 +1560,14 @@ async function computeStudentResult(studentId: number, semesterId: number) {
     average = Math.max(0, Math.round((average - absenceDeduction) * 100) / 100);
   }
 
-  // Decision is only definitive when semester average is calculable (all grades present)
+  // LMD rule: semester validated = all 30 credits acquired (all UEs acquis)
   if (average !== null) {
     if (ues.length > 0) {
-      // Admis: ALL UEs validated (avg >= 10) AND semester avg >= 12
-      const allUesAcquis = ueResults.every(u => u.acquis);
-      decision = (allUesAcquis && average >= 12) ? "Admis" : "Ajourné";
+      decision = (creditsValidated === totalCredits && totalCredits > 0) ? "Admis" : "Ajourné";
     } else {
-      decision = average >= 12 ? "Admis" : "Ajourné";
+      decision = average >= 10 ? "Admis" : "Ajourné";
     }
   } else {
-    // Grades incomplete → no decision yet
     decision = "En attente";
   }
 
@@ -1585,7 +1582,7 @@ async function computeStudentResult(studentId: number, semesterId: number) {
       acquis: false,
       eliminatorySubjectName: u.eliminatorySubjectName ?? null,
     }));
-  const averageFailed = decision === "Ajourné" && average !== null && average < 12;
+  const averageFailed = decision === "Ajourné" && average !== null && (ues.length > 0 ? creditsValidated < totalCredits : average < 10);
 
   // ── Jury Spécial override: if a closed jury has validated this student for this semester ──
   let juryOverride: { newAverage: number; decision: string; justification: string } | null = null;
@@ -1896,7 +1893,7 @@ router.get("/bulletin-json/:studentId/:semesterId", requireRole("admin"), async 
     const bulletinToken = crypto.randomBytes(32).toString("hex");
     await db.update(bulletinTokensTable).set({ invalidatedAt: new Date() }).where(and(eq(bulletinTokensTable.studentId, studentId), eq(bulletinTokensTable.semesterId, semesterId), isNull(bulletinTokensTable.invalidatedAt)));
     await db.insert(bulletinTokensTable).values({ token: bulletinToken, studentId, semesterId, snapshot: { studentName: result.studentName, matricule: studentMatricule, className: result.className, filiere, academicYear: semester?.academicYear ?? "", semesterName: result.semesterName, average: averageBrute, averageNette: result.average, decision: result.decision } });
-    res.json({ studentName: result.studentName, studentMatricule, dateNaissance: sp?.dateNaissance ?? null, lieuNaissance: sp?.lieuNaissance ?? null, sexe: sp?.sexe ?? null, filiere, className: result.className, semesterName: result.semesterName, academicYear: semester?.academicYear ?? "", average: averageBrute, averageNette: result.average, decision: result.decision, rank, totalStudents, absenceDeductionHours: result.absenceDeductionHours, absenceDeduction: result.absenceDeduction, ueResults, unassignedSubjects: result.grades.filter((g: any) => !g.ueId || !ueResults.find((u: any) => u.ueId === g.ueId)), verifyUrl: `${verifyBaseUrl}/verify/bulletin/${bulletinToken}` });
+    res.json({ studentName: result.studentName, studentMatricule, dateNaissance: sp?.dateNaissance ?? null, lieuNaissance: sp?.lieuNaissance ?? null, sexe: sp?.sexe ?? null, filiere, className: result.className, semesterName: result.semesterName, academicYear: semester?.academicYear ?? "", average: averageBrute, averageNette: result.average, decision: result.decision, rank, totalStudents, absenceDeductionHours: result.absenceDeductionHours, absenceDeduction: result.absenceDeduction, creditsValidated: result.creditsValidated, totalCredits: result.totalCredits, ueResults, unassignedSubjects: result.grades.filter((g: any) => !g.ueId || !ueResults.find((u: any) => u.ueId === g.ueId)), verifyUrl: `${verifyBaseUrl}/verify/bulletin/${bulletinToken}` });
   } catch (err) { console.error(err); res.status(500).json({ error: "Internal Server Error" }); }
 });
 

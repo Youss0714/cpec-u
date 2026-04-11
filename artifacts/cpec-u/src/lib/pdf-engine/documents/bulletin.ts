@@ -37,6 +37,8 @@ interface BulletinJson {
   totalStudents: number | null;
   absenceDeductionHours: number;
   absenceDeduction: number;
+  creditsValidated: number;
+  totalCredits: number;
   ueResults: UEResult[];
   unassignedSubjects: Array<{ subjectName: string; coefficient: number; value: number | null }>;
   verifyUrl: string;
@@ -117,9 +119,10 @@ export async function downloadBulletinPdf(studentId: number, semesterId: number)
     { label: "Heures d'absence", value: String(data.absenceDeductionHours) + " h" },
     { label: "Déduction absences", value: fmt(data.absenceDeduction) },
     { label: "Moyenne nette", value: fmt(data.averageNette) + " / 20" },
-    { label: "Classement", value: data.rank && data.totalStudents ? `${data.rank === 1 ? "1er" : `${data.rank}ème`} / ${data.totalStudents}` : "—" },
+    { label: "Credits valides", value: `${data.creditsValidated} / ${data.totalCredits}` },
+    { label: "Classement", value: data.rank && data.totalStudents ? `${data.rank === 1 ? "1er" : `${data.rank}ème`} / ${data.totalStudents}` : "---" },
     { label: "Décision", value: data.decision },
-  ], 3);
+  ], 4);
 
   // Signature
   pdf.addVSpace(6);
