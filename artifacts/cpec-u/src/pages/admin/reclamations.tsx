@@ -328,6 +328,26 @@ export default function AdminReclamations() {
                             </div>
                           )}
 
+                          {/* Contested evaluations */}
+                          {detailData.contestedEvaluations && detailData.contestedEvaluations.length > 0 && (
+                            <div>
+                              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Évaluations contestées</p>
+                              <div className="rounded-xl border divide-y overflow-hidden">
+                                {detailData.contestedEvaluations.map((ev: any) => (
+                                  <div key={ev.evaluationNumber} className="flex items-center justify-between px-4 py-2.5 bg-background">
+                                    <span className="text-sm font-medium text-foreground">Évaluation {ev.evaluationNumber}</span>
+                                    <span className={cn(
+                                      "text-sm font-bold tabular-nums",
+                                      ev.currentGrade < 10 ? "text-red-600" : "text-foreground"
+                                    )}>
+                                      {ev.currentGrade}/20
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
                           {/* Motif */}
                           <div>
                             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Motif de l'étudiant</p>
@@ -343,12 +363,24 @@ export default function AdminReclamations() {
 
                           {/* Teacher response */}
                           {detailData.teacherComment && (
-                            <div>
-                              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Réponse de l'enseignant</p>
+                            <div className="space-y-2">
+                              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Réponse de l'enseignant</p>
                               <p className="text-sm text-foreground bg-background rounded-lg p-3 border">{detailData.teacherComment}</p>
-                              {detailData.proposedGrade !== null && detailData.proposedGrade !== undefined && (
-                                <p className="text-xs text-muted-foreground mt-1">Note proposée : <strong>{detailData.proposedGrade}/20</strong></p>
-                              )}
+                              {detailData.proposedEvaluations && detailData.proposedEvaluations.length > 0 ? (
+                                <div>
+                                  <p className="text-xs text-muted-foreground mb-1.5 font-medium">Notes proposées par évaluation :</p>
+                                  <div className="rounded-xl border divide-y overflow-hidden">
+                                    {detailData.proposedEvaluations.map((ev: any) => (
+                                      <div key={ev.evaluationNumber} className="flex items-center justify-between px-4 py-2 bg-background">
+                                        <span className="text-sm text-foreground">Évaluation {ev.evaluationNumber}</span>
+                                        <span className="text-sm font-bold tabular-nums text-blue-600">{ev.proposedGrade}/20</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              ) : detailData.proposedGrade !== null && detailData.proposedGrade !== undefined ? (
+                                <p className="text-xs text-muted-foreground">Note proposée : <strong>{detailData.proposedGrade}/20</strong></p>
+                              ) : null}
                             </div>
                           )}
 

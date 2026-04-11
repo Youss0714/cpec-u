@@ -56,7 +56,7 @@ export default function TeacherReclamations() {
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [decision, setDecision] = useState<"accept" | "reject" | "transmit" | "">("");
   const [teacherComment, setTeacherComment] = useState("");
-  const [proposedGrade, setProposedGrade] = useState("");
+  const [proposedGrades, setProposedGrades] = useState<Record<number, string>>({});
   const [filterStatus, setFilterStatus] = useState<string>("pending");
 
   const { data: reclamations = [], isLoading } = useQuery({
@@ -78,7 +78,14 @@ export default function TeacherReclamations() {
   });
 
   const respondMutation = useMutation({
-    mutationFn: async (id: number) => {
+    mutationFn: async ({ id, contestedEvals }: { id: number; contestedEvals: any[] }) => {
+      const proposedEvaluations = decision === "accept" && contestedEvals.length > 0
+        ? contestedEvals.map(ev => ({
+            evaluationNumber: ev.evaluationNumber,
+            proposedGrade: Number(proposedGrades[ev.evaluationNumber] ?? 0),
+          }))
+        : undefined;
+
       const r = await fetch(API(`/teacher/reclamations/${id}`), {
         method: "PUT",
         credentials: "include",
@@ -86,7 +93,7 @@ export default function TeacherReclamations() {
         body: JSON.stringify({
           decision,
           teacherComment,
-          proposedGrade: decision === "accept" ? Number(proposedGrade) : undefined,
+          proposedEvaluations,
         }),
       });
       if (!r.ok) {
@@ -100,7 +107,7 @@ export default function TeacherReclamations() {
       setExpandedId(null);
       setDecision("");
       setTeacherComment("");
-      setProposedGrade("");
+      setProposedGrades({});
       qc.invalidateQueries({ queryKey: ["/api/teacher/reclamations"] });
     },
     onError: (err: any) => {
@@ -116,8 +123,16 @@ export default function TeacherReclamations() {
 
   const pendingCount = (reclamations as any[]).filter(r => ["soumise", "en_cours"].includes(r.status)).length;
 
-  const canRespond = decision && teacherComment.trim().length >= 10 &&
-    (decision !== "accept" || (proposedGrade !== "" && Number(proposedGrade) >= 0));
+  const getCanRespond = (contestedEvals: any[]) => {
+    if (!decision || teacherComment.trim().length < 10) return false;
+    if (decision === "accept" && contestedEvals.length > 0) {
+      return contestedEvals.every(ev => {
+        const v = Number(proposedGrades[ev.evaluationNumber] ?? "");
+        return !isNaN(v) && v >= 0 && v <= 20 && proposedGrades[ev.evaluationNumber] !== "";
+      });
+    }
+    return true;
+  };
 
   return (
     <AppLayout allowedRoles={["teacher"]}>
@@ -181,7 +196,7 @@ export default function TeacherReclamations() {
                   <button
                     className="w-full text-left p-4 hover:bg-muted/30 transition-colors"
                     onClick={() => {
-                      if (isOpen) { setExpandedId(null); setDecision(""); setTeacherComment(""); setProposedGrade(""); }
+                      if (isOpen) { setExpandedId(null); setDecision(""); setTeacherComment(""); setProposedGrades({}); }
                       else setExpandedId(r.id);
                     }}
                   >
@@ -214,8 +229,35 @@ export default function TeacherReclamations() {
                     </div>
                   </button>
 
-                  {isOpen && detailData && detailData.id === r.id && (
+                  {isOpen && detailData && detailData.id === r.id && (() => {
+                    const contestedEvals: any[] = detailData.contestedEvaluations ?? [];
+                    const proposedEvals: any[] = detailData.proposedEvaluations ?? [];
+                    const canRespond = getCanRespond(contestedEvals);
+                    return (
                     <div className="border-t px-4 py-4 space-y-4 bg-muted/20">
+
+                      {/* Contested evaluations */}
+                      {contestedEvals.length > 0 && (
+                        <div>
+                          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                            Évaluations contestées
+                          </p>
+                          <div className="rounded-xl border divide-y overflow-hidden">
+                            {contestedEvals.map((ev: any) => (
+                              <div key={ev.evaluationNumber} className="flex items-center justify-between px-4 py-2.5 bg-background">
+                                <span className="text-sm font-medium text-foreground">Évaluation {ev.evaluationNumber}</span>
+                                <span className={cn(
+                                  "text-sm font-bold tabular-nums",
+                                  ev.currentGrade < 10 ? "text-red-600" : "text-foreground"
+                                )}>
+                                  {ev.currentGrade}/20
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
                       {/* Student's motif */}
                       <div>
                         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Motif de l'étudiant</p>
@@ -242,7 +284,7 @@ export default function TeacherReclamations() {
                             ].map(opt => (
                               <button
                                 key={opt.value}
-                                onClick={() => setDecision(opt.value as any)}
+                                onClick={() => { setDecision(opt.value as any); setProposedGrades({}); }}
                                 className={cn(
                                   "border-2 rounded-lg p-2.5 text-xs font-medium transition-all",
                                   decision === opt.value ? opt.color : "border-border bg-background text-muted-foreground hover:bg-muted"
@@ -253,19 +295,34 @@ export default function TeacherReclamations() {
                             ))}
                           </div>
 
-                          {decision === "accept" && (
-                            <div className="space-y-1.5">
-                              <label className="text-xs font-medium text-foreground">Note proposée * (/ 20)</label>
-                              <Input
-                                type="number"
-                                min={0}
-                                max={20}
-                                step={0.25}
-                                value={proposedGrade}
-                                onChange={e => setProposedGrade(e.target.value)}
-                                placeholder="Ex: 14.5"
-                                className="max-w-[160px]"
-                              />
+                          {decision === "accept" && contestedEvals.length > 0 && (
+                            <div className="space-y-2">
+                              <label className="text-xs font-medium text-foreground">
+                                Notes proposées * (pour chaque évaluation contestée)
+                              </label>
+                              <div className="rounded-xl border divide-y overflow-hidden">
+                                {contestedEvals.map((ev: any) => (
+                                  <div key={ev.evaluationNumber} className="flex items-center gap-3 px-4 py-2.5 bg-background">
+                                    <span className="text-sm text-foreground flex-1">
+                                      Évaluation {ev.evaluationNumber}
+                                      <span className="text-muted-foreground ml-2">({ev.currentGrade}/20 actuellement)</span>
+                                    </span>
+                                    <div className="flex items-center gap-1.5">
+                                      <Input
+                                        type="number"
+                                        min={0}
+                                        max={20}
+                                        step={0.25}
+                                        value={proposedGrades[ev.evaluationNumber] ?? ""}
+                                        onChange={e => setProposedGrades(prev => ({ ...prev, [ev.evaluationNumber]: e.target.value }))}
+                                        placeholder="—"
+                                        className="w-20 text-center"
+                                      />
+                                      <span className="text-xs text-muted-foreground">/20</span>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
                             </div>
                           )}
 
@@ -285,7 +342,7 @@ export default function TeacherReclamations() {
                           </div>
 
                           <Button
-                            onClick={() => respondMutation.mutate(r.id)}
+                            onClick={() => respondMutation.mutate({ id: r.id, contestedEvals })}
                             disabled={!canRespond || respondMutation.isPending}
                             className="w-full"
                           >
@@ -296,11 +353,23 @@ export default function TeacherReclamations() {
 
                       {/* Already responded */}
                       {!canAct && detailData.teacherComment && (
-                        <div>
-                          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Votre réponse</p>
-                          <p className="text-sm text-foreground bg-background rounded-lg p-3 border">{detailData.teacherComment}</p>
-                          {detailData.proposedGrade && (
-                            <p className="text-xs text-muted-foreground mt-1">Note proposée : {detailData.proposedGrade}/20</p>
+                        <div className="space-y-3">
+                          <div>
+                            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Votre réponse</p>
+                            <p className="text-sm text-foreground bg-background rounded-lg p-3 border">{detailData.teacherComment}</p>
+                          </div>
+                          {proposedEvals.length > 0 && (
+                            <div>
+                              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Notes proposées</p>
+                              <div className="rounded-xl border divide-y overflow-hidden">
+                                {proposedEvals.map((ev: any) => (
+                                  <div key={ev.evaluationNumber} className="flex items-center justify-between px-4 py-2.5 bg-background">
+                                    <span className="text-sm text-foreground">Évaluation {ev.evaluationNumber}</span>
+                                    <span className="text-sm font-bold tabular-nums text-blue-600">{ev.proposedGrade}/20</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
                           )}
                         </div>
                       )}
@@ -330,7 +399,8 @@ export default function TeacherReclamations() {
                         </div>
                       )}
                     </div>
-                  )}
+                  );
+                  })()}
                 </div>
               );
             })}

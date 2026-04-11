@@ -127,6 +127,32 @@ router.put("/photo", requireRole("student"), async (req, res) => {
   }
 });
 
+// GET /student/grades/evaluations?subjectId=X&semesterId=Y — individual eval rows for a subject
+router.get("/grades/evaluations", requireRole("student"), async (req, res) => {
+  try {
+    const studentId = req.session!.userId!;
+    const subjectId = parseInt(req.query.subjectId as string);
+    const semesterId = parseInt(req.query.semesterId as string);
+    if (!subjectId || !semesterId) {
+      res.status(400).json({ error: "subjectId and semesterId are required" });
+      return;
+    }
+    const rows = await db
+      .select({ evaluationNumber: gradesTable.evaluationNumber, value: gradesTable.value })
+      .from(gradesTable)
+      .where(and(
+        eq(gradesTable.studentId, studentId),
+        eq(gradesTable.subjectId, subjectId),
+        eq(gradesTable.semesterId, semesterId),
+      ))
+      .orderBy(gradesTable.evaluationNumber);
+    res.json({ evaluations: rows });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
 router.get("/grades", requireRole("student"), async (req, res) => {
   try {
     const studentId = req.session!.userId!;

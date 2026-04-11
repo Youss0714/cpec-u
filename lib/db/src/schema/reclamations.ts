@@ -1,5 +1,5 @@
 import {
-  pgTable, pgEnum, serial, integer, real, text, timestamp, boolean, unique,
+  pgTable, pgEnum, serial, integer, real, text, timestamp, boolean, unique, jsonb,
 } from "drizzle-orm/pg-core";
 import { usersTable } from "./users";
 import { subjectsTable } from "./subjects";
@@ -41,6 +41,8 @@ export const reclamationsTable = pgTable("reclamations", {
   semesterId: integer("semester_id").notNull().references(() => semestersTable.id, { onDelete: "cascade" }),
   teacherId: integer("teacher_id").references(() => usersTable.id, { onDelete: "set null" }),
   contestedGrade: real("contested_grade").notNull(),
+  contestedEvaluations: jsonb("contested_evaluations").$type<Array<{ evaluationNumber: number; currentGrade: number }>>(),
+  proposedEvaluations: jsonb("proposed_evaluations").$type<Array<{ evaluationNumber: number; proposedGrade: number }>>(),
   type: reclamationTypeEnum("type").notNull(),
   motif: text("motif").notNull(),
   attachmentPath: text("attachment_path"),

@@ -177,6 +177,8 @@ router.get("/student/reclamations/:id", requireRole("student"), async (req, res)
         subjectName: subjectsTable.name,
         semesterName: semestersTable.name,
         contestedGrade: reclamationsTable.contestedGrade,
+        contestedEvaluations: reclamationsTable.contestedEvaluations,
+        proposedEvaluations: reclamationsTable.proposedEvaluations,
         type: reclamationsTable.type,
         motif: reclamationsTable.motif,
         attachmentPath: reclamationsTable.attachmentPath,
@@ -214,13 +216,30 @@ router.post(
   async (req, res) => {
     try {
       const studentId = req.session!.userId!;
-      const { subjectId, semesterId, type, motif } = req.body;
+      const { subjectId, semesterId, type, motif, evaluationsContestees } = req.body;
       if (!subjectId || !semesterId || !type || !motif) {
         res.status(400).json({ error: "Champs obligatoires manquants" });
         return;
       }
       if (motif.length < 50) {
         res.status(400).json({ error: "Le motif doit contenir au moins 50 caractères" });
+        return;
+      }
+
+      // Parse evaluations contested (JSON array from FormData)
+      let contestedEvals: Array<{ evaluationNumber: number; currentGrade: number }> = [];
+      if (evaluationsContestees) {
+        try {
+          contestedEvals = typeof evaluationsContestees === "string"
+            ? JSON.parse(evaluationsContestees)
+            : evaluationsContestees;
+        } catch {
+          res.status(400).json({ error: "Format des évaluations invalide" });
+          return;
+        }
+      }
+      if (contestedEvals.length === 0) {
+        res.status(400).json({ error: "Sélectionnez au moins une évaluation à contester" });
         return;
       }
 
@@ -264,20 +283,31 @@ router.post(
         return;
       }
 
-      // Verify student owns the grade and get contested grade + teacherId
-      const [gradeRow] = await db
-        .select({ value: gradesTable.value })
+      // Verify each contested evaluation exists for this student/subject/semester
+      const allGrades = await db
+        .select({ evaluationNumber: gradesTable.evaluationNumber, value: gradesTable.value })
         .from(gradesTable)
         .where(and(
           eq(gradesTable.studentId, studentId),
           eq(gradesTable.subjectId, Number(subjectId)),
           eq(gradesTable.semesterId, Number(semesterId)),
-        ))
-        .limit(1);
-      if (!gradeRow) {
+        ));
+      if (allGrades.length === 0) {
         res.status(404).json({ error: "Aucune note trouvée pour cette matière" });
         return;
       }
+      const gradeByEval = new Map(allGrades.map(g => [g.evaluationNumber, g.value]));
+      for (const ev of contestedEvals) {
+        if (!gradeByEval.has(ev.evaluationNumber)) {
+          res.status(400).json({ error: `L'évaluation ${ev.evaluationNumber} n'existe pas pour cette matière` });
+          return;
+        }
+      }
+
+      // contestedGrade = average of all evals in this subject (overall average)
+      const overallAvg = Math.round(
+        (allGrades.reduce((sum, g) => sum + g.value, 0) / allGrades.length) * 100
+      ) / 100;
 
       // Resolve teacher for this subject/semester
       const [assignRow] = await db
@@ -299,7 +329,8 @@ router.post(
         subjectId: Number(subjectId),
         semesterId: Number(semesterId),
         teacherId: assignRow?.teacherId ?? null,
-        contestedGrade: gradeRow.value,
+        contestedGrade: overallAvg,
+        contestedEvaluations: contestedEvals,
         type: type as any,
         motif,
         attachmentPath,
@@ -308,8 +339,9 @@ router.post(
 
       // History
       const actorName = await getActorName(studentId);
+      const evalDesc = contestedEvals.map(e => `Éval ${e.evaluationNumber} (${e.currentGrade}/20)`).join(", ");
       await appendHistory(inserted.id, studentId, actorName, "submitted",
-        `Réclamation soumise pour la note ${gradeRow.value}/20`);
+        `Réclamation soumise — ${evalDesc}`);
 
       // Respond immediately — insertion succeeded
       res.status(201).json({ claimNumber, id: inserted.id });
@@ -435,6 +467,8 @@ router.get("/teacher/reclamations/:id", requireRole("teacher"), async (req, res)
         subjectName: subjectsTable.name,
         semesterName: semestersTable.name,
         contestedGrade: reclamationsTable.contestedGrade,
+        contestedEvaluations: reclamationsTable.contestedEvaluations,
+        proposedEvaluations: reclamationsTable.proposedEvaluations,
         type: reclamationsTable.type,
         motif: reclamationsTable.motif,
         attachmentPath: reclamationsTable.attachmentPath,
@@ -444,6 +478,8 @@ router.get("/teacher/reclamations/:id", requireRole("teacher"), async (req, res)
         adminComment: reclamationsTable.adminComment,
         finalGrade: reclamationsTable.finalGrade,
         studentId: reclamationsTable.studentId,
+        subjectId: reclamationsTable.subjectId,
+        semesterId: reclamationsTable.semesterId,
         createdAt: reclamationsTable.createdAt,
       })
       .from(reclamationsTable)
@@ -487,7 +523,7 @@ router.put("/teacher/reclamations/:id", requireRole("teacher"), async (req, res)
   try {
     const teacherId = req.session!.userId!;
     const id = Number(req.params.id);
-    const { decision, teacherComment, proposedGrade } = req.body;
+    const { decision, teacherComment, proposedGrade, proposedEvaluations } = req.body;
 
     if (!["accept", "reject", "transmit"].includes(decision)) {
       res.status(400).json({ error: "Decision invalide" });
@@ -497,7 +533,20 @@ router.put("/teacher/reclamations/:id", requireRole("teacher"), async (req, res)
       res.status(400).json({ error: "Un commentaire de l'enseignant est obligatoire (min 10 caractères)" });
       return;
     }
-    if (decision === "accept" && (proposedGrade === undefined || proposedGrade === null)) {
+
+    // Parse proposed evaluations if provided
+    let proposedEvals: Array<{ evaluationNumber: number; proposedGrade: number }> | null = null;
+    if (decision === "accept" && proposedEvaluations) {
+      try {
+        proposedEvals = typeof proposedEvaluations === "string"
+          ? JSON.parse(proposedEvaluations)
+          : proposedEvaluations;
+      } catch {
+        res.status(400).json({ error: "Format des évaluations proposées invalide" });
+        return;
+      }
+    }
+    if (decision === "accept" && !proposedEvals?.length && (proposedGrade === undefined || proposedGrade === null)) {
       res.status(400).json({ error: "La note proposée est obligatoire en cas d'acceptation" });
       return;
     }
@@ -515,10 +564,23 @@ router.put("/teacher/reclamations/:id", requireRole("teacher"), async (req, res)
       : decision === "reject" ? "rejetee"
       : "en_arbitrage";
 
+    // Compute overall proposed grade: average of proposed evals if provided, else use proposedGrade scalar
+    let computedProposedGrade: number | null = null;
+    if (decision === "accept") {
+      if (proposedEvals && proposedEvals.length > 0) {
+        computedProposedGrade = Math.round(
+          (proposedEvals.reduce((sum, e) => sum + e.proposedGrade, 0) / proposedEvals.length) * 100
+        ) / 100;
+      } else if (proposedGrade !== undefined && proposedGrade !== null) {
+        computedProposedGrade = Number(proposedGrade);
+      }
+    }
+
     await db.update(reclamationsTable).set({
       status: newStatus as any,
       teacherComment: teacherComment.trim(),
-      proposedGrade: decision === "accept" ? Number(proposedGrade) : null,
+      proposedGrade: computedProposedGrade,
+      proposedEvaluations: proposedEvals ?? undefined,
       updatedAt: new Date(),
     }).where(eq(reclamationsTable.id, id));
 
@@ -527,8 +589,12 @@ router.put("/teacher/reclamations/:id", requireRole("teacher"), async (req, res)
       : decision === "reject" ? "teacher_rejected"
       : "teacher_transmitted";
 
-    await appendHistory(id, teacherId, actorName, actionLabel, teacherComment.trim(),
-      undefined, decision === "accept" ? Number(proposedGrade) : undefined);
+    const evalDetail = proposedEvals
+      ? `Modifications proposées : ${proposedEvals.map(e => `Éval ${e.evaluationNumber} → ${e.proposedGrade}/20`).join(", ")}`
+      : teacherComment.trim();
+
+    await appendHistory(id, teacherId, actorName, actionLabel, evalDetail,
+      undefined, computedProposedGrade ?? undefined);
 
     // Respond immediately
     res.json({ ok: true });
@@ -742,6 +808,8 @@ router.get("/admin/reclamations/:id", requireRole("admin"), async (req, res) => 
         semesterId: reclamationsTable.semesterId,
         semesterName: semestersTable.name,
         contestedGrade: reclamationsTable.contestedGrade,
+        contestedEvaluations: reclamationsTable.contestedEvaluations,
+        proposedEvaluations: reclamationsTable.proposedEvaluations,
         type: reclamationsTable.type,
         motif: reclamationsTable.motif,
         attachmentPath: reclamationsTable.attachmentPath,
@@ -844,16 +912,51 @@ router.put("/admin/reclamations/:id", requireRole("admin"), async (req, res) => 
       updatedAt: new Date(),
     }).where(eq(reclamationsTable.id, id));
 
-    // Update actual grade in grades table if note modified
+    // Update actual grades in grades table if note modified
     if (newFinalGrade && (decision === "validate_accept" || decision === "override_reject")) {
-      await db.update(gradesTable).set({
-        value: newFinalGrade,
-        updatedAt: new Date(),
-      }).where(and(
-        eq(gradesTable.studentId, rec.studentId),
-        eq(gradesTable.subjectId, rec.subjectId),
-        eq(gradesTable.semesterId, rec.semesterId),
-      ));
+      const proposedEvals = rec.proposedEvaluations as Array<{ evaluationNumber: number; proposedGrade: number }> | null;
+      if (proposedEvals && proposedEvals.length > 0) {
+        // Apply per-evaluation corrections
+        for (const ev of proposedEvals) {
+          await db.update(gradesTable).set({
+            value: ev.proposedGrade,
+            updatedAt: new Date(),
+          }).where(and(
+            eq(gradesTable.studentId, rec.studentId),
+            eq(gradesTable.subjectId, rec.subjectId),
+            eq(gradesTable.semesterId, rec.semesterId),
+            eq(gradesTable.evaluationNumber, ev.evaluationNumber),
+          ));
+        }
+        // Recalculate final grade as new average of all evaluations
+        const updatedGrades = await db
+          .select({ value: gradesTable.value })
+          .from(gradesTable)
+          .where(and(
+            eq(gradesTable.studentId, rec.studentId),
+            eq(gradesTable.subjectId, rec.subjectId),
+            eq(gradesTable.semesterId, rec.semesterId),
+          ));
+        if (updatedGrades.length > 0) {
+          const newAvg = Math.round(
+            (updatedGrades.reduce((sum, g) => sum + g.value, 0) / updatedGrades.length) * 100
+          ) / 100;
+          // Update the reclamation finalGrade to the new accurate average
+          await db.update(reclamationsTable).set({ finalGrade: newAvg })
+            .where(eq(reclamationsTable.id, id));
+          newFinalGrade = newAvg;
+        }
+      } else {
+        // Fallback: update all eval rows with the proposed grade (legacy behavior)
+        await db.update(gradesTable).set({
+          value: newFinalGrade,
+          updatedAt: new Date(),
+        }).where(and(
+          eq(gradesTable.studentId, rec.studentId),
+          eq(gradesTable.subjectId, rec.subjectId),
+          eq(gradesTable.semesterId, rec.semesterId),
+        ));
+      }
     }
 
     const actorName = await getActorName(adminId);
