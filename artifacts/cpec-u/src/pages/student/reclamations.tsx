@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { AppLayout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -77,6 +77,15 @@ export default function StudentReclamations() {
     setForm({ type: "", motif: "" });
     setFile(null);
   };
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const idParam = params.get("id");
+    if (idParam) {
+      setExpandedId(Number(idParam));
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, []);
 
   // ── Queries ──────────────────────────────────────────────────────────────────
 

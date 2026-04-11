@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AppLayout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -58,6 +58,16 @@ export default function TeacherReclamations() {
   const [teacherComment, setTeacherComment] = useState("");
   const [proposedGrades, setProposedGrades] = useState<Record<number, string>>({});
   const [filterStatus, setFilterStatus] = useState<string>("pending");
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const idParam = params.get("id");
+    if (idParam) {
+      setExpandedId(Number(idParam));
+      setFilterStatus("all");
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, []);
 
   const { data: reclamations = [], isLoading } = useQuery({
     queryKey: ["/api/teacher/reclamations"],

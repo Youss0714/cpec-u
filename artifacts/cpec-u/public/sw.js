@@ -67,13 +67,17 @@ self.addEventListener('push', (event) => {
 
   const iconUrl = self.registration.scope + 'icon-192.png';
 
+  const targetUrl = data.url
+    ? (data.url.startsWith('http') ? data.url : self.registration.scope.replace(/\/$/, '') + data.url)
+    : self.registration.scope;
+
   const options = {
     body: data.body,
     icon: iconUrl,
     badge: iconUrl,
-    tag: data.type ?? 'cpec-notification',
+    tag: data.tag ?? data.type ?? 'cpec-notification',
     renotify: true,
-    data: { type: data.type, url: self.registration.scope },
+    data: { type: data.type, url: targetUrl },
     vibrate: [200, 100, 200],
   };
 
@@ -91,6 +95,7 @@ self.addEventListener('notificationclick', (event) => {
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
       for (const client of windowClients) {
         if (client.url.startsWith(self.registration.scope) && 'focus' in client) {
+          client.navigate(targetUrl);
           return client.focus();
         }
       }

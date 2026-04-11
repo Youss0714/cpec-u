@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AppLayout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -61,6 +61,16 @@ export default function AdminReclamations() {
   const [decision, setDecision] = useState<string>("");
   const [adminComment, setAdminComment] = useState("");
   const [finalGrade, setFinalGrade] = useState("");
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const idParam = params.get("id");
+    if (idParam) {
+      setExpandedId(Number(idParam));
+      setTab("list");
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, []);
 
   // Periods form
   const [showPeriodForm, setShowPeriodForm] = useState(false);

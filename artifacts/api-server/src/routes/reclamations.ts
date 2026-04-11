@@ -16,7 +16,7 @@ import {
   teacherAssignmentsTable,
   notificationsTable,
 } from "@workspace/db";
-import { eq, and, desc, sql, or, inArray, count, avg } from "drizzle-orm";
+import { eq, and, desc, sql, or, inArray, count, avg, lte, gte } from "drizzle-orm";
 import { requireRole } from "../lib/auth.js";
 import { sendPushToUser, sendPushToUsers } from "./push.js";
 
@@ -65,14 +65,14 @@ async function appendHistory(
   });
 }
 
-async function notifyAndPush(userId: number, message: string, type: string, title: string) {
+async function notifyAndPush(userId: number, message: string, type: string, title: string, url?: string, tag?: string) {
   await db.insert(notificationsTable).values({
     userId,
     message,
     type,
     isRead: false,
   });
-  await sendPushToUser(userId, { title, body: message, type });
+  await sendPushToUser(userId, { title, body: message, type, url, tag });
 }
 
 async function generateClaimNumber(): Promise<string> {
@@ -352,24 +352,60 @@ router.post(
           const [subj] = await db.select({ name: subjectsTable.name }).from(subjectsTable)
             .where(eq(subjectsTable.id, Number(subjectId))).limit(1);
           const subjName = subj?.name ?? "Matière inconnue";
+          const recUrl = `/reclamations`;
+          const evalDesc = contestedEvals.map(e => `Éval ${e.evaluationNumber}`).join(", ");
 
+          // Confirm to student
+          await notifyAndPush(
+            studentId,
+            `Votre réclamation sur ${evalDesc} en ${subjName} a été soumise avec succès. Numéro : #${claimNumber}`,
+            "reclamation",
+            "Réclamation soumise",
+            `${recUrl}?id=${inserted.id}`,
+            `rec-${inserted.id}-submitted`,
+          );
+
+          // Notify assigned teacher
           if (assignRow?.teacherId) {
+            // Find response deadline from active period
+            let deadlineInfo = "";
+            try {
+              const [period] = await db.select({
+                closeDate: reclamationPeriodsTable.closeDate,
+                teacherResponseDays: reclamationPeriodsTable.teacherResponseDays,
+              }).from(reclamationPeriodsTable)
+                .where(and(
+                  lte(reclamationPeriodsTable.openDate, new Date()),
+                  gte(reclamationPeriodsTable.closeDate, new Date()),
+                )).limit(1);
+              if (period?.teacherResponseDays) {
+                const deadline = new Date();
+                deadline.setDate(deadline.getDate() + period.teacherResponseDays);
+                deadlineInfo = `. À traiter avant le ${deadline.toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" })}`;
+              }
+            } catch (_) {}
+
             await notifyAndPush(
               assignRow.teacherId,
-              `Nouvelle réclamation de ${actorName} sur ${subjName}`,
+              `Nouvelle réclamation de ${actorName} sur ${evalDesc} — ${subjName}${deadlineInfo}`,
               "reclamation",
               "Réclamation reçue",
+              `/teacher/reclamations?id=${inserted.id}`,
+              `rec-${inserted.id}-teacher-new`,
             );
           }
 
+          // Notify admins
           const admins = await db.select({ id: usersTable.id }).from(usersTable)
             .where(eq(usersTable.role, "admin"));
           for (const admin of admins) {
             await notifyAndPush(
               admin.id,
-              `Une réclamation a été soumise pour ${subjName} par ${actorName}`,
+              `Réclamation soumise par ${actorName} sur ${evalDesc} en ${subjName}`,
               "reclamation",
               "Réclamation soumise",
+              `/admin/reclamations?id=${inserted.id}`,
+              `rec-${inserted.id}-admin-submitted`,
             );
           }
         } catch (notifErr) {
@@ -602,21 +638,44 @@ router.put("/teacher/reclamations/:id", requireRole("teacher"), async (req, res)
     // Notifications in background
     (async () => {
       try {
-        const studentMsg = decision === "accept"
-          ? `Votre réclamation ${rec.claimNumber} a été acceptée par l'enseignant — en attente de validation administrative`
-          : decision === "reject"
-          ? `Votre réclamation ${rec.claimNumber} a été rejetée par l'enseignant`
-          : `Votre réclamation ${rec.claimNumber} a été transmise à l'administration`;
-        await notifyAndPush(rec.studentId, studentMsg, "reclamation", "Réclamation mise à jour");
+        const [subj] = await db.select({ name: subjectsTable.name }).from(subjectsTable)
+          .where(eq(subjectsTable.id, rec.subjectId)).limit(1);
+        const subjName = subj?.name ?? "Matière";
+        const teacherName = await getActorName(teacherId);
+        const recUrl = `/reclamations`;
+
+        let studentMsg: string;
+        let studentTitle: string;
+        if (decision === "accept") {
+          const evalChanges = proposedEvals
+            ? proposedEvals.map(e => `Éval ${e.evaluationNumber} → ${e.proposedGrade}/20`).join(", ")
+            : "";
+          studentMsg = `Bonne nouvelle ! Votre réclamation #${rec.claimNumber} a été acceptée par ${teacherName}. ${evalChanges ? `Nouvelles notes proposées : ${evalChanges}.` : ""} En attente de validation administrative.`;
+          studentTitle = "Réclamation acceptée";
+        } else if (decision === "reject") {
+          studentMsg = `Votre réclamation #${rec.claimNumber} a été rejetée par ${teacherName}. Motif : ${teacherComment.trim().substring(0, 100)}`;
+          studentTitle = "Réclamation rejetée";
+        } else {
+          studentMsg = `Votre réclamation #${rec.claimNumber} a été transmise à l'administration pour arbitrage`;
+          studentTitle = "Réclamation transmise";
+        }
+        const teacherAction = decision === "accept" ? "teacher-accepted" : decision === "reject" ? "teacher-rejected" : "teacher-transmitted";
+        await notifyAndPush(rec.studentId, studentMsg, "reclamation", studentTitle, `${recUrl}?id=${id}`, `rec-${id}-${teacherAction}`);
 
         if (decision !== "reject") {
           const admins = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.role, "admin"));
           for (const admin of admins) {
+            const adminMsg = decision === "accept"
+              ? `${teacherName} a accepté la réclamation #${rec.claimNumber} (${subjName}) — validation requise`
+              : `${teacherName} a transmis la réclamation #${rec.claimNumber} (${subjName}) pour arbitrage`;
+            const adminTag = decision === "accept" ? `rec-${id}-admin-teacher-accepted` : `rec-${id}-admin-transmitted`;
             await notifyAndPush(
               admin.id,
-              `La réclamation ${rec.claimNumber} ${decision === "accept" ? "acceptée par l'enseignant" : "transmise"} — arbitrage requis`,
+              adminMsg,
               "reclamation",
-              "Réclamation en attente d'arbitrage",
+              "Réclamation — arbitrage requis",
+              `/admin/reclamations?id=${id}`,
+              adminTag,
             );
           }
         }
@@ -972,16 +1031,23 @@ router.put("/admin/reclamations/:id", requireRole("admin"), async (req, res) => 
         const [subj] = await db.select({ name: subjectsTable.name }).from(subjectsTable)
           .where(eq(subjectsTable.id, rec.subjectId)).limit(1);
         const subjName = subj?.name ?? "Matière";
+        const recUrl = `/reclamations`;
 
-        let studentMsg = "";
+        let studentMsg: string;
+        let studentTitle: string;
         if (decision === "validate_accept" || decision === "override_reject") {
-          studentMsg = `Décision finale : Réclamation ACCEPTÉE — Votre note en ${subjName} a été mise à jour : ${rec.contestedGrade}/20 → ${newFinalGrade}/20`;
+          studentMsg = `L'administration a validé la modification de votre note en ${subjName} : ${rec.contestedGrade}/20 → ${newFinalGrade}/20. Votre bulletin a été mis à jour.`;
+          studentTitle = "Note modifiée — Bulletin mis à jour";
         } else if (decision === "reject_accept") {
-          studentMsg = `Décision finale : Réclamation REJETÉE — La note en ${subjName} est maintenue à ${rec.contestedGrade}/20`;
+          studentMsg = `L'administration a maintenu la décision. Votre note en ${subjName} reste ${rec.contestedGrade}/20. Motif : ${adminComment.trim().substring(0, 100)}`;
+          studentTitle = "Réclamation rejetée — Décision finale";
         } else {
-          studentMsg = `Votre réclamation ${rec.claimNumber} a été clôturée`;
+          studentMsg = `Votre réclamation #${rec.claimNumber} en ${subjName} a été clôturée par l'administration`;
+          studentTitle = "Réclamation clôturée";
         }
-        await notifyAndPush(rec.studentId, studentMsg, "reclamation", "Décision finale");
+        const adminAction = (decision === "validate_accept" || decision === "override_reject")
+          ? "admin-accepted" : decision === "reject_accept" ? "admin-rejected" : "admin-closed";
+        await notifyAndPush(rec.studentId, studentMsg, "reclamation", studentTitle, `${recUrl}?id=${id}`, `rec-${id}-${adminAction}`);
       } catch (notifErr) {
         console.error("PUT /admin/reclamations/:id notification error (non-blocking):", notifErr);
       }
@@ -1007,6 +1073,24 @@ router.post("/teacher/reclamations/:id/open", requireRole("teacher"), async (req
         .where(eq(reclamationsTable.id, id));
       const actorName = await getActorName(teacherId);
       await appendHistory(id, teacherId, actorName, "teacher_opened", "L'enseignant a ouvert la réclamation");
+
+      // Notify student that teacher is examining their reclamation (non-blocking)
+      (async () => {
+        try {
+          const [fullRec] = await db.select({ studentId: reclamationsTable.studentId, claimNumber: reclamationsTable.claimNumber })
+            .from(reclamationsTable).where(eq(reclamationsTable.id, id)).limit(1);
+          if (fullRec) {
+            await notifyAndPush(
+              fullRec.studentId,
+              `Votre réclamation #${fullRec.claimNumber} est en cours d'examen par ${actorName}`,
+              "reclamation",
+              "Réclamation en cours d'examen",
+              `/reclamations?id=${id}`,
+              `rec-${id}-teacher-opened`,
+            );
+          }
+        } catch (_) {}
+      })();
     }
     res.json({ ok: true });
   } catch (err) {

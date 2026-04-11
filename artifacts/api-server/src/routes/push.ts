@@ -65,7 +65,7 @@ router.delete("/unsubscribe", requireRole("student", "teacher", "admin"), async 
 export default router;
 
 // ─── Helper: send push notification to a specific user ───────────────────────
-export async function sendPushToUser(userId: number, payload: { title: string; body: string; type?: string }) {
+export async function sendPushToUser(userId: number, payload: { title: string; body: string; type?: string; url?: string; tag?: string }) {
   if (!vapidPublicKey || !vapidPrivateKey) return;
   try {
     const subscriptions = await db
@@ -95,6 +95,6 @@ export async function sendPushToUser(userId: number, payload: { title: string; b
 }
 
 // ─── Helper: send push notification to multiple users ────────────────────────
-export async function sendPushToUsers(userIds: number[], payload: { title: string; body: string; type?: string }) {
+export async function sendPushToUsers(userIds: number[], payload: { title: string; body: string; type?: string; url?: string; tag?: string }) {
   await Promise.all(userIds.map(id => sendPushToUser(id, payload)));
 }
