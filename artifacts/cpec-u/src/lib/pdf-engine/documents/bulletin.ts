@@ -87,8 +87,8 @@ export async function downloadBulletinPdf(studentId: number, semesterId: number)
     for (const ue of ues) {
       // UE header row
       const ueAvg = ue.average !== null ? fmt(ue.average) : "—";
-      const ueAcquis = ue.acquis ? "✓" : "✗";
-      pdf.addSectionTitle(`${ue.ueCode} — ${ue.ueName}  (Moy: ${ueAvg}/20 | Crédits: ${ue.credits} | ${ueAcquis})`, 3);
+      const ueAcquis = ue.acquis ? "Acquis" : "Non acquis";
+      pdf.addSectionTitle(`${ue.ueCode} - ${ue.ueName}  (Moy: ${ueAvg}/20 | Credits: ${ue.credits} | ${ueAcquis})`, 3);
 
       pdf.addTable(
         ["Matière", "Coef.", "Note /20"],
@@ -117,7 +117,7 @@ export async function downloadBulletinPdf(studentId: number, semesterId: number)
     { label: "Heures d'absence", value: String(data.absenceDeductionHours) + " h" },
     { label: "Déduction absences", value: fmt(data.absenceDeduction) },
     { label: "Moyenne nette", value: fmt(data.averageNette) + " / 20" },
-    { label: "Classement", value: data.rank && data.totalStudents ? `${data.rank}er / ${data.totalStudents}` : "—" },
+    { label: "Classement", value: data.rank && data.totalStudents ? `${data.rank === 1 ? "1er" : `${data.rank}ème`} / ${data.totalStudents}` : "—" },
     { label: "Décision", value: data.decision },
   ], 3);
 
@@ -125,13 +125,12 @@ export async function downloadBulletinPdf(studentId: number, semesterId: number)
   try {
     const qrDataUrl = await QRCode.toDataURL(data.verifyUrl, { width: 200, margin: 1 });
     pdf.checkPageBreak(32);
-    pdf.addSectionTitle("VÉRIFICATION D'AUTHENTICITÉ", 3);
+    pdf.addSectionTitle("VERIFICATION D'AUTHENTICITE", 3);
     pdf.doc.addImage(qrDataUrl, "PNG", pdf.margin, pdf.y, 24, 24);
-    pdf.doc.setFontSize(7);
-    pdf.doc.setFont("helvetica", "normal");
+    pdf.doc.setFontSize(7.5);
+    pdf.doc.setFont("helvetica", "italic");
     pdf.doc.setTextColor(...BRAND.gray);
-    const lines = pdf.doc.splitTextToSize(data.verifyUrl, pdf.contentW - 30);
-    pdf.doc.text(lines, pdf.margin + 28, pdf.y + 5);
+    pdf.doc.text("Scannez pour verifier l'authenticite de ce bulletin", pdf.margin + 28, pdf.y + 12);
     pdf.y += 28;
   } catch { /* QR optional */ }
 

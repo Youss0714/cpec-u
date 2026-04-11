@@ -343,10 +343,18 @@ export function fmt(v: number | null | undefined, dec = 2): string {
 }
 
 export function fmtDate(d: string | Date | null | undefined): string {
-  if (!d) return "—";
-  return new Date(d).toLocaleDateString("fr-FR", {
-    day: "2-digit", month: "2-digit", year: "numeric",
-  });
+  if (!d) return "---";
+  const s = typeof d === "string" ? d : d.toISOString();
+  if (s.includes("/")) {
+    const parts = s.split("/");
+    if (parts.length === 3) return s;
+  }
+  const parsed = new Date(s);
+  if (isNaN(parsed.getTime())) return s;
+  const dd = String(parsed.getDate()).padStart(2, "0");
+  const mm = String(parsed.getMonth() + 1).padStart(2, "0");
+  const yyyy = parsed.getFullYear();
+  return `${dd}/${mm}/${yyyy}`;
 }
 
 export function getApiBase(): string {
