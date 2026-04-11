@@ -208,7 +208,7 @@ export default function AtRiskPage() {
                       </td>
                       <td className="py-3 px-3 text-center"><RiskBadge level={s.riskLevel} /></td>
                       <td className="py-3 px-3 text-center">
-                        <Link href={`/admin/students/${s.studentId}`}>
+                        <Link href={`/admin/students/${s.studentId}?from=at-risk`}>
                           <Button variant="outline" size="sm" className="h-7 text-xs gap-1">
                             <Eye className="w-3 h-3" />Suivi
                           </Button>

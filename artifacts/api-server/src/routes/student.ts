@@ -20,6 +20,8 @@ import {
   schedulePublicationsTable,
   roomsTable,
   reclamationPeriodsTable,
+  teachingUnitsTable,
+  specialJuryDecisionsTable,
 } from "@workspace/db";
 import { eq, and, sql } from "drizzle-orm";
 import { requireRole } from "../lib/auth.js";
@@ -614,6 +616,72 @@ router.get("/schedule", requireRole("student"), async (req, res) => {
   }
 });
 
+async function computeUeCreditsStudent(studentId: number, semesterId: number, subjectsWithGrades: any[]): Promise<{ earned: number; total: number }> {
+  const juryRow = await db
+    .select({ decision: specialJuryDecisionsTable.decision })
+    .from(specialJuryDecisionsTable)
+    .where(and(eq(specialJuryDecisionsTable.studentId, studentId), eq(specialJuryDecisionsTable.semesterId, semesterId)))
+    .limit(1);
+
+  const ues = await db
+    .select({ id: teachingUnitsTable.id, credits: teachingUnitsTable.credits })
+    .from(teachingUnitsTable)
+    .where(eq(teachingUnitsTable.semesterId, semesterId));
+
+  if (ues.length === 0) {
+    const total = subjectsWithGrades.reduce((t: number, s: any) => t + (s.credits ?? 0), 0);
+    if (juryRow.length > 0 && juryRow[0].decision === "validated") {
+      return { earned: total, total };
+    }
+    const earned = subjectsWithGrades.filter((s: any) => {
+      const g = s.retakeGrade !== null && s.retakeGrade !== undefined ? Math.max(s.grade ?? 0, s.retakeGrade) : s.grade;
+      return g !== null && g >= 10;
+    }).reduce((t: number, s: any) => t + (s.credits ?? 0), 0);
+    return { earned, total };
+  }
+
+  const total = ues.reduce((t, ue) => t + ue.credits, 0);
+
+  if (juryRow.length > 0 && juryRow[0].decision === "validated") {
+    return { earned: total, total };
+  }
+
+  const allSubjects = await db
+    .select({ id: subjectsTable.id, ueId: subjectsTable.ueId, coefficient: subjectsTable.coefficient })
+    .from(subjectsTable)
+    .where(eq(subjectsTable.semesterId, semesterId));
+
+  const gradeBySubject = new Map<number, number | null>();
+  for (const s of subjectsWithGrades) {
+    const g = s.retakeGrade !== null && s.retakeGrade !== undefined ? Math.max(s.grade ?? 0, s.retakeGrade) : s.grade;
+    gradeBySubject.set(s.subjectId, g !== null ? Number(g) : null);
+  }
+
+  let earned = 0;
+  for (const ue of ues) {
+    const ueSubs = allSubjects.filter(s => s.ueId === ue.id);
+    if (ueSubs.length === 0) continue;
+
+    const allGraded = ueSubs.every(s => gradeBySubject.has(s.id) && gradeBySubject.get(s.id) !== null);
+    if (!allGraded) continue;
+
+    const totalCoeff = ueSubs.reduce((t, s) => t + (s.coefficient ?? 1), 0);
+    const weightedSum = ueSubs.reduce((t, s) => t + (gradeBySubject.get(s.id) ?? 0) * (s.coefficient ?? 1), 0);
+    const ueAvg = totalCoeff > 0 ? weightedSum / totalCoeff : 0;
+
+    const hasEliminatoryGrade = ueSubs.some(s => {
+      const g = gradeBySubject.get(s.id);
+      return g !== null && g !== undefined && g <= 6;
+    });
+
+    if (ueAvg >= 10 && !hasEliminatoryGrade) {
+      earned += ue.credits;
+    }
+  }
+
+  return { earned, total };
+}
+
 // ─── GET /student/academic-tracking — Personal academic progression ───────────
 router.get("/academic-tracking", requireRole("student"), async (req, res) => {
   try {
@@ -710,22 +778,23 @@ router.get("/academic-tracking", requireRole("student"), async (req, res) => {
       absencesBySem.get(sid)!.push({ subjectName: r.subject_name, total: Number(r.total), absent: Number(r.absent), justified: Number(r.justified), absenceRate: Number(r.total) > 0 ? Math.round((Number(r.absent) / Number(r.total)) * 1000) / 10 : 0 });
     }
 
-    const semesters = Array.from(semMap.values()).map(sem => {
+    const semestersRaw = await Promise.all(Array.from(semMap.values()).map(async (sem) => {
       const subjects = sem.subjects;
       const totalCoef = subjects.reduce((s: number, g: any) => s + (g.grade !== null ? g.coefficient : 0), 0);
       const weightedSum = subjects.reduce((s: number, g: any) => s + (g.grade !== null ? g.grade * g.coefficient : 0), 0);
       const average = totalCoef > 0 ? Math.round((weightedSum / totalCoef) * 100) / 100 : null;
       const { classAvg, totalStudents } = classAvgMap.get(sem.semesterId) ?? { classAvg: null, totalStudents: 0 };
-      const creditsEarned = subjects.filter((s: any) => s.grade !== null && s.grade >= 10).reduce((t: number, s: any) => t + s.credits, 0);
-      const creditsTotal  = subjects.filter((s: any) => s.grade !== null).reduce((t: number, s: any) => t + s.credits, 0);
+      const subjectsWithRetake = subjects.map((s: any) => ({ ...s, retakeGrade: retakeMap.get(`${sem.semesterId}_${s.subjectName}`) ?? null }));
+      const ueCredits = await computeUeCreditsStudent(studentId, sem.semesterId, subjectsWithRetake);
       return {
         ...sem,
         average, classAverage: classAvg, totalStudents, rank: rankMap.get(sem.semesterId) ?? null,
-        creditsEarned, creditsTotal,
+        creditsEarned: ueCredits.earned, creditsTotal: ueCredits.total,
         absences: absencesBySem.get(sem.semesterId) ?? [],
-        subjects: subjects.map((s: any) => ({ ...s, retakeGrade: retakeMap.get(`${sem.semesterId}_${s.subjectName}`) ?? null })),
+        subjects: subjectsWithRetake,
       };
-    }).sort((a, b) => a.academicYear < b.academicYear ? -1 : a.academicYear > b.academicYear ? 1 : a.semesterName < b.semesterName ? -1 : 1);
+    }));
+    const semesters = semestersRaw.sort((a, b) => a.academicYear < b.academicYear ? -1 : a.academicYear > b.academicYear ? 1 : a.semesterName < b.semesterName ? -1 : 1);
 
     const totalCreditsEarned = semesters.reduce((t, s) => t + (s.creditsEarned ?? 0), 0);
     const totalCreditsAttempted = semesters.reduce((t, s) => t + (s.creditsTotal ?? 0), 0);

@@ -3782,6 +3782,72 @@ router.delete("/parents/:id", requireRole("admin"), async (req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ error: "Internal Server Error" }); }
 });
 
+async function computeUeCredits(studentId: number, semesterId: number, subjectsWithGrades: any[]): Promise<{ earned: number; total: number }> {
+  const juryRow = await db
+    .select({ decision: specialJuryDecisionsTable.decision })
+    .from(specialJuryDecisionsTable)
+    .where(and(eq(specialJuryDecisionsTable.studentId, studentId), eq(specialJuryDecisionsTable.semesterId, semesterId)))
+    .limit(1);
+
+  const ues = await db
+    .select({ id: teachingUnitsTable.id, credits: teachingUnitsTable.credits })
+    .from(teachingUnitsTable)
+    .where(eq(teachingUnitsTable.semesterId, semesterId));
+
+  if (ues.length === 0) {
+    const total = subjectsWithGrades.reduce((t: number, s: any) => t + (s.credits ?? 0), 0);
+    if (juryRow.length > 0 && juryRow[0].decision === "validated") {
+      return { earned: total, total };
+    }
+    const earned = subjectsWithGrades.filter((s: any) => {
+      const g = s.retakeGrade !== null && s.retakeGrade !== undefined ? Math.max(s.grade ?? 0, s.retakeGrade) : s.grade;
+      return g !== null && g >= 10;
+    }).reduce((t: number, s: any) => t + (s.credits ?? 0), 0);
+    return { earned, total };
+  }
+
+  const total = ues.reduce((t, ue) => t + ue.credits, 0);
+
+  if (juryRow.length > 0 && juryRow[0].decision === "validated") {
+    return { earned: total, total };
+  }
+
+  const allSubjects = await db
+    .select({ id: subjectsTable.id, ueId: subjectsTable.ueId, coefficient: subjectsTable.coefficient })
+    .from(subjectsTable)
+    .where(eq(subjectsTable.semesterId, semesterId));
+
+  const gradeBySubject = new Map<number, number | null>();
+  for (const s of subjectsWithGrades) {
+    const g = s.retakeGrade !== null && s.retakeGrade !== undefined ? Math.max(s.grade ?? 0, s.retakeGrade) : s.grade;
+    gradeBySubject.set(s.subjectId, g !== null ? Number(g) : null);
+  }
+
+  let earned = 0;
+  for (const ue of ues) {
+    const ueSubs = allSubjects.filter(s => s.ueId === ue.id);
+    if (ueSubs.length === 0) continue;
+
+    const allGraded = ueSubs.every(s => gradeBySubject.has(s.id) && gradeBySubject.get(s.id) !== null);
+    if (!allGraded) continue;
+
+    const totalCoeff = ueSubs.reduce((t, s) => t + (s.coefficient ?? 1), 0);
+    const weightedSum = ueSubs.reduce((t, s) => t + (gradeBySubject.get(s.id) ?? 0) * (s.coefficient ?? 1), 0);
+    const ueAvg = totalCoeff > 0 ? weightedSum / totalCoeff : 0;
+
+    const hasEliminatoryGrade = ueSubs.some(s => {
+      const g = gradeBySubject.get(s.id);
+      return g !== null && g !== undefined && g <= 6;
+    });
+
+    if (ueAvg >= 10 && !hasEliminatoryGrade) {
+      earned += ue.credits;
+    }
+  }
+
+  return { earned, total };
+}
+
 // ─── GET /admin/students/:id/academic-tracking ────────────────────────────────
 router.get("/students/:id/academic-tracking", requireRole("admin"), async (req, res) => {
   try {
@@ -3894,21 +3960,19 @@ router.get("/students/:id/academic-tracking", requireRole("admin"), async (req, 
     const retakeMap  = new Map<string, number>();
     for (const r of retakeRows) { retakeMap.set(`${r.semester_id}_${r.subject_name}`, Number(r.retake_grade)); }
 
-    const semesters = Array.from(semMap.values()).map(sem => {
+    const semestersRaw = await Promise.all(Array.from(semMap.values()).map(async (sem) => {
       const subjects = sem.subjects;
       const totalCoef = subjects.reduce((s: number, g: any) => s + (g.grade !== null ? g.coefficient : 0), 0);
       const weightedSum = subjects.reduce((s: number, g: any) => s + (g.grade !== null ? g.grade * g.coefficient : 0), 0);
       const average = totalCoef > 0 ? Math.round((weightedSum / totalCoef) * 100) / 100 : null;
       const { classAvg, totalStudents } = classAvgMap.get(sem.semesterId) ?? { classAvg: null, totalStudents: 0 };
 
-      // Subjects with retakes
       const subjectsWithRetake = subjects.map((s: any) => ({
         ...s,
         retakeGrade: retakeMap.get(`${sem.semesterId}_${s.subjectName}`) ?? null,
       }));
 
-      const creditsEarned = subjects.filter((s: any) => s.grade !== null && s.grade >= 10).reduce((t: number, s: any) => t + s.credits, 0);
-      const creditsTotal  = subjects.filter((s: any) => s.grade !== null).reduce((t: number, s: any) => t + s.credits, 0);
+      const ueCredits = await computeUeCredits(studentId, sem.semesterId, subjectsWithRetake);
 
       return {
         ...sem,
@@ -3916,11 +3980,12 @@ router.get("/students/:id/academic-tracking", requireRole("admin"), async (req, 
         classAverage: classAvg,
         totalStudents,
         rank: rankMap.get(sem.semesterId) ?? null,
-        creditsEarned,
-        creditsTotal,
+        creditsEarned: ueCredits.earned,
+        creditsTotal: ueCredits.total,
         subjects: subjectsWithRetake,
       };
-    }).sort((a, b) => a.academicYear < b.academicYear ? -1 : a.academicYear > b.academicYear ? 1 : a.semesterName < b.semesterName ? -1 : 1);
+    }));
+    const semesters = semestersRaw.sort((a, b) => a.academicYear < b.academicYear ? -1 : a.academicYear > b.academicYear ? 1 : a.semesterName < b.semesterName ? -1 : 1);
 
     // Absences grouped by semester
     const absencesBySem = new Map<number, any[]>();

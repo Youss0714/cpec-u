@@ -309,7 +309,7 @@ export default function AdminCards() {
                               size="sm"
                               variant="ghost"
                               className="h-7 px-2 text-muted-foreground"
-                              onClick={() => navigate(`/admin/students/${entry.studentId}`)}
+                              onClick={() => navigate(`/admin/students/${entry.studentId}?from=cards`)}
                             >
                               <ExternalLink className="w-3.5 h-3.5" />
                             </Button>

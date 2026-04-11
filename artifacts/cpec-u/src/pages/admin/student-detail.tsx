@@ -229,7 +229,7 @@ function AdminStudentSuiviTab({ studentId }: { studentId: number }) {
         </Card>
         <Card className="p-3 text-center">
           <p className="text-xs text-muted-foreground">Crédits validés</p>
-          <p className="text-xl font-extrabold">{indicators.creditsEarned ?? "—"}</p>
+          <p className="text-xl font-extrabold">{indicators.creditsEarned != null && indicators.creditsAttempted != null ? `${indicators.creditsEarned}/${indicators.creditsAttempted}` : "—"}</p>
         </Card>
         <Card className="p-3 text-center">
           <p className="text-xs text-muted-foreground">Rang</p>
@@ -410,7 +410,7 @@ export default function AdminStudentDetail() {
                 : "Une erreur est survenue lors du chargement de la fiche. Vérifiez votre connexion et réessayez."}
             </p>
           </div>
-          <Button variant="outline" onClick={() => navigate("/admin/users")}>
+          <Button variant="outline" onClick={() => { const from = new URLSearchParams(window.location.search).get("from"); navigate(from === "at-risk" ? "/admin/at-risk" : from === "cards" ? "/admin/cards" : "/admin/users"); }}>
             <ArrowLeft className="w-4 h-4 mr-2" /> Retour à la liste
           </Button>
         </div>
@@ -430,7 +430,7 @@ export default function AdminStudentDetail() {
       <div className="space-y-6 max-w-5xl mx-auto">
 
         {/* Back button */}
-        <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground hover:text-foreground -ml-1" onClick={() => navigate("/admin/users")}>
+        <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground hover:text-foreground -ml-1" onClick={() => { const from = new URLSearchParams(window.location.search).get("from"); navigate(from === "at-risk" ? "/admin/at-risk" : from === "cards" ? "/admin/cards" : "/admin/users"); }}>
           <ArrowLeft className="w-4 h-4" /> Retour à la liste
         </Button>
 
