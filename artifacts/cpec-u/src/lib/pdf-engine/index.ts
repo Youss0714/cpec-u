@@ -289,8 +289,10 @@ export class CpecPdfDoc {
 
   addSignatureBlock(
     entries: Array<{ title: string; name: string }>,
+    lineOffset = 16,
   ): void {
-    this.checkPageBreak(25);
+    const totalH = lineOffset + 14;
+    this.checkPageBreak(totalH);
     const { doc, margin, contentW } = this;
     const colW = contentW / entries.length;
     const baseY = this.y + 5;
@@ -304,14 +306,14 @@ export class CpecPdfDoc {
 
       doc.setDrawColor(...BRAND.gray);
       doc.setLineWidth(0.3);
-      doc.line(x + 5, baseY + 16, x + colW - 5, baseY + 16);
+      doc.line(x + 5, baseY + lineOffset, x + colW - 5, baseY + lineOffset);
 
       doc.setFontSize(7.5);
       doc.setFont("helvetica", "normal");
       doc.setTextColor(...BRAND.gray);
-      doc.text(entries[i].name, x + colW / 2, baseY + 20, { align: "center" });
+      doc.text(entries[i].name, x + colW / 2, baseY + lineOffset + 4, { align: "center" });
     }
-    this.y += 30;
+    this.y += totalH;
   }
 
   addDivider(): void {
@@ -334,6 +336,78 @@ export class CpecPdfDoc {
       this.addFooter();
     }
     this.doc.save(filename);
+  }
+
+  finalizeWithQrFooter(filename: string, qrDataUrl: string | null): void {
+    const totalPages = this.doc.getNumberOfPages();
+    for (let i = 1; i <= totalPages; i++) {
+      this.doc.setPage(i);
+      this.pageCount = i;
+      this.addFooterWithQr(qrDataUrl, i === totalPages);
+    }
+    this.doc.save(filename);
+  }
+
+  private addFooterWithQr(qrDataUrl: string | null, isLastPage: boolean): void {
+    const { doc, margin, pageW, pageH, contentW } = this;
+    const qrSize = 16;
+    const footerH = qrDataUrl && isLastPage ? 24 : 10;
+    const footerTop = pageH - footerH - 2;
+
+    doc.setDrawColor(...BRAND.navyMid);
+    doc.setLineWidth(0.3);
+    doc.line(margin, footerTop, pageW - margin, footerTop);
+
+    if (qrDataUrl && isLastPage) {
+      try {
+        doc.addImage(qrDataUrl, "PNG", margin, footerTop + 2, qrSize, qrSize);
+      } catch { /* ignore */ }
+
+      doc.setFontSize(7);
+      doc.setFont("helvetica", "italic");
+      doc.setTextColor(...BRAND.gray);
+      doc.text("Scannez pour verifier", margin + qrSize + 3, footerTop + 7);
+      doc.text("l'authenticite de ce bulletin", margin + qrSize + 3, footerTop + 11);
+
+      const infoY = footerTop + qrSize + 4;
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(6.5);
+
+      const now = new Date().toLocaleDateString("fr-FR", {
+        day: "2-digit", month: "2-digit", year: "numeric",
+      });
+      doc.text(`Document genere le ${now}`, margin, infoY);
+
+      if (this.opts.reference) {
+        const refText = `Ref: ${this.opts.reference}`;
+        const refW = doc.getTextWidth(refText);
+        doc.text(refText, (pageW - refW) / 2, infoY);
+      }
+
+      const pageLabel = `Page ${this.pageCount}`;
+      const pw = doc.getTextWidth(pageLabel);
+      doc.text(pageLabel, pageW - margin - pw, infoY);
+    } else {
+      const infoY = footerTop + 6;
+      doc.setFontSize(7);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(...BRAND.gray);
+
+      const now = new Date().toLocaleDateString("fr-FR", {
+        day: "2-digit", month: "2-digit", year: "numeric",
+      });
+      doc.text(`Document genere le ${now}`, margin, infoY);
+
+      if (this.opts.reference) {
+        const refText = `Ref: ${this.opts.reference}`;
+        const refW = doc.getTextWidth(refText);
+        doc.text(refText, (pageW - refW) / 2, infoY);
+      }
+
+      const pageLabel = `Page ${this.pageCount}`;
+      const pw = doc.getTextWidth(pageLabel);
+      doc.text(pageLabel, pageW - margin - pw, infoY);
+    }
   }
 }
 

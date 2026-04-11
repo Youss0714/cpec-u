@@ -121,26 +121,22 @@ export async function downloadBulletinPdf(studentId: number, semesterId: number)
     { label: "Décision", value: data.decision },
   ], 3);
 
-  // QR Code
-  try {
-    const qrDataUrl = await QRCode.toDataURL(data.verifyUrl, { width: 200, margin: 1 });
-    pdf.checkPageBreak(32);
-    pdf.addSectionTitle("VERIFICATION D'AUTHENTICITE", 3);
-    pdf.doc.addImage(qrDataUrl, "PNG", pdf.margin, pdf.y, 24, 24);
-    pdf.doc.setFontSize(7.5);
-    pdf.doc.setFont("helvetica", "italic");
-    pdf.doc.setTextColor(...BRAND.gray);
-    pdf.doc.text("Scannez pour verifier l'authenticite de ce bulletin", pdf.margin + 28, pdf.y + 12);
-    pdf.y += 28;
-  } catch { /* QR optional */ }
-
   // Signature
   pdf.addVSpace(6);
   pdf.addSignatureBlock([
     { title: "Le Directeur", name: "CPEC-U" },
-    { title: "Cachet de l'établissement", name: "" },
-    { title: "L'étudiant(e)", name: data.studentName },
-  ]);
+    { title: "Cachet de l'etablissement", name: "" },
+    { title: "L'etudiant(e)", name: data.studentName },
+  ], 35);
 
-  pdf.finalizeAndSave(`bulletin_${data.studentMatricule}_${data.semesterName.replace(/\s+/g, "_")}.pdf`);
+  // QR Code for footer
+  let qrDataUrl: string | null = null;
+  try {
+    qrDataUrl = await QRCode.toDataURL(data.verifyUrl, { width: 300, margin: 1 });
+  } catch { /* QR optional */ }
+
+  pdf.finalizeWithQrFooter(
+    `bulletin_${data.studentMatricule}_${data.semesterName.replace(/\s+/g, "_")}.pdf`,
+    qrDataUrl,
+  );
 }
