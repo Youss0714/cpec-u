@@ -38,7 +38,7 @@ import {
   bulletinVerificationLogsTable,
   parentStudentLinksTable,
 } from "@workspace/db";
-import { eq, and, sql, count, inArray, desc, ne, isNotNull, isNull, asc, ilike, or } from "drizzle-orm";
+import { eq, and, sql, count, inArray, desc, ne, isNotNull, isNull, asc, ilike, or, lte, gte } from "drizzle-orm";
 import { requireRole } from "../lib/auth.js";
 
 const router = Router();
@@ -697,8 +697,25 @@ router.delete("/teaching-units/:id", requireRole("admin"), async (req, res) => {
 // ─── Semesters ────────────────────────────────────────────────────────────────
 router.get("/semesters", requireRole("admin", "teacher", "student"), async (req, res) => {
   try {
-    const semesters = await db.select().from(semestersTable).orderBy(semestersTable.createdAt);
-    res.json(semesters);
+    const rows = await db
+      .select({
+        id: semestersTable.id,
+        name: semestersTable.name,
+        academicYear: semestersTable.academicYear,
+        published: semestersTable.published,
+        startDate: semestersTable.startDate,
+        endDate: semestersTable.endDate,
+        classId: semestersTable.classId,
+        semesterNumber: semestersTable.semesterNumber,
+        niveauLmd: semestersTable.niveauLmd,
+        createdAt: semestersTable.createdAt,
+        className: classesTable.name,
+        classFiliere: classesTable.filiere,
+      })
+      .from(semestersTable)
+      .leftJoin(classesTable, eq(semestersTable.classId, classesTable.id))
+      .orderBy(semestersTable.createdAt);
+    res.json(rows);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Internal Server Error" });
@@ -707,9 +724,67 @@ router.get("/semesters", requireRole("admin", "teacher", "student"), async (req,
 
 router.post("/semesters", requireRole("admin"), async (req, res) => {
   try {
-    const { name, academicYear, startDate, endDate } = req.body;
+    const { name, academicYear, startDate, endDate, classId, semesterNumber, niveauLmd } = req.body;
     if (!name || !academicYear) { res.status(400).json({ error: "Bad Request", message: "Name and academicYear are required" }); return; }
-    const [sem] = await db.insert(semestersTable).values({ name, academicYear, startDate: startDate ?? null, endDate: endDate ?? null }).returning();
+
+    if (classId && semesterNumber) {
+      const existing = await db
+        .select({ id: semestersTable.id })
+        .from(semestersTable)
+        .where(
+          and(
+            eq(semestersTable.classId, classId),
+            eq(semestersTable.academicYear, academicYear),
+            eq(semestersTable.semesterNumber, semesterNumber)
+          )
+        );
+      if (existing.length > 0) {
+        res.status(409).json({ error: `Cette classe possède déjà un semestre n°${semesterNumber} pour l'année ${academicYear}.` });
+        return;
+      }
+
+      const countForClass = await db
+        .select({ id: semestersTable.id })
+        .from(semestersTable)
+        .where(
+          and(
+            eq(semestersTable.classId, classId),
+            eq(semestersTable.academicYear, academicYear)
+          )
+        );
+      if (countForClass.length >= 2) {
+        res.status(409).json({ error: "Cette classe possède déjà 2 semestres pour cette année académique." });
+        return;
+      }
+
+      if (startDate && endDate) {
+        const overlap = await db
+          .select({ id: semestersTable.id, name: semestersTable.name })
+          .from(semestersTable)
+          .where(
+            and(
+              eq(semestersTable.classId, classId),
+              eq(semestersTable.academicYear, academicYear),
+              lte(semestersTable.startDate, endDate),
+              gte(semestersTable.endDate, startDate)
+            )
+          );
+        if (overlap.length > 0) {
+          res.status(409).json({ error: `Les dates chevauchent le semestre "${overlap[0].name}".` });
+          return;
+        }
+      }
+    }
+
+    const [sem] = await db.insert(semestersTable).values({
+      name,
+      academicYear,
+      startDate: startDate ?? null,
+      endDate: endDate ?? null,
+      classId: classId ?? null,
+      semesterNumber: semesterNumber ?? null,
+      niveauLmd: niveauLmd ?? null,
+    }).returning();
     res.status(201).json(sem);
   } catch (err) {
     console.error(err);
@@ -720,8 +795,69 @@ router.post("/semesters", requireRole("admin"), async (req, res) => {
 router.put("/semesters/:id", requireRole("admin"), async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    const { name, academicYear, startDate, endDate } = req.body;
-    const [sem] = await db.update(semestersTable).set({ name, academicYear, startDate, endDate }).where(eq(semestersTable.id, id)).returning();
+    const { name, academicYear, startDate, endDate, classId, semesterNumber, niveauLmd } = req.body;
+
+    if (classId && semesterNumber && academicYear) {
+      const existing = await db
+        .select({ id: semestersTable.id })
+        .from(semestersTable)
+        .where(
+          and(
+            eq(semestersTable.classId, classId),
+            eq(semestersTable.academicYear, academicYear),
+            eq(semestersTable.semesterNumber, semesterNumber),
+            ne(semestersTable.id, id)
+          )
+        );
+      if (existing.length > 0) {
+        res.status(409).json({ error: `Cette classe possède déjà un semestre n°${semesterNumber} pour l'année ${academicYear}.` });
+        return;
+      }
+
+      const countForClass = await db
+        .select({ id: semestersTable.id })
+        .from(semestersTable)
+        .where(
+          and(
+            eq(semestersTable.classId, classId),
+            eq(semestersTable.academicYear, academicYear),
+            ne(semestersTable.id, id)
+          )
+        );
+      if (countForClass.length >= 2) {
+        res.status(409).json({ error: "Cette classe possède déjà 2 semestres pour cette année académique." });
+        return;
+      }
+
+      if (startDate && endDate) {
+        const overlap = await db
+          .select({ id: semestersTable.id, name: semestersTable.name })
+          .from(semestersTable)
+          .where(
+            and(
+              eq(semestersTable.classId, classId),
+              eq(semestersTable.academicYear, academicYear),
+              ne(semestersTable.id, id),
+              lte(semestersTable.startDate, endDate),
+              gte(semestersTable.endDate, startDate)
+            )
+          );
+        if (overlap.length > 0) {
+          res.status(409).json({ error: `Les dates chevauchent le semestre "${overlap[0].name}".` });
+          return;
+        }
+      }
+    }
+
+    const [sem] = await db.update(semestersTable).set({
+      name,
+      academicYear,
+      startDate,
+      endDate,
+      classId: classId ?? null,
+      semesterNumber: semesterNumber ?? null,
+      niveauLmd: niveauLmd ?? null,
+    }).where(eq(semestersTable.id, id)).returning();
     if (!sem) { res.status(404).json({ error: "Not Found" }); return; }
     res.json(sem);
   } catch (err) {
@@ -1239,6 +1375,9 @@ router.post("/annual-promotion/initialize-year", requireRole("admin"), async (re
           name: s.name.replace(fromAcademicYear, toAcademicYear),
           academicYear: toAcademicYear,
           published: false,
+          classId: s.classId,
+          semesterNumber: s.semesterNumber,
+          niveauLmd: s.niveauLmd,
         }))
       )
       .returning();

@@ -30,7 +30,7 @@ The project utilizes a monorepo structure managed by pnpm workspaces:
 
 ### Key Features and Technical Implementations
 - **Multi-role System**: Supports Admin (Directeur, Scolarité, Planificateur), Teacher, and Student roles with distinct portals and permissions.
-- **Academic Management**: Manages classes, subjects, teaching units, semesters, and annual promotions.
+- **Academic Management**: Manages classes, subjects, teaching units, semesters (linked to classes via LMD referential), and annual promotions. Semesters are now tied to specific classes with `classId`, `semesterNumber` (1 or 2), and `niveauLmd` (L1-M2). A unique constraint `(classId, academicYear, semesterNumber)` enforces max 2 semesters per class per year. The admin semesters page groups semesters by class, showing paired semester slots with progress and annual average calculability indicators.
 - **Grade Management**: Includes teacher grade entry, approval workflows, and retake session management. Each generated grade report (bulletin) embeds a unique QR code for verification.
 - **Scheduling & Attendance**: Features timetable management with conflict detection, bulk schedule generation (`Programmation par période`), and attendance tracking with justification workflows. Role-based secure filtering for schedules is implemented for admins, teachers, and students.
 - **Communication**: Integrated messaging with file attachments and Web Push notifications (VAPID).
