@@ -61,7 +61,7 @@ async function buildCardHtml(card: CardPdfData): Promise<{ recto: string; verso:
           </div>
           <div>
             <div style="color:white;font-weight:800;font-size:12px;letter-spacing:0.5px;">CPEC-U</div>
-            <div style="color:rgba(212,175,55,0.85);font-size:7.5px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;">INP-HB BOUAKÉ</div>
+            <div style="color:rgba(212,175,55,0.85);font-size:7.5px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;">INP-HB</div>
           </div>
         </div>
         <div style="border:1px solid rgba(212,175,55,0.5);color:rgba(212,175,55,0.9);font-size:7px;font-weight:800;padding:3px 7px;border-radius:3px;letter-spacing:1.5px;">CARTE ÉTUDIANTE</div>

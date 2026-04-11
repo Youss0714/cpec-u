@@ -379,7 +379,7 @@ export default function StudentCard() {
                     </div>
                     <div>
                       <div className="text-white font-bold text-sm tracking-wide">CPEC-Digital</div>
-                      <div className="text-yellow-300/90 text-[9px] font-semibold tracking-wider">INP-HB BOUAKÉ</div>
+                      <div className="text-yellow-300/90 text-[9px] font-semibold tracking-wider">INP-HB</div>
                     </div>
                   </div>
                   <div className="border border-yellow-400/50 text-yellow-300/90 text-[9px] font-bold px-2 py-0.5 rounded tracking-widest">

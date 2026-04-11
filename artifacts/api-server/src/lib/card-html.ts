@@ -440,7 +440,7 @@ export async function generateCardHtml(card: CardData): Promise<string> {
           : `<div class="school-logo-placeholder">C</div>`}
         <div>
           <div class="school-name">CPEC-Digital</div>
-          <div class="school-sub">INP-HB BOUAKÉ</div>
+          <div class="school-sub">INP-HB</div>
         </div>
       </div>
       <div class="card-type-badge">Carte Étudiante</div>
@@ -554,7 +554,7 @@ export async function generateBulkCardsHtml(cards: CardData[]): Promise<string> 
               ${logo ? `<img src="${logo}" alt="Logo" class="school-logo" />` : `<div class="school-logo-placeholder">C</div>`}
               <div>
                 <div class="school-name">CPEC-Digital</div>
-                <div class="school-sub">INP-HB BOUAKÉ</div>
+                <div class="school-sub">INP-HB</div>
               </div>
             </div>
             <div class="card-type-badge">Carte Étudiante</div>

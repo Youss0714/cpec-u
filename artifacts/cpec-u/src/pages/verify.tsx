@@ -150,7 +150,7 @@ export default function VerifyCard() {
               {/* Footer note */}
               <div className="border-t border-white/10 pt-4">
                 <p className="text-white/30 text-[10px] text-center leading-relaxed">
-                  Vérification officielle CPEC-Digital — INP-HB Bouaké<br />
+                  Vérification officielle CPEC-Digital — INP-HB<br />
                   Cette page confirme l'authenticité de la carte étudiante.
                 </p>
               </div>
@@ -171,7 +171,7 @@ export default function VerifyCard() {
 
       {/* Bottom branding */}
       <p className="text-white/20 text-xs mt-8 text-center">
-        © CPEC-Digital — Système de gestion académique INP-HB Bouaké
+        © CPEC-Digital — Système de gestion académique INP-HB
       </p>
     </div>
   );

@@ -71,7 +71,7 @@ export async function downloadAttestationPdf(studentId: number): Promise<void> {
   const filiere = data.filiere ?? "—";
 
   pdf.addText(
-    `est régulièrement inscrit(e) à l'établissement CPEC-U (INP-HB Bouaké) pour l'année académique ${year} en classe de ${className}, filière ${filiere}.`,
+    `est régulièrement inscrit(e) à l'établissement CPEC-U (INP-HB) pour l'année académique ${year} en classe de ${className}, filière ${filiere}.`,
     { size: 10 }
   );
   pdf.addVSpace(3);
