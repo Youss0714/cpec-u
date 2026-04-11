@@ -1560,13 +1560,9 @@ async function computeStudentResult(studentId: number, semesterId: number) {
     average = Math.max(0, Math.round((average - absenceDeduction) * 100) / 100);
   }
 
-  // LMD rule: semester validated = all 30 credits acquired (all UEs acquis)
+  // Decision: semester average >= 12 required for validation
   if (average !== null) {
-    if (ues.length > 0) {
-      decision = (creditsValidated === totalCredits && totalCredits > 0) ? "Admis" : "Ajourné";
-    } else {
-      decision = average >= 10 ? "Admis" : "Ajourné";
-    }
+    decision = average >= 12 ? "Admis" : "Ajourné";
   } else {
     decision = "En attente";
   }
@@ -1582,7 +1578,7 @@ async function computeStudentResult(studentId: number, semesterId: number) {
       acquis: false,
       eliminatorySubjectName: u.eliminatorySubjectName ?? null,
     }));
-  const averageFailed = decision === "Ajourné" && average !== null && (ues.length > 0 ? creditsValidated < totalCredits : average < 10);
+  const averageFailed = decision === "Ajourné" && average !== null && average < 12;
 
   // ── Jury Spécial override: if a closed jury has validated this student for this semester ──
   let juryOverride: { newAverage: number; decision: string; justification: string } | null = null;
